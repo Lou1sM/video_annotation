@@ -96,7 +96,6 @@ def train(args, input_tensor, target_tensor, target_number, encoder, decoder, re
     teacher_forcing_ratio = args.teacher_forcing_ratio
 
     encoder_hidden = encoder.initHidden()
-
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
     regressor_optimizer.zero_grad()
@@ -105,7 +104,7 @@ def train(args, input_tensor, target_tensor, target_number, encoder, decoder, re
     target_length = target_tensor.size(0)
 
     encoder_outputs = torch.zeros(args.num_frames, encoder.hidden_size, device=encoder.device)
-
+    
     dec_loss = 0
     reg_loss = 0
 
@@ -115,8 +114,12 @@ def train(args, input_tensor, target_tensor, target_number, encoder, decoder, re
         encoder_outputs[ei] = encoder_output[0, 0]
 
     #decoder_input = torch.tensor([[SOS_token]], device=device)
-    decoder_input = torch.zeros(args.ind_size, device=decoder.device)
+    decoder_input = torch.zeros(args.ind_size, device=decoder.device).cuda()
     decoder_hidden = encoder_hidden
+
+    if torch.cuda.is_available():
+        encoder_hidden = encoder_hidden.cuda()
+        encoder_outputs = encoder_outputs.cuda()
 
 
     regressor_output = regressor(encoder_outputs)
@@ -144,7 +147,7 @@ def train(args, input_tensor, target_tensor, target_number, encoder, decoder, re
             d_o = decoder_output
             decoder_input = d_o.detach()  # detach from history as input
 
-            loss += criterion(decoder_output, target_tensor[di])
+            dec_loss += dec_criterion(decoder_output, target_tensor[di])
             
 
     loss = dec_loss + args.lmbda * reg_loss
@@ -196,6 +199,10 @@ def trainIters(args, encoder, decoder, regressor, print_every=1000, plot_every=1
         target_tensor = training_triplet[1]
         target_number = training_triplet[2]
 
+        if torch.cuda.is_available():
+            input_tensor = input_tensor.cuda()
+            target_tensor = target_tensor.cuda()
+            target_number = target_number.cuda()
         loss = train(args, input_tensor, target_tensor, target_number, encoder,
                      decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion)
 
