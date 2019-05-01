@@ -84,12 +84,17 @@ def load_arguments():
     argparser.add_argument("--max_length",
             type = int,
             default = 10,
-            help = "Maximum number of individuals for video"
+            help = "maximum number of individuals for video"
         )
     argparser.add_argument("--teacher_forcing_ratio",
             type = float,
             default = 0.5,
-            help = "Teacher forcing ratio"
+            help = "teacher forcing ratio"
+        )
+    argparser.add_argument("--lmbda",
+            type = float,
+            default = 0.1,
+            help = "scalar multiplying the regression loss"
         )
 
     args = argparser.parse_args()
