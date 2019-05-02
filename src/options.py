@@ -66,11 +66,6 @@ def load_arguments():
             default = 256,
             help = "height of a single frame"
         )
-    argparser.add_argument("--enc_size",
-            type = int,
-            default = 256,
-            help = "encoder hidden size"
-        )
     argparser.add_argument("--dec_size",
             type = int,
             default = 256,
@@ -78,7 +73,7 @@ def load_arguments():
         )
     argparser.add_argument("--ind_size",
             type = int,
-            default = 256,
+            default = 300,
             help = "size of the individuals embeddings"
         )
     argparser.add_argument("--max_length",
@@ -96,6 +91,18 @@ def load_arguments():
             default = 0.1,
             help = "scalar multiplying the regression loss"
         )
+    argparser.add_argument("--batch_size",
+            type = int,
+            default = 1,
+            help = "number of training examples in each batch"
+        )
+    argparser.add_argument("--h5_file_path",
+            type = str,
+            default = 'single_vid.h5',
+            help = "file to read the data from"
+        )
+
+
 
     args = argparser.parse_args()
     return args

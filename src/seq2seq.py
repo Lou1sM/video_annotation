@@ -15,16 +15,16 @@ from torchvision import datasets, models, transforms
 class EncoderRNN(nn.Module):
     def __init__(self, args, device):
         super(EncoderRNN, self).__init__()
-        self.hidden_size = args.enc_size
+        self.hidden_size = args.ind_size
         self.device = device
                 
         #Use VGG, NOTE: param.requires_grad are set to True by default
         self.vgg = models.vgg19(pretrained=True)
         num_ftrs = self.vgg.classifier[6].in_features
         #Changes the size of VGG output to the GRU size
-        self.vgg.classifier[6] = nn.Linear(num_ftrs, args.enc_size)
+        self.vgg.classifier[6] = nn.Linear(num_ftrs, args.ind_size)
 
-        self.gru = nn.GRU(args.enc_size, args.enc_size)
+        self.gru = nn.GRU(self.hidden_size, self.hidden_size)
 
     def forward(self, input, hidden):
         embedded = self.vgg(input).view(1, 1, -1)
@@ -171,7 +171,7 @@ def tensorsFromTriplets(triplets, args):
 	return (torch.rand(args.num_frames, 1, 3, 224, 224), torch.rand(args.max_length, args.ind_size), torch.rand(1))
 
 
-def trainIters(args, encoder, decoder, regressor, print_every=1000, plot_every=1000):
+def trainIters(args, encoder, decoder, regressor, data_generator, print_every=1000, plot_every=1000):
 
     start = time.time()
     learning_rate = args.learning_rate
@@ -193,12 +193,10 @@ def trainIters(args, encoder, decoder, regressor, print_every=1000, plot_every=1
     reg_criterion = nn.MSELoss()
 
     #TO DO: add early stopping, add epochs and shuffle after epochs
-    for iter in range(1, n_iters + 1):
-        training_triplet = training_triplets[iter - 1]
-        input_tensor = training_triplet[0]
-        target_tensor = training_triplet[1]
-        target_number = training_triplet[2]
-
+    for iter_, training_triplet in enumerate(data_generator):
+        input_tensor = training_triplet[0].float().transpose(0,1)
+        target_tensor = training_triplet[1].float().transpose(0,1)
+        target_number = training_triplet[2].float()
         if torch.cuda.is_available():
             input_tensor = input_tensor.cuda()
             target_tensor = target_tensor.cuda()
@@ -209,13 +207,13 @@ def trainIters(args, encoder, decoder, regressor, print_every=1000, plot_every=1
         print_loss_total += loss
         plot_loss_total += loss
 
-        if iter % print_every == 0:
+        if iter_ % print_every == 0:
             print_loss_avg = print_loss_total / print_every
             print_loss_total = 0
-            print('%s (%d %d%%) %.4f' % (utils.timeSince(start, iter / n_iters),
-                                         iter, iter / n_iters * 100, print_loss_avg))
+            print('%s (%d %d%%) %.4f' % (utils.timeSince(start, iter_+1 / n_iters),
+                                         iter_+1, iter_+1 / n_iters * 100, print_loss_avg))
 
-        if iter % plot_every == 0:
+        if iter_ % plot_every == 0:
             plot_loss_avg = plot_loss_total / plot_every
             plot_losses.append(plot_loss_avg)
             plot_loss_total = 0
