@@ -122,7 +122,9 @@ def run_network(args, input_tensor, target_tensor, target_number, encoder, decod
         encoder_outputs[ei] = encoder_output[0, 0]
 
     #decoder_input = torch.tensor([[SOS_token]], device=device)
-    decoder_input = torch.zeros(args.ind_size, device=decoder.device).cuda()
+    decoder_input = torch.zeros(args.ind_size, device=decoder.device)
+    if torch.cuda.is_available():
+        decoder_input = decoder_input.cuda()
     decoder_hidden = encoder_hidden
 
     if torch.cuda.is_available():
@@ -203,7 +205,7 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
 
     #TO DO: add early stopping, add epochs and shuffle after epochs
     lowest_val_loss = float('inf')
-    for epoch_num in range(2):
+    for epoch_num in range(args.max_epochs):
         print("Epoch:", epoch_num+1)
     
         for iter_, training_triplet in enumerate(train_generator):
@@ -248,10 +250,6 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
             'encoder':encoder, 
             'decoder':decoder, 
             'regressor':regressor})
-
-
-
-
 
     utils.showPlot(plot_losses)
 
