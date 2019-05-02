@@ -119,7 +119,7 @@ def main(params):
         
     if params.local:
         # Just for testing, when running locally
-        videos = [v for v in videos if v['video_id'] == "vid1"]
+        videos = [v for v in videos if v['video_id'] in ["vid1", "vid2", "vid3", "vid4"]]
     print(len(videos))
       ##Since we are dealing with videos, we need to get numebr of frame per video
     #Each video has the following format : 16*w*H*channel
@@ -136,12 +136,13 @@ def main(params):
     N = len(videos)
     vid_data = h5_f.create_dataset("videos", (N,frame_rate, num_channel, params.img_size, params.img_size), dtype = dtype_vid)
     
+    dummy_seq_lens = np.random.randint(low=2, high=9, size=(N))
     dummy_embeddings = np.ones(shape=(N,10,300))
+    print(dummy_seq_lens)
+    print(dummy_embeddings.shape)
     embedding_data = h5_f.create_dataset("embeddings", data=dummy_embeddings)
-
-    dummy_seq_lens = np.random.randint(N, size=10)
     len_data = h5_f.create_dataset("seq_len", data=dummy_seq_lens)
-
+    
     for idx, vid in enumerate(videos):
         i_file = params.frame_dir+'/'+vid['video_id']+params.v_f_name_ext
         assert os.path.exists(i_file) , "The %s file is not there, something is worng" % (i_file)
@@ -176,11 +177,11 @@ if __name__ == "__main__":
     parser.add_argument('--input_json', required=True, help='input json file to process into hdf5')
     parser.add_argument('--limit', default=0, type=int, help='max number of vids to prepare')
     parser.add_argument('--local', action='store_true', default=False, help='whether running locally, if so use just one data point')
-    parser.add_argument('--output_json', default='msrvtt_final.json', help='output json file')
-    parser.add_argument('--output_h5', default='msrvtt.h5', help='output h5 file')
+    parser.add_argument('--output_json', default='dummy.json', help='output json file')
+    parser.add_argument('--output_h5', default='dummy.h5', help='output h5 file')
     parser.add_argument('--old_json', default='', help='old json file to extend')
     parser.add_argument('--old_h5', default='', help='old h5 file to extend')
-    parser.add_argument('--frame_dir', required=True, help='root location in which video frames are stored')
+    parser.add_argument('--frame_dir', default='data/frames', help='root location in which video frames are stored')
     parser.add_argument('--only_test', type=int, default=0, help='This is used when use this code for process only test data 0|1(means test only)' )
     parser.add_argument('--num_test', default=0, type=int, help='number of test images (to withold until very very end)')
     parser.add_argument('--num_val',  default=0, type=int, help='number of images to assign to validation data')
