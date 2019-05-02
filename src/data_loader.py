@@ -37,7 +37,7 @@ class ReadyDataset(data.Dataset):
         self.archive.close()
 
 
-def load_data(h5file_path):
+def load_data(h5file_path, batch_size):
     """Load data from specified file path and return a Dataset.
 
     Each element is a triple of the form
@@ -50,7 +50,7 @@ def load_data(h5file_path):
 
     #new_data = ReadyDataset(h5file_path, transform)
     new_data = ReadyDataset(h5file_path)
-    new_data_loaded = data.DataLoader(new_data, batch_size=2)
+    new_data_loaded = data.DataLoader(new_data, batch_size=batch_size)
     return new_data_loaded
 
 
@@ -72,7 +72,7 @@ class TestConvNet(torch.nn.Module):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    new_data_loaded = load_data('single_vid.h5')    
+    new_data_loaded = load_data('single_vid.h5', 2)    
     for i, data in enumerate(new_data_loaded):
         #print(i, type(data))
         #print(len(data))
