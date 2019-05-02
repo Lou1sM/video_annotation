@@ -1,3 +1,4 @@
 .DS_Store
 __pycache__
 loss.png
+data/YT_40_structured_captions.json
