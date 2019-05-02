@@ -37,7 +37,7 @@ class ReadyDataset(data.Dataset):
         self.archive.close()
 
 
-def load_data(h5file_path, batch_size):
+def load_data(h5file_path, batch_size, shuffle):
     """Load data from specified file path and return a Dataset.
 
     Each element is a triple of the form
@@ -50,7 +50,7 @@ def load_data(h5file_path, batch_size):
 
     #new_data = ReadyDataset(h5file_path, transform)
     new_data = ReadyDataset(h5file_path)
-    new_data_loaded = data.DataLoader(new_data, batch_size=batch_size)
+    new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle)
     return new_data_loaded
 
 
@@ -72,32 +72,35 @@ class TestConvNet(torch.nn.Module):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    new_data_loaded = load_data('four_vids.h5', 1)    
-    print("Number of batches:", len(new_data_loaded), "\n")
-    for i, data in enumerate(new_data_loaded):
-        #print(i, type(data))
-        print("Number of elements in each batch:",len(data), "\n")
-        #print(data[0].shape)
-        #print(data[1].shape)
-        #print(data[2].shape)
-        #print(data[0].type())
-        #print(data[0][0,0,0,0,0])
-        ##im = data[0][0,0,:,:,:].type('torch.FloatTensor')
-        #im = data[0][0,0,:,:,:]
-        #print(im.shape)
-        #im = np.transpose(im, axes=(2,1,0))
-        #print(im.shape)
-        #plt.imshow(im)
-        #plt.show()
-        #outp = test_net(data[0][:,0,:,:,:].type('torch.FloatTensor'))
-        #outp = test_net(data[0][:,0,:,:,:])
-        #print(type(data[0][0,:,:,:,:]))
-        #print(type(data[0][0,:,:,:,:].double()))
-        #test_net = test_net.float()
-        test_net = TestConvNet().float()
-        outp = test_net(data[0][0,:,:,:,:].float())
-        print("Input sample:\n")
-        print(data[0][0,0,:,:,:])
-        print("Test output:\n")
-        print(outp[0])
-        break
+    new_data_loaded = load_data('four_vids.h5', 1, shuffle=True)    
+    for epoch in range(5):
+        print(888888888888888, epoch)
+        print("Number of batches:", len(new_data_loaded), "\n")
+        for i, data in enumerate(new_data_loaded):
+            #print(i, type(data))
+            print("Number of elements in each batch:",len(data), "\n")
+            #print(data[0].shape)
+            #print(data[1].shape)
+            #print(data[2].shape)
+            #print(data[0].type())
+            print(data[2])
+            #print(data[0][0,0,0,0,0])
+            ##im = data[0][0,0,:,:,:].type('torch.FloatTensor')
+            #im = data[0][0,0,:,:,:]
+            #print(im.shape)
+            #im = np.transpose(im, axes=(2,1,0))
+            #print(im.shape)
+            #plt.imshow(im)
+            #plt.show()
+            #outp = test_net(data[0][:,0,:,:,:].type('torch.FloatTensor'))
+            #outp = test_net(data[0][:,0,:,:,:])
+            #print(type(data[0][0,:,:,:,:]))
+            #print(type(data[0][0,:,:,:,:].double()))
+            #test_net = test_net.float()
+            test_net = TestConvNet().float()
+            outp = test_net(data[0][0,:,:,:,:].float())
+            #print("Input sample:\n")
+            #print(data[0][0,0,:,:,:])
+            #print("Test output:\n")
+            #print(outp[0])
+            break

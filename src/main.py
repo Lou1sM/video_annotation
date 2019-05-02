@@ -12,7 +12,8 @@ def main():
     decoder = seq2seq.AttnDecoderRNN(args, device).to(device)
     regressor = seq2seq.NumIndRegressor(args,device).to(device)
 
-    h5_data_generator = load_data(args.h5_file_path, args.batch_size)
+    h5_train_generator = load_data(args.h5_file_path, args.batch_size, shuffle=args.shuffle)
+    h5_val_generator = load_data(args.h5_file_path, args.batch_size, shuffle=args.shuffle)
     
     print("\nENCODER")
     print(encoder)
@@ -21,7 +22,7 @@ def main():
     print("\nREGRESSOR")
     print(regressor)
 
-    seq2seq.trainIters(args, encoder, decoder, regressor, h5_data_generator, print_every=1, plot_every=1)
+    seq2seq.trainIters(args, encoder, decoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1)
 
 
 if __name__=="__main__":
