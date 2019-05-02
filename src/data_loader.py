@@ -72,10 +72,11 @@ class TestConvNet(torch.nn.Module):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    new_data_loaded = load_data('single_vid.h5', 2)    
+    new_data_loaded = load_data('four_vids.h5', 1)    
+    print("Number of batches:", len(new_data_loaded), "\n")
     for i, data in enumerate(new_data_loaded):
         #print(i, type(data))
-        #print(len(data))
+        print("Number of elements in each batch:",len(data), "\n")
         #print(data[0].shape)
         #print(data[1].shape)
         #print(data[2].shape)
