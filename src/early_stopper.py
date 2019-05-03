@@ -17,11 +17,11 @@ class EarlyStopper:
         self.early_stop = False
         self.val_loss_min = np.Inf
 
-    def __call__(self, val_loss, model):
+    def __call__(self, val_loss, model, filename):
 
         if val_loss < self.val_loss_min:
             self.val_loss_min = val_loss
-            self.save_checkpoint(val_loss, model)
+            self.save_checkpoint(val_loss, model, filename)
             self.counter = 0
         else:
             self.counter += 1
