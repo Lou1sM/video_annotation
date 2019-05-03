@@ -7,7 +7,12 @@ plt.switch_backend('agg')
 import matplotlib.ticker as ticker
 import numpy as np
 import time
+from datetime import datetime
 
+
+def get_datetime_stamp():
+    datetime_stamp = str(datetime.now()).split()[0][5:] + '_'+str(datetime.now().time()).split()[0][:-7]
+    return datetime_stamp
 
 
 def asMinutes(s):
@@ -27,14 +32,14 @@ def timeSince(since, percent):
 
 
 
-def showPlot(points):
+def showPlot(points, filename='loss.png'):
     plt.figure()
     fig, ax = plt.subplots()
     # this locator puts ticks at regular intervals
     loc = ticker.MultipleLocator(base=0.2)
     ax.yaxis.set_major_locator(loc)
     plt.plot(points)
-    plt.savefig('loss.png')
+    plt.savefig(filename)
 def read_json_file(input_json):
 	## load the json file
 	file_info = json.load(open(input_json, 'rb'))

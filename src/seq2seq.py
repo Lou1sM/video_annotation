@@ -249,7 +249,7 @@ def tensorsFromTriplets(triplets, args):
 	return (torch.rand(args.num_frames, 1, 3, 224, 224), torch.rand(args.max_length, args.ind_size), torch.rand(1))
 
 
-def trainIters(args, encoder, decoder, regressor, train_generator, val_generator, print_every=1000, plot_every=1000):
+def trainIters(args, encoder, decoder, regressor, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name=""):
 
     start = time.time()
     learning_rate = args.learning_rate
@@ -271,12 +271,13 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
     reg_criterion = nn.MSELoss()
     EarlyStop = EarlyStopper(patience=args.patience, verbose=True)
 
-    #TO DO: add early stopping, add epochs and shuffle after epochs
     lowest_val_loss = float('inf')
     for epoch_num in range(args.max_epochs):
         print("Epoch:", epoch_num+1)
+        print(7777777, len(train_generator))
     
         for iter_, training_triplet in enumerate(train_generator):
+            print(88888888, iter_, len(plot_losses))
             input_tensor = training_triplet[0].float().transpose(0,1)
             target_tensor = training_triplet[1].float().transpose(0,1)
             target_number = training_triplet[2].float()
@@ -299,7 +300,7 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
                 plot_loss_avg = plot_loss_total / plot_every
                 plot_losses.append(plot_loss_avg)
                 plot_loss_total = 0
-        #print("Train loss:", loss)
+                utils.showPlot(plot_losses, '../data/loss_plots/loss{}.png'.format(exp_name))
 
         total_val_loss = 0
         for iter_, training_triplet in enumerate(val_generator):
@@ -313,14 +314,13 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
             new_val_loss = run_network(args, input_tensor, target_tensor, target_number, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion, mode="val")
 
             total_val_loss += new_val_loss
-        
-        #print("Val loss:", total_val_loss)
-        
-        EarlyStop.save_checkpoint(total_val_loss, {
+        EarlyStop(total_val_loss, {
             'encoder':encoder, 
             'decoder':decoder, 
-            'regressor':regressor})
+            'regressor':regressor},
+            filename='../checkpoints/chkpt{}.pt'.format(exp_name))
+        if EarlyStop.early_stop:
+            break
 
-    utils.showPlot(plot_losses)
 
 

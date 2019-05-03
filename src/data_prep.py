@@ -176,7 +176,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_val',  default=0, type=int, help='number of images to assign to validation data')
 
     parser.add_argument('--encoding', default='utf-8')
-    parser.add_argument('--img_size', default=256, type =int, help = 'Each frame will be resize to this size')
+    parser.add_argument('--img_size', default=224, type =int, help = 'Each frame will be resize to this size')
     parser.add_argument('--v_f_name_ext', default='_f.npz', help = 'the format and extension of saved video name, e.g. video10_f.npz')
 
     args = parser.parse_args()

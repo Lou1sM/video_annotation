@@ -19,8 +19,8 @@ class EarlyStopper:
 
     def __call__(self, val_loss, model):
 
-        if score < self.val_loss_min:
-            self.best_score = score
+        if val_loss < self.val_loss_min:
+            self.val_loss_min = val_loss
             self.save_checkpoint(val_loss, model)
             self.counter = 0
         else:
@@ -29,10 +29,11 @@ class EarlyStopper:
             if self.counter >= self.patience:
                 self.early_stop = True
 
-    def save_checkpoint(self, val_loss, model_dict):
+    def save_checkpoint(self, val_loss, model_dict, filename='../checkpoints/chkpt.pt'):
         '''Saves model when validation loss decrease.'''
         if self.verbose:
             print(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
         torch.save(model_dict,'checkpoint.pt')
         self.val_loss_min = val_loss
+        
 
