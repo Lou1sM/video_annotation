@@ -303,6 +303,7 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
             input_tensor = training_triplet[0].float().transpose(0,1)
             target_tensor = training_triplet[1].float().transpose(0,1)
             target_number = training_triplet[2].float()
+            target_number[0] = 3
             if torch.cuda.is_available():
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
