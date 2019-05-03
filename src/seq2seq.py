@@ -37,7 +37,6 @@ class EncoderRNN(nn.Module):
 
         for i, inp in enumerate(input):
             embedded = self.vgg(inp)#.view(1, self.batch_size, -1)
-            print(embedded.size())
             vgg_outputs[i] = embedded 
 
         #outputs: (num_frames, batch_size, ind_size)
@@ -88,19 +87,23 @@ class DecoderRNN(nn.Module):
 
         #input: (max_length, batch_size, ind_size)
         #hidden: (1, batch_size, ind_size)
-        print(input_lengths)
+        print("vector of input length: ", input_lengths)
+
+        input_lengths, perm_idx = input_lengths.sort(0, descending=True)
+        input =  input[:, perm_idx]
+
         packed = torch.nn.utils.rnn.pack_padded_sequence(input, input_lengths.int())
         packed, hidden = self.gru(packed, hidden)
         # undo the packing operation
         output, _ = torch.nn.utils.rnn.pad_packed_sequence(packed)
 
         #output: (max_length, batch_size, ind_size)
-        print(output.size())
+        print("output size: ", output.size())
 
         return output, hidden
 
     def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size, device=self.device)
+        return torch.zeros(1, self.batch_size, self.hidden_size, device=self.device)
 
 
 class NumIndRegressor(nn.Module):
@@ -296,7 +299,7 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
                 plot_loss_avg = plot_loss_total / plot_every
                 plot_losses.append(plot_loss_avg)
                 plot_loss_total = 0
-        print("Train loss:", loss)
+        #print("Train loss:", loss)
 
         total_val_loss = 0
         for iter_, training_triplet in enumerate(val_generator):
@@ -310,7 +313,9 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
             new_val_loss = run_network(args, input_tensor, target_tensor, target_number, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion, mode="val")
 
             total_val_loss += new_val_loss
-        print("Val loss:", total_val_loss)
+        
+        #print("Val loss:", total_val_loss)
+        
         EarlyStop.save_checkpoint(total_val_loss, {
             'encoder':encoder, 
             'decoder':decoder, 
