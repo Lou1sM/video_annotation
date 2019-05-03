@@ -17,12 +17,13 @@ def main():
     h5_train_generator = load_data(args.h5_file_path, args.batch_size, shuffle=args.shuffle)
     h5_val_generator = load_data(args.h5_file_path, args.batch_size, shuffle=args.shuffle)
     
-    print("\nENCODER")
-    print(encoder)
-    print("\nDECODER")
-    print(decoder)
-    print("\nREGRESSOR")
-    print(regressor)
+    if args.verbose:
+        print("\nENCODER")
+        print(encoder)
+        print("\nDECODER")
+        print(decoder)
+        print("\nREGRESSOR")
+        print(regressor)
 
     seq2seq.trainIters(args, encoder, decoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
 

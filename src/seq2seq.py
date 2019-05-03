@@ -87,7 +87,6 @@ class DecoderRNN(nn.Module):
 
         #input: (max_length, batch_size, ind_size)
         #hidden: (1, batch_size, ind_size)
-        print("vector of input length: ", input_lengths)
 
         input_lengths, perm_idx = input_lengths.sort(0, descending=True)
         input =  input[:, perm_idx]
@@ -98,7 +97,6 @@ class DecoderRNN(nn.Module):
         output, _ = torch.nn.utils.rnn.pad_packed_sequence(packed)
 
         #output: (max_length, batch_size, ind_size)
-        print("output size: ", output.size())
 
         return output, hidden
 
@@ -117,7 +115,7 @@ class NumIndRegressor(nn.Module):
     # The input is supposed to be all the outputs of the encoder
     def forward(self, input):
         emb_sum = torch.sum(input, dim=0)
-        output = self.out(emb_sum)
+        output = self.out(emb_sum).squeeze(1)
         return output
 
 
@@ -274,10 +272,8 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
     lowest_val_loss = float('inf')
     for epoch_num in range(args.max_epochs):
         print("Epoch:", epoch_num+1)
-        print(7777777, len(train_generator))
     
         for iter_, training_triplet in enumerate(train_generator):
-            print(88888888, iter_, len(plot_losses))
             input_tensor = training_triplet[0].float().transpose(0,1)
             target_tensor = training_triplet[1].float().transpose(0,1)
             target_number = training_triplet[2].float()
@@ -293,8 +289,8 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
             if iter_ % print_every == 0:
                 print_loss_avg = print_loss_total / print_every
                 print_loss_total = 0
-                print('%s (%d %d%%) %.4f' % (utils.timeSince(start, iter_+1 / n_iters),
-                                             iter_+1, iter_+1 / n_iters * 100, print_loss_avg))
+                #print('%s (%d %d%%) %.4f' % (utils.timeSince(start, iter_+1 / n_iters),
+                                             #iter_+1, iter_+1 / n_iters * 100, print_loss_avg))
 
             if iter_ % plot_every == 0:
                 plot_loss_avg = plot_loss_total / plot_every

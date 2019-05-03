@@ -6,6 +6,11 @@ import argparse
 def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
+    argparser.add_argument("--verbose",
+            action = "store_true",
+            default = False,
+            help = "whether to print network info before starting training"
+        )
     argparser.add_argument("--embedding",
             type = str,
             default = "",
