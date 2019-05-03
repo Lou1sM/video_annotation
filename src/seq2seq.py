@@ -58,43 +58,48 @@ class DecoderRNN(nn.Module):
         self.max_length = args.max_length
         self.gru = nn.GRU(self.hidden_size, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.hidden_size)
+        #self.attn = nn.Linear(self.hidden_size * 2, args.num_frames)
+        self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
+        self.dropout = nn.Dropout(self.dropout_p)
 
-    def forward(self, input, input_lengths, hidden):
-    #     self.attn = nn.Linear(self.hidden_size * 2, args.num_frames)
-    #     self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
-    #     self.dropout = nn.Dropout(self.dropout_p)
-    #     self.gru = nn.GRU(self.output_size, self.hidden_size)
-    #     self.out = nn.Linear(self.hidden_size, self.output_size)
+    def forward(self, input, hidden, input_lengths, encoder_outputs):
 
-    # def forward(self, input, hidden, encoder_outputs):
+        drop_input = self.dropout(input)#.view(args.max_length, args.batch_size, -1))
 
-    #     drop_input = self.dropout(input.view(1, 1, -1))
-
-    #     drop_trans = drop_input.transpose(0,2)
-    #     drop_trans = drop_trans.squeeze(-1)
-    #     dot_attn_weights = torch.mm(encoder_outputs, drop_trans).transpose(0,1)
+        enc_perm = encoder_outputs.permute(1,2,0)
+        #print('enc_perm', enc_perm.shape)
+        drop_input_perm = drop_input.permute(1,0, 2)
+        #print('drop_perm', drop_input_perm.shape)
+        dot_attn_weights = torch.bmm(drop_input_perm, enc_perm)
+        #print('dot_attn', dot_attn_weights.shape)
+        enc_perm_2 = encoder_outputs.permute(1,0,2)
+        #print('enc_perm_2', enc_perm_2.shape)
     #     attn_weights = F.softmax(
     #         self.attn(torch.cat((drop_input[0], hidden[0]), 1)), dim=1)
     #     #attn_applied = torch.bmm(attn_weights.unsqueeze(0),
-    #     attn_applied = torch.bmm(dot_attn_weights.unsqueeze(0),
-    #                              encoder_outputs.unsqueeze(0))
+        attn_applied = torch.bmm(dot_attn_weights, enc_perm_2).permute(1,0,2)
+        #print('attn_applied', attn_applied.shape)
 
-    #     output = torch.cat((drop_input[0], attn_applied[0]), 1)
-    #     output = self.attn_combine(output).unsqueeze(0)
 
-    #     output = F.relu(output)
+        output = torch.cat((drop_input, attn_applied), 2)
+        #print('output', output.shape)
+        output = self.attn_combine(output)
+        #print('output', output.shape)
+
+        output = F.relu(output)
     #     output, hidden = self.gru(output, hidden)
 
-        #input: (max_length, batch_size, ind_size)
+        #output: (max_length, batch_size, ind_size)
         #hidden: (1, batch_size, ind_size)
 
         input_lengths, perm_idx = input_lengths.sort(0, descending=True)
-        input =  input[:, perm_idx]
+        output =  output[:, perm_idx]
 
-        packed = torch.nn.utils.rnn.pack_padded_sequence(input, input_lengths.int())
+        packed = torch.nn.utils.rnn.pack_padded_sequence(output, input_lengths.int())
         packed, hidden = self.gru(packed, hidden)
         # undo the packing operation
         output, _ = torch.nn.utils.rnn.pad_packed_sequence(packed)
+        #output = torch.cuda.FloatTensor(10,2,300).fill_(0)
 
         #output: (max_length, batch_size, ind_size)
 
@@ -160,9 +165,51 @@ class NumIndEOS(nn.Module):
 
 
 
-def run_network(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion, mode):
+def run_network_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, criterion, reg_criterion, mode):
     
-    teacher_forcing_ratio = args.teacher_forcing_ratio
+    encoder_hidden = encoder.initHidden()
+    encoder_optimizer.zero_grad()
+    decoder_optimizer.zero_grad()
+    regressor_optimizer.zero_grad()
+
+    encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
+
+    #decoder_input = torch.tensor([[SOS_token]], device=device)
+    decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device)
+    
+    if torch.cuda.is_available():
+        decoder_input = decoder_input.cuda()
+    
+    decoder_hidden = encoder_hidden
+
+    if torch.cuda.is_available():
+        encoder_hidden = encoder_hidden.cuda()
+        encoder_outputs = encoder_outputs.cuda()
+
+
+    decoder_inputs = torch.cat((decoder_input, target_tensor))
+    decoder_outputs, decoder_hidden = decoder(input=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden)
+    #print('dec_out', decoder_outputs.shape)
+    #print('target', target_tensor.shape)
+    loss = criterion(decoder_outputs, target_tensor[:decoder_outputs.shape[0],:,:])
+    
+    regressor_output = regressor(encoder_outputs)
+    reg_loss = reg_criterion(regressor_output, target_number_tensor)
+
+
+#    if mode == "train":
+#        loss.backward()
+#        encoder_optimizer.step()
+#        decoder_optimizer.step()
+#        reg_loss.backward()
+#        regressor_optimizer.step()
+
+    return loss.item(), reg_loss.item()
+
+
+"""
+def run_network_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion, mode):
+    
     encoder_hidden = encoder.initHidden()
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
@@ -237,6 +284,7 @@ def run_network(args, input_tensor, target_tensor, target_number_tensor, encoder
     return loss.item() / target_length
 
 
+"""
 def tensorsFromTriplets(triplets, args):
 	# given a couple video + set of embeddings of all individuals it returns a triplet:
 	# (input_tensor, output_tensor, output_number)
@@ -257,9 +305,20 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
     print_loss_total = 0  # Reset every print_every
     plot_loss_total = 0  # Reset every plot_every
 
-    encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
-    decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
-    regressor_optimizer = optim.SGD(regressor.parameters(), lr=learning_rate)
+    if args.optimizer == "SGD":
+        encoder_optimizer = optim.SGD(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+        decoder_optimizer = optim.SGD(decoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+        regressor_optimizer = optim.SGD(regressor.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    elif args.optimizer == "Adam":
+        encoder_optimizer = optim.Adam(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+        decoder_optimizer = optim.Adam(decoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+        regressor_optimizer = optim.Adam(regressor.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    elif args.optimizer == "RMS":
+        encoder_optimizer = optim.RMSProp(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+        decoder_optimizer = optim.RMSProp(decoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+        regressor_optimizer = optim.RMSProp(regressor.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+
+
 
     triplets = "dummy"
 
@@ -281,10 +340,10 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
                 target_number = target_number.cuda()
-            loss = run_network(args, input_tensor, target_tensor, target_number, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion, mode="train")
+            loss = run_network_on_batch(args, input_tensor, target_tensor, target_number, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion, mode="train")
 
-            print_loss_total += loss
-            plot_loss_total += loss
+            print_loss_total += loss[0]
+            plot_loss_total += loss[0]
 
             if iter_ % print_every == 0:
                 print_loss_avg = print_loss_total / print_every
@@ -307,16 +366,16 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
                 target_number = target_number.cuda()
-            new_val_loss = run_network(args, input_tensor, target_tensor, target_number, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion, mode="val")
+            new_val_loss = run_network_on_batch(args, input_tensor, target_tensor, target_number, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion, mode="val")
 
-            total_val_loss += new_val_loss
+            total_val_loss += new_val_loss[0]
         EarlyStop(total_val_loss, {
             'encoder':encoder, 
             'decoder':decoder, 
             'regressor':regressor},
             filename='../checkpoints/chkpt{}.pt'.format(exp_name))
         if EarlyStop.early_stop:
-            break
+            return EarlyStop.val_loss_min
 
 
 
