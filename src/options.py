@@ -98,7 +98,7 @@ def load_arguments():
         )
     argparser.add_argument("--h5_file_path",
             type = str,
-            default = 'data/datasets/single_vid.h5',
+            default = '../data/datasets/single_vid.h5',
             help = "file to read the data from"
         )
     argparser.add_argument("--shuffle",

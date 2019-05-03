@@ -9,7 +9,7 @@ def main():
     print(args)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     encoder = seq2seq.EncoderRNN(args, device).to(device)
-    decoder = seq2seq.AttnDecoderRNN(args, device).to(device)
+    decoder = seq2seq.DecoderRNN(args, device).to(device)
     regressor = seq2seq.NumIndRegressor(args,device).to(device)
 
     h5_train_generator = load_data(args.h5_file_path, args.batch_size, shuffle=args.shuffle)

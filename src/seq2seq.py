@@ -16,9 +16,10 @@ from early_stopper import EarlyStopper
 class EncoderRNN(nn.Module):
     def __init__(self, args, device):
         super(EncoderRNN, self).__init__()
+        self.num_frames = args.num_frames
         self.hidden_size = args.ind_size
         self.device = device
-                
+        self.batch_size = args.batch_size
         #Use VGG, NOTE: param.requires_grad are set to True by default
         self.vgg = models.vgg19(pretrained=True)
         num_ftrs = self.vgg.classifier[6].in_features
@@ -28,50 +29,50 @@ class EncoderRNN(nn.Module):
         self.gru = nn.GRU(self.hidden_size, self.hidden_size)
 
     def forward(self, input, hidden):
-        embedded = self.vgg(input).view(1, 1, -1)
-        output = embedded
-        output, hidden = self.gru(output, hidden)
-        return output, hidden
+
+        # if we pass entire sequences we have to reset the GRU hidden state. Otherwise it'll see the new batch as a continuation of a sequence
+        hidden = self.initHidden()
+
+        vgg_outputs = torch.zeros(self.num_frames, self.batch_size, self.hidden_size, device=self.device)
+
+        for i, inp in enumerate(input):
+            embedded = self.vgg(inp).view(1, 1, -1)
+            vgg_outputs[i] = embedded 
+
+        #outputs: (num_frames, batch_size, ind_size)
+        #hidden: (1, batch_size, ind_size)
+        outputs, hidden = self.gru(vgg_outputs, hidden)
+
+        return outputs, hidden
 
     def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size, device=self.device)
+        return torch.zeros(1, self.batch_size, self.hidden_size, device=self.device)
 
 
-class AttnDecoderRNN(nn.Module):
+class DecoderRNN(nn.Module):
     def __init__(self, args, device):
-        super(AttnDecoderRNN, self).__init__()
+        super(DecoderRNN, self).__init__()
         self.device = device
         self.hidden_size = args.ind_size
-        self.output_size = args.ind_size
         self.dropout_p = args.dropout
         self.max_length = args.max_length
+        self.gru = nn.GRU(self.hidden_size, self.hidden_size)
+        self.out = nn.Linear(self.hidden_size, self.hidden_size)
 
-        self.attn = nn.Linear(self.hidden_size * 2, args.num_frames)
-        self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
-        self.dropout = nn.Dropout(self.dropout_p)
-        self.gru = nn.GRU(self.output_size, self.hidden_size)
-        self.out = nn.Linear(self.hidden_size, self.output_size)
+    def forward(self, input, input_lengths, hidden):
 
-    def forward(self, input, hidden, encoder_outputs):
+        #input: (max_length, batch_size, ind_size)
+        #hidden: (1, batch_size, ind_size)
+        print(input_lengths)
+        packed = torch.nn.utils.rnn.pack_padded_sequence(input, input_lengths.int())
+        packed, hidden = self.gru(packed, hidden)
+        # undo the packing operation
+        output, _ = torch.nn.utils.rnn.pad_packed_sequence(packed)
 
-        drop_input = self.dropout(input.view(1, 1, -1))
+        #output: (max_length, batch_size, ind_size)
+        print(output.size())
 
-        attn_weights = F.softmax(
-            self.attn(torch.cat((drop_input[0], hidden[0]), 1)), dim=1)
-        attn_applied = torch.bmm(attn_weights.unsqueeze(0),
-                                 encoder_outputs.unsqueeze(0))
-
-        output = torch.cat((drop_input[0], attn_applied[0]), 1)
-        output = self.attn_combine(output).unsqueeze(0)
-
-        output = F.relu(output)
-        output, hidden = self.gru(output, hidden)
-
-        #output = F.log_softmax(self.out(output[0]), dim=1)
-
-        output = self.out(output[0])
-
-        return output, hidden, attn_weights
+        return output, hidden
 
     def initHidden(self):
         return torch.zeros(1, 1, self.hidden_size, device=self.device)
@@ -100,7 +101,7 @@ class Seq2SeqNet(nn.Module):
         self.regressor = regressor
 
 
-def run_network(args, input_tensor, target_tensor, target_number, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion, mode):
+def run_network(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion, mode):
     
     teacher_forcing_ratio = args.teacher_forcing_ratio
     encoder_hidden = encoder.initHidden()
@@ -116,37 +117,43 @@ def run_network(args, input_tensor, target_tensor, target_number, encoder, decod
     dec_loss = 0
     reg_loss = 0
 
-    for ei in range(input_length):
-        encoder_output, encoder_hidden = encoder(
-            input_tensor[ei], encoder_hidden)
-        encoder_outputs[ei] = encoder_output[0, 0]
+    # for ei in range(input_length):
+    #     encoder_output, encoder_hidden = encoder(
+    #         input_tensor[ei], encoder_hidden)
+    #     encoder_outputs[ei] = encoder_output[0, 0]
+
+    encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
 
     #decoder_input = torch.tensor([[SOS_token]], device=device)
-    decoder_input = torch.zeros(args.ind_size, device=decoder.device)
+    decoder_input = torch.zeros(1, 1, args.ind_size, device=decoder.device)
+    
     if torch.cuda.is_available():
         decoder_input = decoder_input.cuda()
+    
     decoder_hidden = encoder_hidden
 
     if torch.cuda.is_available():
         encoder_hidden = encoder_hidden.cuda()
         encoder_outputs = encoder_outputs.cuda()
 
-
     regressor_output = regressor(encoder_outputs)
-    reg_loss += reg_criterion(regressor_output, target_number)
+    reg_loss += reg_criterion(regressor_output, target_number_tensor)
 
-    use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
+    #use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
     #REMOVE WHEN FIGURED OUT HOW TO PREDICT NUMBER!!!
-    #use_teacher_forcing = True
+    use_teacher_forcing = True
 
     if use_teacher_forcing:
 
+        decoder_inputs = torch.cat((decoder_input, encoder_outputs))
         # Teacher forcing: Feed the target as the next input
-        for di in range(target_length):
-            decoder_output, decoder_hidden, decoder_attention = decoder(
-                decoder_input, decoder_hidden, encoder_outputs)
-            dec_loss += dec_criterion(decoder_output, target_tensor[di])
-            decoder_input = target_tensor[di]  # Teacher forcing
+        # for di in range(target_length):
+        #     decoder_output, decoder_hidden, decoder_attention = decoder(
+        #         decoder_input, decoder_hidden, encoder_outputs)
+        #     dec_loss += dec_criterion(decoder_output, target_tensor[di])
+        #     decoder_input = target_tensor[di]  # Teacher forcing
+        decoder_outputs, decoder_hidden = decoder(decoder_inputs, target_number_tensor, decoder_hidden)
+
  
     else:
         # Without teacher forcing: use its own predictions as the next input
@@ -212,6 +219,7 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
             input_tensor = training_triplet[0].float().transpose(0,1)
             target_tensor = training_triplet[1].float().transpose(0,1)
             target_number = training_triplet[2].float()
+            target_number[0] = 5
             if torch.cuda.is_available():
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
