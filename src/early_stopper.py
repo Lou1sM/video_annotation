@@ -20,8 +20,8 @@ class EarlyStopper:
     def __call__(self, val_loss, model, filename):
 
         if val_loss < self.val_loss_min:
-            self.val_loss_min = val_loss
             self.save_checkpoint(val_loss, model, filename)
+            self.val_loss_min = val_loss
             self.counter = 0
         else:
             self.counter += 1
