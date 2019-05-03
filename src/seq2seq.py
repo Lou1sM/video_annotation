@@ -36,7 +36,8 @@ class EncoderRNN(nn.Module):
         vgg_outputs = torch.zeros(self.num_frames, self.batch_size, self.hidden_size, device=self.device)
 
         for i, inp in enumerate(input):
-            embedded = self.vgg(inp).view(1, 1, -1)
+            embedded = self.vgg(inp)#.view(1, self.batch_size, -1)
+            print(embedded.size())
             vgg_outputs[i] = embedded 
 
         #outputs: (num_frames, batch_size, ind_size)
@@ -182,7 +183,7 @@ def run_network(args, input_tensor, target_tensor, target_number_tensor, encoder
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
 
     #decoder_input = torch.tensor([[SOS_token]], device=device)
-    decoder_input = torch.zeros(1, 1, args.ind_size, device=decoder.device)
+    decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device)
     
     if torch.cuda.is_available():
         decoder_input = decoder_input.cuda()
@@ -276,7 +277,6 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
             input_tensor = training_triplet[0].float().transpose(0,1)
             target_tensor = training_triplet[1].float().transpose(0,1)
             target_number = training_triplet[2].float()
-            target_number[0] = 5
             if torch.cuda.is_available():
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
@@ -303,7 +303,6 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
             input_tensor = training_triplet[0].float().transpose(0,1)
             target_tensor = training_triplet[1].float().transpose(0,1)
             target_number = training_triplet[2].float()
-            target_number[0] = 3
             if torch.cuda.is_available():
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
