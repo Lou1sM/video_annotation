@@ -8,6 +8,8 @@ Project to annotate videos with formal knowledge, using semantic embeddings gene
 - do the above with batches
 - two step training (train enc + dec then freeze enc and train regr) 
 - random search of hyperparams
+- define metrics
+
 
 # Functions to write: 
 - train_seq2seq_on_batch returns loss
