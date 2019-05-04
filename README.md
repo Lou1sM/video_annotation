@@ -9,7 +9,7 @@ Project to annotate videos with formal knowledge, using semantic embeddings gene
 - two step training (train enc + dec then freeze enc and train regr) 
 - random search of hyperparams
 - define metrics
-- increase regressor size
+- increase regressor size (put it as hyperparameter)
 
 # Functions to write: 
 - train_seq2seq_on_batch returns loss
