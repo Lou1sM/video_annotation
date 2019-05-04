@@ -7,7 +7,14 @@ Project to annotate videos with formal knowledge, using semantic embeddings gene
 - modify evaluate function to use the predictions form the previous step (ground truth for seq_length during val)
 - do the above with batches
 - two step training (train enc + dec then freeze enc and train regr) 
+- random search of hyperparams
+- define metrics
+- increase regressor size (put it as hyperparameter)
 
+# Functions to write: 
+- train_seq2seq_on_batch returns loss
+- train_regressor_on_batch returns loss
+- eval_network_on_batch (mode={eval_seq2seq, eval_reg, test}) returns loss
 
 # Models to try: 
 - concatenate vs seq

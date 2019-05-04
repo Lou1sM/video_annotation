@@ -180,9 +180,6 @@ def train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number_tens
 
     decoder_hidden = encoder_hidden
     decoder_inputs = torch.cat((decoder_input, target_tensor))
-    
-    if torch.cuda.is_available():
-        decoder_input = decoder_input.cuda()
     decoder_outputs, decoder_hidden = decoder(input=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden)
     
     loss = criterion(decoder_outputs, target_tensor[:decoder_outputs.shape[0],:,:])
@@ -194,12 +191,9 @@ def train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number_tens
 
 
 def train_reg_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion):
-    
+
     encoder_hidden = encoder.initHidden()
     optimizer.zero_grad()
-
-    input_length = input_tensor.size(0)
-    target_length = target_tensor.size(0)
 
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
 
@@ -215,14 +209,58 @@ def train_reg_on_batch(args, input_tensor, target_tensor, target_number_tensor, 
 
     return loss.item()
 
-def eval_network_on_batch(mode):
-    return 1.0
+
+def eval_network_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, regressor, criterion, reg_criterion, mode):
+    """Possible values for 'mode' arg: {"eval_seq2seq", "eval_reg", "test"}"""
+    encoder_hidden = encoder.initHidden()
+    encoder_optimizer.zero_grad()
+    decoder_optimizer.zero_grad()
+    regressor_optimizer.zero_grad()
+
+    encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
+
+    decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device)
+    
+    if torch.cuda.is_available():
+        decoder_input = decoder_input.cuda()
+        encoder_hidden = encoder_hidden.cuda()
+        encoder_outputs = encoder_outputs.cuda()
+
+    decoder_hidden = encoder_hidden
+
+    if mode == "eval_reg":
+        regressor_output = regressor(encoder_outputs)
+        reg_loss = reg_criterion(regressor_output, target_number_tensor)
+        return reg_loss
+
+    elif mode == "eval_seq2seq":
+        dec_loss = 0
+        for b in args.batch_size:
+            single_dec_input = decoder_input[:, b]
+            for l in range(target_number_tensor):
+                decoder_output, decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.ones(1), encoder_outputs=encoder_outputs, hidden=decoder_hidden)
+                dec_loss += criterion(decoder_output, target_tensor[l, b])
+            dec_loss = dec_loss / float(l)
+        dec_loss /= float(b) 
+        return dec_loss    
+
+    elif mode == "test":
+        regressor_output = regressor(encoder_outputs)
+        reg_loss = reg_criterion(regressor_output, target_number_tensor)
+        dec_loss = 0
+        for b in args.batch_size:
+            single_dec_input = decoder_input[:, b]
+            for l in range(target_number_tensor):
+                decoder_output, decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.ones(1), encoder_outputs=encoder_outputs, hidden=decoder_hidden)
+                dec_loss += criterion(decoder_output, target_tensor[l, b])
+            dec_loss = dec_loss / float(l)
+        dec_loss /= float(b) 
+        return dec_loss, reg_loss
+
     
 def train_iters_seq2seq(args, encoder, decoder, regressor, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name=""):
 
     start = time.time()
-    learning_rate = args.learning_rate
-    n_iters = args.max_epochs
 
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
@@ -238,7 +276,6 @@ def train_iters_seq2seq(args, encoder, decoder, regressor, train_generator, val_
     elif args.optimizer == "RMS":
         encoder_optimizer = optim.RMSProp(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
         decoder_optimizer = optim.RMSProp(decoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-
 
     criterion = nn.MSELoss()
     EarlyStop = EarlyStopper(patience=args.patience, verbose=True)
