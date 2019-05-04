@@ -190,7 +190,7 @@ def train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number_tens
     return loss.item()
 
 
-def train_reg_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion):
+def train_reg_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, regressor, optimizer, criterion):
 
     encoder_hidden = encoder.initHidden()
     optimizer.zero_grad()
@@ -202,7 +202,7 @@ def train_reg_on_batch(args, input_tensor, target_tensor, target_number_tensor, 
         encoder_outputs = encoder_outputs.cuda()
 
     regressor_output = regressor(encoder_outputs)
-    loss += reg_criterion(regressor_output, target_number_tensor)
+    loss = criterion(regressor_output, target_number_tensor)
 
     loss.backward()
     optimizer.step()
@@ -330,7 +330,7 @@ def train_iters_seq2seq(args, encoder, decoder, regressor, train_generator, val_
 
 
 
-def train_iters_reg(args, regressor, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name=""):
+def train_iters_reg(args, encoder, regressor, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name=""):
 
     start = time.time()
     plot_losses = []
@@ -358,10 +358,10 @@ def train_iters_reg(args, regressor, train_generator, val_generator, print_every
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
                 target_number = target_number.cuda()
-            loss = train_reg_on_batch(args, input_tensor, target_tensor, target_number, regressor=regressor, optimizer=optimizer, criterion=criterion)
+            loss = train_reg_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, regressor=regressor, optimizer=optimizer, criterion=criterion)
 
-            print_loss_total += loss[0]
-            plot_loss_total += loss[0]
+            print_loss_total += loss
+            plot_loss_total += loss
 
             if iter_ % print_every == 0:
                 print_loss_avg = print_loss_total / print_every

@@ -26,11 +26,10 @@ def main():
         print(regressor)
 
     if args.model == 'seq2seq':
-        training_func = seq2seq.train_iters_seq2seq
+        seq2seq.train_iters_seq2seq(args, encoder, decoder, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
     elif args.model == 'reg':
-        training_func = seq2seq.train_iters_reg
+        seq2seq.train_iters_reg(args, encoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
     
-    training_func(args, encoder, decoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
 
 
 if __name__=="__main__":
