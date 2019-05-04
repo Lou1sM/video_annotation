@@ -6,6 +6,22 @@ import argparse
 def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
+
+    argparser.add_argument("--weight_decay",
+            type = int,
+            default = 0,
+            help = "optimzer"
+        )
+    argparser.add_argument("--optimizer",
+            choices = ['SGD', 'Adam', 'RMS'],
+            default = 'Adam',
+            help = "optimzer"
+        )
+    argparser.add_argument("--model",
+            choices = ['seq2seq', 'reg'],
+            required = True,
+            help = "whether to print network info before starting training"
+        )
     argparser.add_argument("--verbose",
             action = "store_true",
             default = False,
@@ -103,7 +119,7 @@ def load_arguments():
         )
     argparser.add_argument("--h5_file_path",
             type = str,
-            default = '../data/datasets/single_vid.h5',
+            default = '../data/datasets/four_vids.h5',
             help = "file to read the data from"
         )
     argparser.add_argument("--shuffle",
