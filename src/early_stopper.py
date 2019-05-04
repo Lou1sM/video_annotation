@@ -25,14 +25,14 @@ class EarlyStopper:
             self.counter = 0
         else:
             self.counter += 1
-            print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+            print('EarlyStopping counter: {} out of {}'.format(self.counter, self.patience))
             if self.counter >= self.patience:
                 self.early_stop = True
 
     def save_checkpoint(self, val_loss, model_dict, filename='../checkpoints/chkpt.pt'):
         '''Saves model when validation loss decrease.'''
         if self.verbose:
-            print(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
+            print('Validation loss decreased ({} --> {}).  Saving model ...'.format(self.val_loss_min, val_loss))
         torch.save(model_dict,filename)
         self.val_loss_min = val_loss
         
