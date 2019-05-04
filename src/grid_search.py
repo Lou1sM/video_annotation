@@ -1,7 +1,7 @@
 import os
 import utils
 import options
-import seq2seq
+import models
 import torch
 from data_loader import load_data
 
@@ -30,19 +30,24 @@ def train_with_hyperparams(model, param_dict, exp_name=None, best_val_loss=0):
         exp_name = utils.get_datetime_stamp()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    encoder = seq2seq.EncoderRNN(args, device).to(device)
-    decoder = seq2seq.DecoderRNN(args, device).to(device)
-    regressor = seq2seq.NumIndRegressor(args,device).to(device)
+    encoder = models.EncoderRNN(args, device).to(device)
+    decoder = models.DecoderRNN(args, device).to(device)
+    regressor = models.NumIndRegressor(args,device).to(device)
     h5_train_generator = load_data('../data/datasets/four_vids.h5', args.batch_size, shuffle=args.shuffle)
     h5_val_generator = load_data('../data/datasets/four_vids.h5', args.batch_size, shuffle=args.shuffle)
 
-    if model == "seq2seq":
-        train_func = seq2seq.train_iters_seq2seq
-    elif model == "reg":
-        train_func = seq2seq.reg
+    if model == 'seq2seq':
+        val_loss = models.train_iters_seq2seq(args, encoder, decoder, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
+    elif model == 'reg':
+        val_loss = models.train_iters_reg(args, encoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
  
-    val_loss = train_func(args, encoder, decoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
-
+#    if model == "seq2seq":
+#        train_func = models.train_iters_seq2seq
+#    elif model == "reg":
+#        train_func = models.reg
+# 
+#    val_loss = train_func(args, encoder, decoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
+#
     summary_file_path = os.path.join(SUMMARY_DIR, "{}.txt".format(exp_name))
     summary_file = open(summary_file_path, 'w')
     summary_file.write("Val loss:" + ': ' + str(round(val_loss, 3)))
@@ -72,7 +77,7 @@ def grid_search(dec_sizes, batch_sizes, lrs, opts, weight_decays):
                             'lr': lr,
                             'opt': opt,
                             'weight_decay': weight_decay}
-                        new_val_loss = train_with_hyperparams('seq2seq', param_dict, it, best_val_loss)
+                        new_val_loss = train_with_hyperparams('reg', param_dict, it, best_val_loss)
                         if new_val_loss < best_val_loss:
                             best_it = it
                             best_val_loss = new_val_loss
