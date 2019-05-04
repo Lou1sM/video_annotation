@@ -3,3 +3,6 @@ __pycache__
 loss.png
 data/YT_40_structured_captions.json
 data/loss_plots/*
+data/frames/*
+data/dummy_data/*
+dev/
