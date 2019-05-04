@@ -4,8 +4,14 @@ Project to annotate videos with formal knowledge, using semantic embeddings gene
 
 # Seq2Seq model TO DO: 
 
-- write evaluate function
-- add early stopping
-- add epochs 
-- plot in real time of loss function
-- add batches 
+- modify evaluate function to use the predictions form the previous step (ground truth for seq_length during val)
+- do the above with batches
+- two step training (train enc + dec then freeze enc and train regr) 
+
+
+# Models to try: 
+- concatenate vs seq
+- EOS vs regressor
+- model with teacher forcing 
+- attention encore vs transformer
+
