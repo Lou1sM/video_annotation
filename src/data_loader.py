@@ -13,6 +13,15 @@ from torch.utils import data
 import h5py as h5
 from skimage import img_as_float
 
+num_vids = 4
+vid_ids = list(range(1, num_vids+1))
+
+def load_vid_from_id(vid_id):
+    return np.load('../data/frames/vid{}_resized.npz'.format(vid_id))['arr_0']
+
+
+#video_lookup_dict = {vid_id: load_vid_from_id(vid_id) for vid_id in vid_ids}
+
 
 class ReadyDataset(data.Dataset):
     def __init__(self, archive, transform=None):
@@ -37,6 +46,33 @@ class ReadyDataset(data.Dataset):
         self.archive.close()
 
 
+class LookupDatasetTrain(data.Dataset):
+    def __init__(self, archive, transform=None):
+        self.archive = h5.File(archive, 'r')
+        self.seq_lens = np.array(self.archive['embedding_len'], dtype=np.int32)
+        self.embeddings = self.archive['embeddings']
+        self.video_ids = self.archive['videoId']
+        self.transform = transform
+        self.video_lookup_dict = {vid_id: load_vid_from_id(vid_id+1) for vid_id in range(200)}
+
+    def __getitem__(self, index):
+        embedding_seq = self.embeddings[index]
+        seq_len = self.seq_lens[index]
+        video_id = self.video_ids[index]
+        video = self.video_lookup_dict[video_id]
+        if self.transform != None:
+            video = self.transform(video)
+        return video, embedding_seq, seq_len
+
+    def __len__(self):
+        return len(self.seq_lens)
+
+    def close(self):
+        self.archive.close()
+
+
+
+
 def load_data(h5file_path, batch_size, shuffle):
     """Load data from specified file path and return a Dataset.
 
@@ -52,6 +88,23 @@ def load_data(h5file_path, batch_size, shuffle):
     new_data = ReadyDataset(h5file_path)
     new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle)
     return new_data_loaded
+
+
+def load_data_lookup(h5file_path, batch_size, shuffle):
+    """Load data from specified file path and return a Dataset.
+
+    Each element is a triple of the form
+    (video, embedding_sequence, sequence_length)
+    """
+    transforms.ToTensor()
+    transform = transforms.Compose(
+        [transforms.ToTensor()],
+        )
+
+    new_data = LookupDatasetTrain(h5file_path)
+    new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle)
+    return new_data_loaded
+
 
 
 class TestConvNet(torch.nn.Module):
@@ -72,7 +125,7 @@ class TestConvNet(torch.nn.Module):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    new_data_loaded = load_data('four_vids.h5', 1, shuffle=True)    
+    new_data_loaded = load_data_lookup('train_data_dummy.h5', 2, shuffle=True)    
     for epoch in range(5):
         print(888888888888888, epoch)
         print("Number of batches:", len(new_data_loaded), "\n")
@@ -103,4 +156,4 @@ if __name__ == "__main__":
             #print(data[0][0,0,:,:,:])
             #print("Test output:\n")
             #print(outp[0])
-            break
+        break
