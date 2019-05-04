@@ -25,7 +25,12 @@ def main():
         print("\nREGRESSOR")
         print(regressor)
 
-    seq2seq.trainIters(args, encoder, decoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
+    if args.model == 'seq2seq':
+        training_func = seq2seq.train_iters_seq2seq
+    elif args.model == 'reg':
+        training_func = seq2seq.train_iters_reg
+    
+    training_func(args, encoder, decoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
 
 
 if __name__=="__main__":

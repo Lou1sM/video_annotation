@@ -23,7 +23,7 @@ class HyperParamSet():
         self.patience = 10
         
 
-def train_with_hyperparams(param_dict, exp_name=None, best_val_loss=0):
+def train_with_hyperparams(model, param_dict, exp_name=None, best_val_loss=0):
     args = HyperParamSet(param_dict)
 
     if exp_name == None:
@@ -35,8 +35,13 @@ def train_with_hyperparams(param_dict, exp_name=None, best_val_loss=0):
     regressor = seq2seq.NumIndRegressor(args,device).to(device)
     h5_train_generator = load_data('../data/datasets/four_vids.h5', args.batch_size, shuffle=args.shuffle)
     h5_val_generator = load_data('../data/datasets/four_vids.h5', args.batch_size, shuffle=args.shuffle)
+
+    if model == "seq2seq":
+        train_func = seq2seq.train_iters_seq2seq
+    elif model == "reg":
+        train_func = seq2seq.reg
  
-    val_loss = seq2seq.trainIters(args, encoder, decoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
+    val_loss = train_func(args, encoder, decoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
 
     summary_file_path = os.path.join(SUMMARY_DIR, "{}.txt".format(exp_name))
     summary_file = open(summary_file_path, 'w')
@@ -67,7 +72,7 @@ def grid_search(dec_sizes, batch_sizes, lrs, opts, weight_decays):
                             'lr': lr,
                             'opt': opt,
                             'weight_decay': weight_decay}
-                        new_val_loss = train_with_hyperparams(param_dict, it, best_val_loss)
+                        new_val_loss = train_with_hyperparams('seq2seq', param_dict, it, best_val_loss)
                         if new_val_loss < best_val_loss:
                             best_it = it
                             best_val_loss = new_val_loss

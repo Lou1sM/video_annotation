@@ -165,137 +165,60 @@ class NumIndEOS(nn.Module):
 
 
 
-def run_network_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, criterion, reg_criterion, mode):
+def train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion):
     
     encoder_hidden = encoder.initHidden()
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
-    regressor_optimizer.zero_grad()
 
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
-
-    #decoder_input = torch.tensor([[SOS_token]], device=device)
     decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device)
-    
-    if torch.cuda.is_available():
-        decoder_input = decoder_input.cuda()
-    
-    decoder_hidden = encoder_hidden
-
     if torch.cuda.is_available():
         encoder_hidden = encoder_hidden.cuda()
         encoder_outputs = encoder_outputs.cuda()
+        decoder_input = decoder_input.cuda()
 
-
+    decoder_hidden = encoder_hidden
     decoder_inputs = torch.cat((decoder_input, target_tensor))
-    decoder_outputs, decoder_hidden = decoder(input=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden)
-    #print('dec_out', decoder_outputs.shape)
-    #print('target', target_tensor.shape)
-    loss = criterion(decoder_outputs, target_tensor[:decoder_outputs.shape[0],:,:])
     
-    regressor_output = regressor(encoder_outputs)
-    reg_loss = reg_criterion(regressor_output, target_number_tensor)
+    if torch.cuda.is_available():
+        decoder_input = decoder_input.cuda()
+    decoder_outputs, decoder_hidden = decoder(input=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden)
+    
+    loss = criterion(decoder_outputs, target_tensor[:decoder_outputs.shape[0],:,:])
+    loss.backward()
+    encoder_optimizer.step()
+    decoder_optimizer.step()
+
+    return loss.item()
 
 
-#    if mode == "train":
-#        loss.backward()
-#        encoder_optimizer.step()
-#        decoder_optimizer.step()
-#        reg_loss.backward()
-#        regressor_optimizer.step()
-
-    return loss.item(), reg_loss.item()
-
-
-"""
-def run_network_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion, mode):
+def train_reg_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion):
     
     encoder_hidden = encoder.initHidden()
-    encoder_optimizer.zero_grad()
-    decoder_optimizer.zero_grad()
-    regressor_optimizer.zero_grad()
+    optimizer.zero_grad()
 
     input_length = input_tensor.size(0)
     target_length = target_tensor.size(0)
 
-    encoder_outputs = torch.zeros(args.num_frames, encoder.hidden_size, device=encoder.device)
-    
-    dec_loss = 0
-    reg_loss = 0
-
-    # for ei in range(input_length):
-    #     encoder_output, encoder_hidden = encoder(
-    #         input_tensor[ei], encoder_hidden)
-    #     encoder_outputs[ei] = encoder_output[0, 0]
-
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
-
-    #decoder_input = torch.tensor([[SOS_token]], device=device)
-    decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device)
-    
-    if torch.cuda.is_available():
-        decoder_input = decoder_input.cuda()
-    
-    decoder_hidden = encoder_hidden
 
     if torch.cuda.is_available():
         encoder_hidden = encoder_hidden.cuda()
         encoder_outputs = encoder_outputs.cuda()
 
     regressor_output = regressor(encoder_outputs)
-    reg_loss += reg_criterion(regressor_output, target_number_tensor)
+    loss += reg_criterion(regressor_output, target_number_tensor)
 
-    #use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
-    #REMOVE WHEN FIGURED OUT HOW TO PREDICT NUMBER!!!
-    use_teacher_forcing = True
+    loss.backward()
+    optimizer.step()
 
-    if use_teacher_forcing:
+    return loss.item()
 
-        decoder_inputs = torch.cat((decoder_input, encoder_outputs))
-        # Teacher forcing: Feed the target as the next input
-        # for di in range(target_length):
-        #     decoder_output, decoder_hidden, decoder_attention = decoder(
-        #         decoder_input, decoder_hidden, encoder_outputs)
-        #     dec_loss += dec_criterion(decoder_output, target_tensor[di])
-        #     decoder_input = target_tensor[di]  # Teacher forcing
-        decoder_outputs, decoder_hidden = decoder(decoder_inputs, target_number_tensor, decoder_hidden)
-
- 
-    else:
-        # Without teacher forcing: use its own predictions as the next input
-        for di in range(int(regressor_output.item())):
-            decoder_output, decoder_hidden, decoder_attention = decoder(
-                decoder_input, decoder_hidden, encoder_outputs)
-            
-            d_o = decoder_output
-            decoder_input = d_o.detach()  # detach from history as input
-
-            dec_loss += dec_criterion(decoder_output, target_tensor[di])
-            
-
-    loss = dec_loss + args.lmbda * reg_loss
-
-    if mode == "train":
-        loss.backward()
-        encoder_optimizer.step()
-        decoder_optimizer.step()
-        regressor_optimizer.step()
-
-    return loss.item() / target_length
-
-
-"""
-def tensorsFromTriplets(triplets, args):
-	# given a couple video + set of embeddings of all individuals it returns a triplet:
-	# (input_tensor, output_tensor, output_number)
-	# where:
-	# - input_tensor (num_frames, 1, 3, 224, 224)
-	# - output_tensor (num_individuals, embedding_size)
-    # - output_number (1)
-	return (torch.rand(args.num_frames, 1, 3, 224, 224), torch.rand(args.max_length, args.ind_size), torch.rand(1))
-
-
-def trainIters(args, encoder, decoder, regressor, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name=""):
+def eval_network_on_batch(mode):
+    return 1.0
+    
+def train_iters_seq2seq(args, encoder, decoder, regressor, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name=""):
 
     start = time.time()
     learning_rate = args.learning_rate
@@ -305,30 +228,21 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
     print_loss_total = 0  # Reset every print_every
     plot_loss_total = 0  # Reset every plot_every
 
+    print(args.optimizer)
     if args.optimizer == "SGD":
         encoder_optimizer = optim.SGD(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
         decoder_optimizer = optim.SGD(decoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-        regressor_optimizer = optim.SGD(regressor.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     elif args.optimizer == "Adam":
         encoder_optimizer = optim.Adam(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
         decoder_optimizer = optim.Adam(decoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-        regressor_optimizer = optim.Adam(regressor.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     elif args.optimizer == "RMS":
         encoder_optimizer = optim.RMSProp(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
         decoder_optimizer = optim.RMSProp(decoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-        regressor_optimizer = optim.RMSProp(regressor.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
 
-
-    triplets = "dummy"
-
-    training_triplets = [tensorsFromTriplets(random.choice(triplets), args)
-                      for i in range(n_iters)]
-    dec_criterion = nn.MSELoss()
-    reg_criterion = nn.MSELoss()
+    criterion = nn.MSELoss()
     EarlyStop = EarlyStopper(patience=args.patience, verbose=True)
 
-    lowest_val_loss = float('inf')
     for epoch_num in range(args.max_epochs):
         print("Epoch:", epoch_num+1)
     
@@ -340,7 +254,74 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
                 target_number = target_number.cuda()
-            loss = run_network_on_batch(args, input_tensor, target_tensor, target_number, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion, mode="train")
+            loss = train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer, criterion=criterion)
+
+            print_loss_total += loss
+            plot_loss_total += loss
+
+            if iter_ % print_every == 0:
+                print_loss_avg = print_loss_total / print_every
+                print_loss_total = 0
+                #print('%s (%d %d%%) %.4f' % (utils.timeSince(start, iter_+1 / n_iters),
+                                             #iter_+1, iter_+1 / n_iters * 100, print_loss_avg))
+
+            if iter_ % plot_every == 0:
+                plot_loss_avg = plot_loss_total / plot_every
+                plot_losses.append(plot_loss_avg)
+                plot_loss_total = 0
+                utils.showPlot(plot_losses, '../data/loss_plots/loss{}.png'.format(exp_name))
+
+        total_val_loss = 0
+        for iter_, training_triplet in enumerate(val_generator):
+            input_tensor = training_triplet[0].float().transpose(0,1)
+            target_tensor = training_triplet[1].float().transpose(0,1)
+            target_number = training_triplet[2].float()
+            if torch.cuda.is_available():
+                input_tensor = input_tensor.cuda()
+                target_tensor = target_tensor.cuda()
+                target_number = target_number.cuda()
+            new_val_loss = eval_network_on_batch(args, input_tensor, target_tensor, target_number, encoder, decoder, encoder_optimizer, decoder_optimizer, dec_criterion, mode="eval_seq2seq")
+
+            total_val_loss += new_val_loss[0]
+        save_dict = {
+            'encoder':encoder, 
+            'decoder':decoder, 
+        }
+        EarlyStop(total_val_loss, save_dict, filename='../checkpoints/chkpt{}.pt'.format(exp_name))
+        if EarlyStop.early_stop:
+            return EarlyStop.val_loss_min
+
+
+
+def train_iters_reg(args, regressor, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name=""):
+
+    start = time.time()
+    plot_losses = []
+    print_loss_total = 0  # Reset every print_every
+    plot_loss_total = 0  # Reset every plot_every
+
+    if args.optimizer == "SGD":
+        optimizer = optim.SGD(regressor.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    elif args.optimizer == "Adam":
+        optimizer = optim.Adam(regressor.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    elif args.optimizer == "RMS":
+        optimizer = optim.RMSProp(regressor.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+
+    criterion = nn.MSELoss()
+    EarlyStop = EarlyStopper(patience=args.patience, verbose=True)
+
+    for epoch_num in range(args.max_epochs):
+        print("Epoch:", epoch_num+1)
+    
+        for iter_, training_triplet in enumerate(train_generator):
+            input_tensor = training_triplet[0].float().transpose(0,1)
+            target_tensor = training_triplet[1].float().transpose(0,1)
+            target_number = training_triplet[2].float()
+            if torch.cuda.is_available():
+                input_tensor = input_tensor.cuda()
+                target_tensor = target_tensor.cuda()
+                target_number = target_number.cuda()
+            loss = train_reg_on_batch(args, input_tensor, target_tensor, target_number, regressor=regressor, optimizer=optimizer, criterion=criterion)
 
             print_loss_total += loss[0]
             plot_loss_total += loss[0]
@@ -366,16 +347,13 @@ def trainIters(args, encoder, decoder, regressor, train_generator, val_generator
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
                 target_number = target_number.cuda()
-            new_val_loss = run_network_on_batch(args, input_tensor, target_tensor, target_number, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion, mode="val")
+            new_val_loss = eval_network_on_batch(args, input_tensor, target_tensor, target_number, regressor=regressor, criterion=reg_criterion, mode="eval_reg")
 
             total_val_loss += new_val_loss[0]
         EarlyStop(total_val_loss, {
-            'encoder':encoder, 
-            'decoder':decoder, 
             'regressor':regressor},
             filename='../checkpoints/chkpt{}.pt'.format(exp_name))
         if EarlyStop.early_stop:
             return EarlyStop.val_loss_min
-
 
 
