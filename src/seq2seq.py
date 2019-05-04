@@ -207,6 +207,78 @@ def run_network_on_batch(args, input_tensor, target_tensor, target_number_tensor
     return loss.item(), reg_loss.item()
 
 
+# mode possible values: {"eval_seq2seq", "eval_reg", "test"}
+def eval_network_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, regressor, criterion, reg_criterion, mode):
+    
+    encoder_hidden = encoder.initHidden()
+    encoder_optimizer.zero_grad()
+    decoder_optimizer.zero_grad()
+    regressor_optimizer.zero_grad()
+
+    encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
+
+    decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device)
+    
+    if torch.cuda.is_available():
+        decoder_input = decoder_input.cuda()
+    
+    decoder_hidden = encoder_hidden
+
+    if torch.cuda.is_available():
+        encoder_hidden = encoder_hidden.cuda()
+        encoder_outputs = encoder_outputs.cuda()
+
+
+    if mode == "eval_reg":
+        regressor_output = regressor(encoder_outputs)
+        reg_loss = reg_criterion(regressor_output, target_number_tensor)
+        return reg_loss
+
+    elif mode == "eval_seq2seq":
+        dec_loss = 0
+        for b in args.batch_size:
+            single_dec_input = decoder_input[:, b]
+            for l in range(target_number_tensor):
+                decoder_output, decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.ones(1), encoder_outputs=encoder_outputs, hidden=decoder_hidden)
+                dec_loss += criterion(decoder_output, target_tensor[l, b])
+            dec_loss = dec_loss / float(l)
+        dec_loss /= float(b) 
+        return dec_loss    
+
+    elif mode == "test":
+        regressor_output = regressor(encoder_outputs)
+        reg_loss = reg_criterion(regressor_output, target_number_tensor)
+        dec_loss = 0
+        for b in args.batch_size:
+            single_dec_input = decoder_input[:, b]
+            for l in range(target_number_tensor):
+                decoder_output, decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.ones(1), encoder_outputs=encoder_outputs, hidden=decoder_hidden)
+                dec_loss += criterion(decoder_output, target_tensor[l, b])
+            dec_loss = dec_loss / float(l)
+        dec_loss /= float(b) 
+        return dec_loss, reg_loss
+
+
+    # decoder_inputs = torch.cat((decoder_input, target_tensor))
+    # decoder_outputs, decoder_hidden = decoder(input=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden)
+    # #print('dec_out', decoder_outputs.shape)
+    # #print('target', target_tensor.shape)
+    # loss = criterion(decoder_outputs, target_tensor[:decoder_outputs.shape[0],:,:])
+    
+    # regressor_output = regressor(encoder_outputs)
+    # reg_loss = reg_criterion(regressor_output, target_number_tensor)
+
+
+#    if mode == "train":
+#        loss.backward()
+#        encoder_optimizer.step()
+#        decoder_optimizer.step()
+#        reg_loss.backward()
+#        regressor_optimizer.step()
+
+#    return loss.item(), reg_loss.item()
+
+
 """
 def run_network_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, regressor, encoder_optimizer, decoder_optimizer, regressor_optimizer, dec_criterion, reg_criterion, mode):
     
