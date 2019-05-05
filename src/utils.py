@@ -3,7 +3,7 @@ import os
 import json
 import math
 import matplotlib.pyplot as plt
-plt.switch_backend('agg')
+#plt.switch_backend('agg')
 import matplotlib.ticker as ticker
 import numpy as np
 import time
@@ -14,6 +14,17 @@ def get_datetime_stamp():
     datetime_stamp = str(datetime.now()).split()[0][5:] + '_'+str(datetime.now().time()).split()[0][:-7]
     return datetime_stamp
 
+
+def plot_losses(train_losses, val_losses, file_path):
+    plt.plot(train_losses, label='Train Loss')
+    plt.plot(val_losses, label='Validation Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('MSE')
+    plt.legend(loc='upper right')
+    plt.xticks(np.arange(0, len(train_losses), 1.0))
+    plt.savefig(file_path)
+    plt.show()
+    plt.close()
 
 def asMinutes(s):
     m = math.floor(s / 60)

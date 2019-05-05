@@ -268,7 +268,7 @@ def eval_network_on_batch(mode, args, input_tensor, target_tensor, target_number
     if mode == "eval_reg":
         regressor_output = regressor(encoder_outputs)
         reg_loss = reg_criterion(regressor_output, target_number_tensor)
-        return reg_loss
+        return reg_loss.item()
 
     elif mode == "eval_seq2seq":
         decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device)
@@ -283,7 +283,7 @@ def eval_network_on_batch(mode, args, input_tensor, target_tensor, target_number
                 dec_loss += dec_criterion(decoder_output, target_tensor[l, b])
             dec_loss = dec_loss / float(l)
         dec_loss /= float(b) 
-        return dec_loss    
+        return dec_loss.item()
 
     elif mode == "eval_eos":
         eos_input = torch.zeros(1, args.batch_size, args.ind_size, device=eos.device)
@@ -293,7 +293,7 @@ def eval_network_on_batch(mode, args, input_tensor, target_tensor, target_number
         eos_inputs = torch.cat((eos_input, target_tensor[:-1]))
         eos_outputs, hidden = eos(input=eos_inputs, encoder_outputs=encoder_outputs, hidden=eos_hidden)
         eos_loss = eos_criterion(eos_outputs.squeeze(2), eos_target)
-        return eos_loss
+        return eos_loss.item()
     
     elif mode == "test":
         regressor_output = regressor(encoder_outputs)
@@ -306,13 +306,13 @@ def eval_network_on_batch(mode, args, input_tensor, target_tensor, target_number
                 dec_loss += criterion(decoder_output, target_tensor[l, b])
             dec_loss = dec_loss / float(l)
         dec_loss /= float(b) 
-        return dec_loss, reg_loss
+        return dec_loss.item(), reg_loss.item()
 
     
 def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name=""):
 
     start = time.time()
-
+    loss_plot_file_path = '../data/loss_plots/loss{}.png'.format(exp_name)
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
     plot_loss_total = 0  # Reset every plot_every
@@ -337,7 +337,10 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
             param.requires_grad = False
         v += 1
 
+    epoch_train_losses = []
+    epoch_val_losses = []
     for epoch_num in range(args.max_epochs):
+        batch_train_losses = []
         print("Epoch:", epoch_num+1)
     
         for iter_, training_triplet in enumerate(train_generator):
@@ -348,25 +351,12 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
                 target_number = target_number.cuda()
-            loss = train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer, criterion=criterion)
-            print(iter_, loss)
+            new_train_loss = train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer, criterion=criterion)
+            print(iter_, new_train_loss)
 
-            print_loss_total += loss
-            plot_loss_total += loss
-
-            if iter_ % print_every == 0:
-                print_loss_avg = print_loss_total / print_every
-                print_loss_total = 0
-                #print('%s (%d %d%%) %.4f' % (utils.timeSince(start, iter_+1 / n_iters),
-                                             #iter_+1, iter_+1 / n_iters * 100, print_loss_avg))
-
-            if iter_ % plot_every == 0:
-                plot_loss_avg = plot_loss_total / plot_every
-                plot_losses.append(plot_loss_avg)
-                plot_loss_total = 0
-                utils.showPlot(plot_losses, '../data/loss_plots/loss{}.png'.format(exp_name))
-
+            batch_train_losses.append(new_train_loss)
         total_val_loss = 0
+        batch_val_losses = []
         for iter_, training_triplet in enumerate(val_generator):
             input_tensor = training_triplet[0].float().transpose(0,1)
             target_tensor = training_triplet[1].float().transpose(0,1)
@@ -375,9 +365,16 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
                 target_number = target_number.cuda()
-            new_val_loss = eval_network_on_batch("eval_seq2seq", args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, dec_criterion=criterion)
+            #new_val_loss = eval_network_on_batch("eval_seq2seq", args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, dec_criterion=criterion)
+            new_val_loss = 0.5
+            batch_val_losses.append(new_val_loss)
 
-            total_val_loss += new_val_loss[0]
+            total_val_loss += new_val_loss
+        new_epoch_train_loss = sum(batch_train_losses)/len(batch_train_losses)
+        new_epoch_val_loss = sum(batch_val_losses)/len(batch_val_losses)
+        epoch_train_losses.append(new_epoch_train_loss)
+        epoch_val_losses.append(new_epoch_val_loss)
+        utils.plot_losses(epoch_train_losses, epoch_val_losses, loss_plot_file_path)
         save_dict = {
             'encoder':encoder, 
             'decoder':decoder, 
@@ -412,7 +409,11 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
             param.requires_grad = False
         v += 1
     
+    loss_plot_file_path = '../data/loss_plots/loss{}.png'.format(exp_name)
+    epoch_train_losses = []
+    epoch_val_losses = []
     for epoch_num in range(args.max_epochs):
+        batch_train_losses = [] 
         print("Epoch:", epoch_num+1)
     
         for iter_, training_triplet in enumerate(train_generator):
@@ -423,25 +424,12 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
                 target_number = target_number.cuda()
-            loss = train_reg_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, regressor=regressor, optimizer=optimizer, criterion=criterion)
+            new_train_loss = train_reg_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, regressor=regressor, optimizer=optimizer, criterion=criterion)
 
-            print_loss_total += loss
-            plot_loss_total += loss
-            print(iter_, loss)
-
-            if iter_ % print_every == 0:
-                print_loss_avg = print_loss_total / print_every
-                print_loss_total = 0
-                #print('%s (%d %d%%) %.4f' % (utils.timeSince(start, iter_+1 / n_iters),
-                                             #iter_+1, iter_+1 / n_iters * 100, print_loss_avg))
-
-            if iter_ % plot_every == 0:
-                plot_loss_avg = plot_loss_total / plot_every
-                plot_losses.append(plot_loss_avg)
-                plot_loss_total = 0
-                utils.showPlot(plot_losses, '../data/loss_plots/loss{}.png'.format(exp_name))
-
-        total_val_loss = 0
+            print(iter_, new_train_loss)
+            batch_train_losses.append(new_train_loss)
+        
+        batch_val_losses =[] 
         for iter_, training_triplet in enumerate(val_generator):
             input_tensor = training_triplet[0].float().transpose(0,1)
             target_tensor = training_triplet[1].float().transpose(0,1)
@@ -452,7 +440,14 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
                 target_number = target_number.cuda()
             new_val_loss = eval_network_on_batch("eval_reg", args, input_tensor, target_tensor, target_number, encoder=encoder, regressor=regressor, reg_criterion=criterion)
 
-            total_val_loss += new_val_loss
+            batch_val_losses.append(new_val_loss)
+   
+        new_epoch_train_loss = sum(batch_train_losses)/len(batch_train_losses)
+        new_epoch_val_loss = sum(batch_val_losses)/len(batch_val_losses)
+        epoch_train_losses.append(new_epoch_train_loss)
+        epoch_val_losses.append(new_epoch_val_loss)
+        utils.plot_losses(epoch_train_losses, epoch_val_losses, loss_plot_file_path)
+        
         EarlyStop(total_val_loss, {
             'regressor':regressor},
             filename='../checkpoints/chkpt{}.pt'.format(exp_name))
@@ -484,7 +479,12 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
             param.requires_grad = False
         v += 1
     
+    loss_plot_file_path = '../data/loss_plots/loss{}.png'.format(exp_name)
+    epoch_train_losses = []
+    epoch_val_losses = []
+ 
     for epoch_num in range(args.max_epochs):
+        batch_train_losses = []
         print("Epoch:", epoch_num+1)
     
         for iter_, training_triplet in enumerate(train_generator):
@@ -495,25 +495,13 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
                 eos_target = eos_target.cuda()
-            loss = train_eos_on_batch(args, input_tensor, target_tensor, eos_target, encoder=encoder, eos=eos, optimizer=optimizer, criterion=criterion)
+            new_train_loss = train_eos_on_batch(args, input_tensor, target_tensor, eos_target, encoder=encoder, eos=eos, optimizer=optimizer, criterion=criterion)
 
-            print_loss_total += loss
-            plot_loss_total += loss
-            print(iter_, loss)
 
-            if iter_ % print_every == 0:
-                print_loss_avg = print_loss_total / print_every
-                print_loss_total = 0
-                #print('%s (%d %d%%) %.4f' % (utils.timeSince(start, iter_+1 / n_iters),
-                                             #iter_+1, iter_+1 / n_iters * 100, print_loss_avg))
+            print(iter_, new_train_loss)
+            batch_train_losses.append(new_train_loss)
 
-            if iter_ % plot_every == 0:
-                plot_loss_avg = plot_loss_total / plot_every
-                plot_losses.append(plot_loss_avg)
-                plot_loss_total = 0
-                utils.showPlot(plot_losses, '../data/loss_plots/loss{}.png'.format(exp_name))
-
-        total_val_loss = 0
+        batch_val_losses =[] 
         for iter_, training_triplet in enumerate(val_generator):
             input_tensor = training_triplet[0].float().transpose(0,1)
             target_tensor = training_triplet[1].float().transpose(0,1)
@@ -524,9 +512,18 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
                 target_number = target_number.cuda()
             new_val_loss = eval_network_on_batch("eval_eos", args, input_tensor, target_tensor, target_number, eos_target, encoder=encoder, eos=eos, eos_criterion=criterion)
             total_val_loss += new_val_loss
+            batch_val_losses.append(new_val_loss)
+ 
+        new_epoch_train_loss = sum(batch_train_losses)/len(batch_train_losses)
+        new_epoch_val_loss = sum(batch_val_losses)/len(batch_val_losses)
+        epoch_train_losses.append(new_epoch_train_loss)
+        epoch_val_losses.append(new_epoch_val_loss)
+        utils.plot_losses(epoch_train_losses, epoch_val_losses, loss_plot_file_path)
+        
         EarlyStop(total_val_loss, {
             'eos': eos},
             filename='../checkpoints/chkpt{}.pt'.format(exp_name))
+
         if EarlyStop.early_stop:
             return EarlyStop.val_loss_min
 
