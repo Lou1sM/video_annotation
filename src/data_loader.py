@@ -47,6 +47,19 @@ class ReadyDataset(data.Dataset):
 
 
 class LookupDataset(data.Dataset):
+    """Dataset object that expects videos as ids, and forms a lookup table for such ids.
+
+    To save duplicating the same video for each caption that accompanies that video, the
+    h5 file read by this object contains video ids in place of the full video tensor. For
+    a given h5 file, the videos corresponding to video ids are loaded into memory as a 
+    lookup table and stored in self.video_lookup_dict. The range of video ids that can 
+    appear in the file must be passed as an argument to this init of this object. 
+
+    Args:
+      archive: full file path of the h5 file
+      vid_range: range of video ids for building lookup table
+    """
+
     def __init__(self, archive, vid_range, transform=None):
         self.archive = h5.File(archive, 'r')
         self.seq_lens = np.array(self.archive['embedding_len'], dtype=np.int32)
@@ -86,23 +99,40 @@ def load_data(h5file_path, batch_size, shuffle):
 
     #new_data = ReadyDataset(h5file_path, transform)
     new_data = ReadyDataset(h5file_path)
-    new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle)
+    new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle, drop_last=True)
     return new_data_loaded
 
 
 def load_data_lookup(h5file_path, vid_range, batch_size, shuffle):
-    """Load data from specified file path and return a Dataset.
+    """Load data from specified file path and return a Dataset that uses a lookup table for videos.
 
-    Each element is a triple of the form
+    Each element returned is a triple of the form
     (video, embedding_sequence, sequence_length)
+    
+    The lookup table consumes ~15G memory for the full train set, ~1G for the full validation set
+    and ~5G for the full test set. There are mini-datasets available by passing the --mini flag 
+    when calling main.py.
+
+    Args:
+      h5_file_path: full path to a h5_file containing one dataset with key 'videoId' which stores
+              video ids (ints), one dataset with key 'embeddings' which stores sequences of embed-
+              dings (padded np arrays), and one dataset with key 'embedding_len' which stores the
+              lengths of sequences of the embeddings (ints)
+
+      vid_range: a tuple of two ints, specifying the range of videos to load in the video lookup
+              table, default split given in MSVD is (1,1201) for train data, (1201,1301) for val-
+              idation data and (1301,1971) for test data
+      batch_size: int, number of dataset elements to return for each batch
+      shuffle: bool, whether to shuffle entire dataset before each epoch
     """
+
     transforms.ToTensor()
     transform = transforms.Compose(
         [transforms.ToTensor()],
         )
 
     new_data = LookupDataset(h5file_path, vid_range)
-    new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle)
+    new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle, drop_last=True)
     return new_data_loaded
 
 
