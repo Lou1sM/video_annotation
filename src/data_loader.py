@@ -1,8 +1,13 @@
-"""Script for loading data from .h5 file. Function for export
-is load_data() which takes a single argument specifying the path
-of the .h5 file to load from. 
+"""Script for loading data from .h5 file. Functions for export
+are load_data() and load_data_lookup(). The former takes a single
+argument specifying the path of the h5 file to load from. It expects 
+this h5 file to contain full video tensors. The latter takes two args,
+one for the h5 file path and a range of videos to load into a lookup
+table. It expects the h5 file path to contain video ids which it then
+looks up in this table and returns. This is useful to reduce the h5
+file size. 
 
-The resulting Dataset object generates triples of the form
+The resulting Dataset objects generates triples of the form
 (video, embedding_sequence, sequence_length)
 """
 
@@ -13,17 +18,13 @@ from torch.utils import data
 import h5py as h5
 from skimage import img_as_float
 
-num_vids = 4
-vid_ids = list(range(1, num_vids+1))
 
 def load_vid_from_id(vid_id):
     return np.load('../data/frames/vid{}_resized.npz'.format(vid_id))['arr_0']
 
 
-#video_lookup_dict = {vid_id: load_vid_from_id(vid_id) for vid_id in vid_ids}
-
-
-class ReadyDataset(data.Dataset):
+class VideoDataset(data.Dataset):
+    """Dataset object that expects h5 file containing full video tensors, not ids."""
     def __init__(self, archive, transform=None):
         self.archive = h5.File(archive, 'r')
         self.videos = self.archive['videos']
@@ -44,6 +45,23 @@ class ReadyDataset(data.Dataset):
 
     def close(self):
         self.archive.close()
+
+
+
+def load_data(h5file_path, batch_size, shuffle):
+    """Load data from specified file path and return a Dataset that loads full video tensors.
+
+    Each element is a triple of the form
+    (video, embedding_sequence, sequence_length)
+    """
+    transforms.ToTensor()
+    transform = transforms.Compose(
+        [transforms.ToTensor()],
+        )
+
+    new_data = VideoDataset(h5file_path)
+    new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle, drop_last=True)
+    return new_data_loaded
 
 
 class LookupDataset(data.Dataset):
@@ -83,24 +101,6 @@ class LookupDataset(data.Dataset):
     def close(self):
         self.archive.close()
 
-
-
-
-def load_data(h5file_path, batch_size, shuffle):
-    """Load data from specified file path and return a Dataset.
-
-    Each element is a triple of the form
-    (video, embedding_sequence, sequence_length)
-    """
-    transforms.ToTensor()
-    transform = transforms.Compose(
-        [transforms.ToTensor()],
-        )
-
-    #new_data = ReadyDataset(h5file_path, transform)
-    new_data = ReadyDataset(h5file_path)
-    new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle, drop_last=True)
-    return new_data_loaded
 
 
 def load_data_lookup(h5file_path, vid_range, batch_size, shuffle):
@@ -157,7 +157,7 @@ if __name__ == "__main__":
 
     new_data_loaded = load_data_lookup('../data/dummy_data/train_data_dummy.h5', batch_size=2, vid_range=(1,1201), shuffle=True)    
     for epoch in range(5):
-        print(888888888888888, epoch)
+        print(epoch)
         print("Number of batches:", len(new_data_loaded), "\n")
         for i, data in enumerate(new_data_loaded):
             #print(i, type(data))
