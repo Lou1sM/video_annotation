@@ -355,7 +355,7 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
         if v <= args.vgg_layers_to_freeze*2: # Assuming each layer has two params
             param.requires_grad = False
         v += 1
-
+    
     for epoch_num in range(args.max_epochs):
         print("Epoch:", epoch_num+1)
     
