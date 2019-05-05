@@ -6,7 +6,16 @@ import argparse
 def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
-
+    argparser.add_argument("--mini", "-m",
+            default = False,
+            action = "store_true",
+            help = "whether to use mini-dataset, so doesn't exceed ram when running locally"
+        )
+    argparser.add_argument("--vgg_layers_to_freeze",
+            type = int,
+            default = 17,
+            help = "how many of vgg19's layers to freeze during training"
+        )
     argparser.add_argument("--weight_decay",
             type = int,
             default = 0,
