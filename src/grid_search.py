@@ -1,9 +1,10 @@
 import os
+import sys
 import utils
 import options
 import models
 import torch
-from data_loader import load_data
+from data_loader import load_data, load_data_lookup
 
 SUMMARY_DIR = '../data/logs'
 BEST_FILE_PATH = os.path.join(SUMMARY_DIR, "best.txt")
@@ -21,6 +22,7 @@ class HyperParamSet():
         self.shuffle = True
         self.max_epochs = 200
         self.patience = 10
+        self.vgg_layers_to_freeze = 17
         
 
 def train_with_hyperparams(model, param_dict, exp_name=None, best_val_loss=0):
@@ -33,8 +35,12 @@ def train_with_hyperparams(model, param_dict, exp_name=None, best_val_loss=0):
     encoder = models.EncoderRNN(args, device).to(device)
     decoder = models.DecoderRNN(args, device).to(device)
     regressor = models.NumIndRegressor(args,device).to(device)
-    h5_train_generator = load_data('../data/datasets/four_vids.h5', args.batch_size, shuffle=args.shuffle)
-    h5_val_generator = load_data('../data/datasets/four_vids.h5', args.batch_size, shuffle=args.shuffle)
+    if mini:
+        h5_train_generator = load_data_lookup('../data/mini/train_data.h5', vid_range=(1,21), batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_val_generator = load_data_lookup('../data/mini/val_data.h5', vid_range=(1201,1211), batch_size=args.batch_size, shuffle=args.shuffle)
+    else:
+        h5_train_generator = load_data('../data/datasets/four_vids.h5', vid_range=(1,1201), batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_val_generator = load_data('../data/datasets/four_vids.h5', vid_range(1201,1301), batch_size=args.batch_size, shuffle=args.shuffle)
 
     if model == 'seq2seq':
         val_loss = models.train_iters_seq2seq(args, encoder, decoder, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
@@ -63,7 +69,7 @@ def train_with_hyperparams(model, param_dict, exp_name=None, best_val_loss=0):
     return val_loss
 
 
-def grid_search(dec_sizes, batch_sizes, lrs, opts, weight_decays):
+def grid_search(model, dec_sizes, batch_sizes, lrs, opts, weight_decays):
     it = 0
     best_val_loss = float('inf')
     for dec_size in dec_sizes:
@@ -77,7 +83,7 @@ def grid_search(dec_sizes, batch_sizes, lrs, opts, weight_decays):
                             'lr': lr,
                             'opt': opt,
                             'weight_decay': weight_decay}
-                        new_val_loss = train_with_hyperparams('reg', param_dict, it, best_val_loss)
+                        new_val_loss = train_with_hyperparams(model, param_dict, it, best_val_loss)
                         if new_val_loss < best_val_loss:
                             best_it = it
                             best_val_loss = new_val_loss
@@ -87,10 +93,19 @@ def grid_search(dec_sizes, batch_sizes, lrs, opts, weight_decays):
 if __name__=="__main__":
 
     dec_sizes = [1,2,3,4]
-    batch_sizes = [2]
+    batch_sizes = [32]
     lrs = [1e-3]
     opts = ['Adam']
     weight_decays = [0]
 
-    grid_search(dec_sizes, batch_sizes, lrs, opts, weight_decays)
+    if len(sys.argv) == 1:
+        mini = False
+        print("running grid search on full dataset")
+    elif sys.argv[1] == 'm':
+        mini = True
+        print("running grid search on mini dataset")
+    else:
+        print("Unrecognized argument")
+        sys.exit()
+    grid_search('seq2seq', dec_sizes, batch_sizes, lrs, opts, weight_decays)
 
