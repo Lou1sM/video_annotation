@@ -261,7 +261,6 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
     print_loss_total = 0  # Reset every print_every
     plot_loss_total = 0  # Reset every plot_every
 
-    print(args.optimizer)
     if args.optimizer == "SGD":
         encoder_optimizer = optim.SGD(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
         decoder_optimizer = optim.SGD(decoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
@@ -275,6 +274,13 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
     criterion = nn.MSELoss()
     EarlyStop = EarlyStopper(patience=args.patience, verbose=True)
 
+    # Freeze vgg layers that we don't want to train
+    v = 1
+    for param in encoder.vgg.parameters():
+        if v <= args.vgg_layers_to_freeze*2: # Assuming each layer has two params
+            param.requires_grad = False
+        v += 1
+
     for epoch_num in range(args.max_epochs):
         print("Epoch:", epoch_num+1)
     
@@ -287,6 +293,7 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
                 target_tensor = target_tensor.cuda()
                 target_number = target_number.cuda()
             loss = train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer, criterion=criterion)
+            print(iter_, loss)
 
             print_loss_total += loss
             plot_loss_total += loss
@@ -342,6 +349,13 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
     criterion = nn.MSELoss()
     EarlyStop = EarlyStopper(patience=args.patience, verbose=True)
 
+    # Freeze layers in vgg19 that we don't want to train
+    v = 1
+    for param in encoder.vgg.parameters():
+        if v <= args.vgg_layers_to_freeze*2: # Assuming each layer has two params
+            param.requires_grad = False
+        v += 1
+
     for epoch_num in range(args.max_epochs):
         print("Epoch:", epoch_num+1)
     
@@ -357,6 +371,7 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
 
             print_loss_total += loss
             plot_loss_total += loss
+            print(iter_, loss)
 
             if iter_ % print_every == 0:
                 print_loss_avg = print_loss_total / print_every
@@ -389,3 +404,28 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
             return EarlyStop.val_loss_min
 
 
+if __name__ == "__main__":
+    import options
+    args = options.load_arguments()
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    enc = EncoderRNN(args, device)
+    v = 0
+    for param in enc.vgg.parameters():
+        v += 1
+        print(param.requires_grad)
+        if v <= 34:
+            param.requires_grad = False
+    e = 0 
+    g = 0
+    for param in enc.parameters():
+        e += 1
+        if param.requires_grad:
+            g +=1 
+   
+    print(e,v,g)
+  
+ 
+
+
+    
