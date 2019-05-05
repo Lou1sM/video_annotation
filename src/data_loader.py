@@ -46,14 +46,14 @@ class ReadyDataset(data.Dataset):
         self.archive.close()
 
 
-class LookupDatasetTrain(data.Dataset):
-    def __init__(self, archive, transform=None):
+class LookupDataset(data.Dataset):
+    def __init__(self, archive, vid_range, transform=None):
         self.archive = h5.File(archive, 'r')
         self.seq_lens = np.array(self.archive['embedding_len'], dtype=np.int32)
         self.embeddings = self.archive['embeddings']
         self.video_ids = self.archive['videoId']
         self.transform = transform
-        self.video_lookup_dict = {vid_id: load_vid_from_id(vid_id+1) for vid_id in range(200)}
+        self.video_lookup_dict = {vid_id: load_vid_from_id(vid_id+1) for vid_id in range(vid_range[0], vid_range[1])}
 
     def __getitem__(self, index):
         embedding_seq = self.embeddings[index]
@@ -90,7 +90,7 @@ def load_data(h5file_path, batch_size, shuffle):
     return new_data_loaded
 
 
-def load_data_lookup(h5file_path, batch_size, shuffle):
+def load_data_lookup(h5file_path, vid_range, batch_size, shuffle):
     """Load data from specified file path and return a Dataset.
 
     Each element is a triple of the form
@@ -101,7 +101,7 @@ def load_data_lookup(h5file_path, batch_size, shuffle):
         [transforms.ToTensor()],
         )
 
-    new_data = LookupDatasetTrain(h5file_path)
+    new_data = LookupDataset(h5file_path, vid_range)
     new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle)
     return new_data_loaded
 
@@ -125,18 +125,18 @@ class TestConvNet(torch.nn.Module):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    new_data_loaded = load_data_lookup('train_data_dummy.h5', 2, shuffle=True)    
+    new_data_loaded = load_data_lookup('../data/dummy_data/train_data_dummy.h5', batch_size=2, vid_range=(1,1201), shuffle=True)    
     for epoch in range(5):
         print(888888888888888, epoch)
         print("Number of batches:", len(new_data_loaded), "\n")
         for i, data in enumerate(new_data_loaded):
             #print(i, type(data))
             print("Number of elements in each batch:",len(data), "\n")
-            #print(data[0].shape)
-            #print(data[1].shape)
-            #print(data[2].shape)
+            print(data[0].shape)
+            print(data[1].shape)
+            print(data[2].shape)
             #print(data[0].type())
-            print(data[2])
+            #print(data[2])
             #print(data[0][0,0,0,0,0])
             ##im = data[0][0,0,:,:,:].type('torch.FloatTensor')
             #im = data[0][0,0,:,:,:]

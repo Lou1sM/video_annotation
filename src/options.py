@@ -117,9 +117,14 @@ def load_arguments():
             default = 1,
             help = "number of training examples in each batch"
         )
-    argparser.add_argument("--h5_file_path",
+    argparser.add_argument("--h5_val_file_path",
             type = str,
-            default = '../data/datasets/four_vids.h5',
+            default = '../data/dummy_data/val_data_dummy.h5',
+            help = "file to read the data from"
+        )
+    argparser.add_argument("--h5_train_file_path",
+            type = str,
+            default = '../data/dummy_data/train_data_dummy.h5',
             help = "file to read the data from"
         )
     argparser.add_argument("--shuffle",

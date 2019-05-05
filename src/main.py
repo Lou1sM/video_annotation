@@ -2,7 +2,7 @@ import utils
 import options
 import models
 import torch
-from data_loader import load_data
+from data_loader import load_data_lookup
 
 
 def main():
@@ -14,8 +14,8 @@ def main():
     decoder = models.DecoderRNN(args, device).to(device)
     regressor = models.NumIndRegressor(args,device).to(device)
 
-    h5_train_generator = load_data(args.h5_file_path, args.batch_size, shuffle=args.shuffle)
-    h5_val_generator = load_data(args.h5_file_path, args.batch_size, shuffle=args.shuffle)
+    h5_train_generator = load_data_lookup(args.h5_train_file_path, vid_range=(1,1201), batch_size=args.batch_size, shuffle=args.shuffle)
+    h5_val_generator = load_data_lookup(args.h5_val_file_path, vid_range=(1201,1301), batch_size=args.batch_size, shuffle=args.shuffle)
     
     if args.verbose:
         print("\nENCODER")
@@ -26,9 +26,9 @@ def main():
         print(regressor)
 
     if args.model == 'seq2seq':
-        models.train_iters_seq2seq(args, encoder, decoder, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
+        models.train_iters_seq2seq(args, encoder, decoder, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name)
     elif args.model == 'reg':
-        models.train_iters_reg(args, encoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
+        models.train_iters_reg(args, encoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name)
     
 
 
