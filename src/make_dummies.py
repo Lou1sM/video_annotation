@@ -13,10 +13,10 @@ def r():
 
 def get_dummy_data_point():
     rand_seq, rand_seq_len = r()
-    print(rand_seq.shape)
+    #print(rand_seq.shape)
     padding = np.zeros(shape=(N-rand_seq_len, 300))
     rand_seq = np.concatenate([rand_seq, padding], axis=0)
-    print(rand_seq.shape)
+    #print(rand_seq.shape)
     dummy_video_id = np.random.choice(vids)
     dummy_inds = np.random.choice(inds, rand_seq_len)
     dummy_preds = np.random.choice(preds, 3)
@@ -66,7 +66,6 @@ dummy_inds = []
 dummy_preds = []
 
 #vid_table_dict = {vid_id: load_vid_from_id(vid_id) for vid_id in vids}
-make_json(100, '../data/mini/val_data.json')
 
 def convert_json_to_h5(json_file_path, out_h5_file_path):
     print('reading json')
@@ -91,7 +90,12 @@ def convert_json_to_h5(json_file_path, out_h5_file_path):
     
     h5_f.close()
 
-convert_json_to_h5('../data/mini/val_data.json', '../data/mini/val_data.h5')
+
+if __name__ == "__main__":
+
+    make_json(100, '../data/mini/val_data.json')
+    convert_json_to_h5('../data/mini/val_data.json', '../data/mini/val_data.h5')
+
 
 """
 print(len(vid_table_dict))
