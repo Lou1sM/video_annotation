@@ -33,8 +33,7 @@ def train_with_hyperparams(model, param_dict, exp_name=None, best_val_loss=0):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     encoder = models.EncoderRNN(args, device).to(device)
-    decoder = models.DecoderRNN(args, device).to(device)
-    regressor = models.NumIndRegressor(args,device).to(device)
+
     if mini:
         h5_train_generator = load_data_lookup('../data/mini/train_data.h5', vid_range=(1,21), batch_size=args.batch_size, shuffle=args.shuffle)
         h5_val_generator = load_data_lookup('../data/mini/val_data.h5', vid_range=(1201,1211), batch_size=args.batch_size, shuffle=args.shuffle)
@@ -43,17 +42,15 @@ def train_with_hyperparams(model, param_dict, exp_name=None, best_val_loss=0):
         h5_val_generator = load_data('../data/datasets/four_vids.h5', vid_range(1201,1301), batch_size=args.batch_size, shuffle=args.shuffle)
 
     if model == 'seq2seq':
+        decoder = models.DecoderRNN(args, device).to(device)
         val_loss = models.train_iters_seq2seq(args, encoder, decoder, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
     elif model == 'reg':
+        regressor = models.NumIndRegressor(args, device).to(device)
         val_loss = models.train_iters_reg(args, encoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
- 
-#    if model == "seq2seq":
-#        train_func = models.train_iters_seq2seq
-#    elif model == "reg":
-#        train_func = models.reg
-# 
-#    val_loss = train_func(args, encoder, decoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
-#
+    elif model == 'eos':
+        eos = models.NumIndEOS(args, device).to(device)
+        val_loss = models.train_iters_eos(args, encoder, eos, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name)
+
     summary_file_path = os.path.join(SUMMARY_DIR, "{}.txt".format(exp_name))
     summary_file = open(summary_file_path, 'w')
     summary_file.write("Val loss:" + ': ' + str(round(val_loss, 3)))

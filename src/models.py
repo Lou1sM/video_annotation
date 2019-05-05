@@ -56,6 +56,7 @@ class DecoderRNN(nn.Module):
         self.hidden_size = args.ind_size
         self.dropout_p = args.dropout
         self.max_length = args.max_length
+        self.batch_size = args.batch_size
         self.gru = nn.GRU(self.hidden_size, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.hidden_size)
         #self.attn = nn.Linear(self.hidden_size * 2, args.num_frames)
@@ -109,6 +110,67 @@ class DecoderRNN(nn.Module):
         return torch.zeros(1, self.batch_size, self.hidden_size, device=self.device)
 
 
+class NumIndEOS(nn.Module):
+    def __init__(self, args, device):
+        super(NumIndEOS, self).__init__()
+        self.device = device
+        self.hidden_size = args.ind_size
+        self.output_size = 1
+        self.dropout_p = args.dropout
+        self.max_length = args.max_length
+        self.batch_size = args.batch_size
+
+        self.attn = nn.Linear(self.hidden_size * 2, args.num_frames)
+        self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
+        self.dropout = nn.Dropout(self.dropout_p)
+        self.gru = nn.GRU(self.hidden_size, self.hidden_size)
+        self.out = nn.Linear(self.hidden_size, self.output_size)
+
+    def forward(self, input, hidden, encoder_outputs):
+
+        drop_input = self.dropout(input)#.view(args.max_length, args.batch_size, -1))
+
+        enc_perm = encoder_outputs.permute(1,2,0)
+        #print('enc_perm', enc_perm.shape)
+        drop_input_perm = drop_input.permute(1,0, 2)
+        #print('drop_perm', drop_input_perm.shape)
+        dot_attn_weights = torch.bmm(drop_input_perm, enc_perm)
+        #print('dot_attn', dot_attn_weights.shape)
+        enc_perm_2 = encoder_outputs.permute(1,0,2)
+        #print('enc_perm_2', enc_perm_2.shape)
+        attn_applied = torch.bmm(dot_attn_weights, enc_perm_2).permute(1,0,2)
+        #print('attn_applied', attn_applied.shape)
+
+
+        output = torch.cat((drop_input, attn_applied), 2)
+        #print('output', output.shape)
+        output = self.attn_combine(output)
+        #print('output', output.shape)
+
+        #output = F.relu(output)
+        #attn_weights = F.softmax(
+        #    self.attn(torch.cat((drop_input[0], hidden[0]), 1)), dim=1)
+        #attn_applied = torch.bmm(attn_weights.unsqueeze(0),
+        #                         encoder_outputs.unsqueeze(0))
+
+        #output = torch.cat((drop_input[0], attn_applied[0]), 1)
+        #output = self.attn_combine(output).unsqueeze(0)
+
+        output = F.relu(output)
+        output, hidden = self.gru(output, hidden)
+
+        #print('output', output.shape)
+        #output = F.log_softmax(self.out(output[0]), dim=1)
+
+        output = self.out(output)
+        #print('output', output.shape)
+
+        return output, hidden
+
+    def initHidden(self):
+        return torch.zeros(1, self.batch_size, self.hidden_size, device=self.device)
+
+
 class NumIndRegressor(nn.Module):
     def __init__(self, args, device):
         super(NumIndRegressor, self).__init__()
@@ -124,47 +186,6 @@ class NumIndRegressor(nn.Module):
         return output
 
 
-class NumIndEOS(nn.Module):
-    def __init__(self, args, device):
-        super(AttnDecoderRNN, self).__init__()
-        self.device = device
-        self.hidden_size = args.ind_size
-        self.output_size = 1
-        self.dropout_p = args.dropout
-        self.max_length = args.max_length
-
-        self.attn = nn.Linear(self.hidden_size * 2, args.num_frames)
-        self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
-        self.dropout = nn.Dropout(self.dropout_p)
-        self.gru = nn.GRU(self.output_size, self.hidden_size)
-        self.out = nn.Linear(self.hidden_size, self.output_size)
-
-    def forward(self, input, hidden, encoder_outputs):
-
-        drop_input = self.dropout(input.view(1, 1, -1))
-
-        attn_weights = F.softmax(
-            self.attn(torch.cat((drop_input[0], hidden[0]), 1)), dim=1)
-        attn_applied = torch.bmm(attn_weights.unsqueeze(0),
-                                 encoder_outputs.unsqueeze(0))
-
-        output = torch.cat((drop_input[0], attn_applied[0]), 1)
-        output = self.attn_combine(output).unsqueeze(0)
-
-        output = F.relu(output)
-        output, hidden = self.gru(output, hidden)
-
-        #output = F.log_softmax(self.out(output[0]), dim=1)
-
-        output = self.out(output[0])
-
-        return output, hidden, attn_weights
-
-    def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size, device=self.device)
-
-
-
 def train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion):
     
     encoder_hidden = encoder.initHidden()
@@ -173,13 +194,14 @@ def train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number_tens
 
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
     decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device)
+    
     if torch.cuda.is_available():
         encoder_hidden = encoder_hidden.cuda()
         encoder_outputs = encoder_outputs.cuda()
         decoder_input = decoder_input.cuda()
 
     decoder_hidden = encoder_hidden
-    decoder_inputs = torch.cat((decoder_input, target_tensor))
+    decoder_inputs = torch.cat((decoder_input, target_tensor[:-1]))
     decoder_outputs, decoder_hidden = decoder(input=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden)
     
     loss = criterion(decoder_outputs, target_tensor[:decoder_outputs.shape[0],:,:])
@@ -210,8 +232,32 @@ def train_reg_on_batch(args, input_tensor, target_tensor, target_number_tensor, 
     return loss.item()
 
 
-def eval_network_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, regressor, criterion, reg_criterion, mode):
-    """Possible values for 'mode' arg: {"eval_seq2seq", "eval_reg", "test"}"""
+def train_eos_on_batch(args, input_tensor, target_tensor, eos_target, encoder, eos, optimizer, criterion):
+    
+    encoder_hidden = encoder.initHidden()
+    optimizer.zero_grad()
+
+    encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
+    eos_input = torch.zeros(1, args.batch_size, args.ind_size, device=eos.device)
+    
+    if torch.cuda.is_available():
+        encoder_hidden = encoder_hidden.cuda()
+        encoder_outputs = encoder_outputs.cuda()
+        eos_input = eos_input.cuda()
+
+    eos_hidden = encoder_hidden
+    eos_inputs = torch.cat((eos_input, target_tensor[:-1]))
+    outputs, hidden = eos(input=eos_inputs, encoder_outputs=encoder_outputs, hidden=eos_hidden)
+    
+    loss = criterion(outputs.squeeze(2), eos_target)
+    loss.backward()
+    optimizer.step()
+
+    return loss.item()
+
+
+def eval_network_on_batch(mode, args, input_tensor, target_tensor, target_number_tensor=None, eos_target=None, encoder=None, decoder=None, regressor=None, eos=None, dec_criterion=None, reg_criterion=None, eos_criterion=None):
+    """Possible values for 'mode' arg: {"eval_seq2seq", "eval_reg", "eval_eos", "test"}"""
     encoder_hidden = encoder.initHidden()
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
     
@@ -234,11 +280,21 @@ def eval_network_on_batch(args, input_tensor, target_tensor, target_number_tenso
             single_dec_input = decoder_input[:, b]
             for l in range(target_number_tensor.shape[0]):
                 decoder_output, decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.ones(1), encoder_outputs=encoder_outputs, hidden=decoder_hidden)
-                dec_loss += criterion(decoder_output, target_tensor[l, b])
+                dec_loss += dec_criterion(decoder_output, target_tensor[l, b])
             dec_loss = dec_loss / float(l)
         dec_loss /= float(b) 
         return dec_loss    
 
+    elif mode == "eval_eos":
+        eos_input = torch.zeros(1, args.batch_size, args.ind_size, device=eos.device)
+        eos_hidden = encoder_hidden
+        if torch.cuda.is_available():
+            encoder_hidden = encoder_hidden.cuda()
+        eos_inputs = torch.cat((eos_input, target_tensor[:-1]))
+        eos_outputs, hidden = eos(input=eos_inputs, encoder_outputs=encoder_outputs, hidden=eos_hidden)
+        eos_loss = eos_criterion(eos_outputs.squeeze(2), eos_target)
+        return eos_loss
+    
     elif mode == "test":
         regressor_output = regressor(encoder_outputs)
         reg_loss = reg_criterion(regressor_output, target_number_tensor)
@@ -319,7 +375,7 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
                 target_number = target_number.cuda()
-            new_val_loss = eval_network_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, regressor=None, criterion=criterion, reg_criterion=None, mode="eval_seq2seq")
+            new_val_loss = eval_network_on_batch("eval_seq2seq", args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, dec_criterion=criterion)
 
             total_val_loss += new_val_loss[0]
         save_dict = {
@@ -394,7 +450,7 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
                 target_number = target_number.cuda()
-            new_val_loss = eval_network_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=None, regressor=regressor, criterion=None, reg_criterion=criterion, mode="eval_reg")
+            new_val_loss = eval_network_on_batch("eval_reg", args, input_tensor, target_tensor, target_number, encoder=encoder, regressor=regressor, reg_criterion=criterion)
 
             total_val_loss += new_val_loss
         EarlyStop(total_val_loss, {
@@ -404,11 +460,97 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
             return EarlyStop.val_loss_min
 
 
+def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name=""):
+
+    start = time.time()
+    plot_losses = []
+    print_loss_total = 0  # Reset every print_every
+    plot_loss_total = 0  # Reset every plot_every
+
+    if args.optimizer == "SGD":
+        optimizer = optim.SGD(eos.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    elif args.optimizer == "Adam":
+        optimizer = optim.Adam(eos.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    elif args.optimizer == "RMS":
+        optimizer = optim.RMSProp(eos.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+
+    criterion = nn.MSELoss()
+    EarlyStop = EarlyStopper(patience=args.patience, verbose=True)
+
+    # Freeze layers in vgg19 that we don't want to train
+    v = 1
+    for param in encoder.vgg.parameters():
+        if v <= args.vgg_layers_to_freeze*2: # Assuming each layer has two params
+            param.requires_grad = False
+        v += 1
+    
+    for epoch_num in range(args.max_epochs):
+        print("Epoch:", epoch_num+1)
+    
+        for iter_, training_triplet in enumerate(train_generator):
+            input_tensor = training_triplet[0].float().transpose(0,1)
+            target_tensor = training_triplet[1].float().transpose(0,1)
+            eos_target = training_triplet[3].float().permute(1,0)
+            if torch.cuda.is_available():
+                input_tensor = input_tensor.cuda()
+                target_tensor = target_tensor.cuda()
+                eos_target = eos_target.cuda()
+            loss = train_eos_on_batch(args, input_tensor, target_tensor, eos_target, encoder=encoder, eos=eos, optimizer=optimizer, criterion=criterion)
+
+            print_loss_total += loss
+            plot_loss_total += loss
+            print(iter_, loss)
+
+            if iter_ % print_every == 0:
+                print_loss_avg = print_loss_total / print_every
+                print_loss_total = 0
+                #print('%s (%d %d%%) %.4f' % (utils.timeSince(start, iter_+1 / n_iters),
+                                             #iter_+1, iter_+1 / n_iters * 100, print_loss_avg))
+
+            if iter_ % plot_every == 0:
+                plot_loss_avg = plot_loss_total / plot_every
+                plot_losses.append(plot_loss_avg)
+                plot_loss_total = 0
+                utils.showPlot(plot_losses, '../data/loss_plots/loss{}.png'.format(exp_name))
+
+        total_val_loss = 0
+        for iter_, training_triplet in enumerate(val_generator):
+            input_tensor = training_triplet[0].float().transpose(0,1)
+            target_tensor = training_triplet[1].float().transpose(0,1)
+            target_number = training_triplet[2].float()
+            if torch.cuda.is_available():
+                input_tensor = input_tensor.cuda()
+                target_tensor = target_tensor.cuda()
+                target_number = target_number.cuda()
+            new_val_loss = eval_network_on_batch("eval_eos", args, input_tensor, target_tensor, target_number, eos_target, encoder=encoder, eos=eos, eos_criterion=criterion)
+            total_val_loss += new_val_loss
+        EarlyStop(total_val_loss, {
+            'eos': eos},
+            filename='../checkpoints/chkpt{}.pt'.format(exp_name))
+        if EarlyStop.early_stop:
+            return EarlyStop.val_loss_min
+
+
+
 if __name__ == "__main__":
     import options
     args = options.load_arguments()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(device)
+    eos = NumIndEOS(args, device)
+    #eos = DecoderRNN(args, device)
+    eos.cuda()
+    il = torch.ones(size=(args.batch_size,))
+
+    hidden = eos.initHidden().cuda()
+    inp = torch.ones(size=(10,args.batch_size,300)).cuda()
+    enc_out = torch.ones(size=(8, args.batch_size,300)).cuda()
+    #outp = eos(inp, hidden, il, enc_out).cuda()
+    outp, _ = eos(inp, hidden, enc_out)
+    print(outp.shape)
+
+    """
     enc = EncoderRNN(args, device)
     v = 0
     for param in enc.vgg.parameters():
@@ -424,8 +566,5 @@ if __name__ == "__main__":
             g +=1 
    
     print(e,v,g)
-  
- 
 
-
-    
+   """ 

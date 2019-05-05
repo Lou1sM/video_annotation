@@ -7,8 +7,8 @@ table. It expects the h5 file path to contain video ids which it then
 looks up in this table and returns. This is useful to reduce the h5
 file size. 
 
-The resulting Dataset objects generates triples of the form
-(video, embedding_sequence, sequence_length)
+The resulting Dataset objects generates 4-tuples of the form
+(video, embedding_sequence, sequence_length, eos_gt)
 """
 
 import numpy as np
@@ -30,15 +30,17 @@ class VideoDataset(data.Dataset):
         self.videos = self.archive['videos']
         self.seq_lens = np.array(self.archive['seq_len'], dtype=np.int32)
         self.embeddings = self.archive['embeddings']
+        self.eos_gts = self.archive['eos_gt']
         self.transform = transform
         
     def __getitem__(self, index):
         video = self.videos[index]
         embedding_seq = self.embeddings[index]
         seq_len = self.seq_lens[index]
+        eos_gt = self.eos_gts[index]
         if self.transform != None:
             video = self.transform(video)
-        return video, embedding_seq, seq_len
+        return video, embedding_seq, seq_len, eos_gt
 
     def __len__(self):
         return len(self.videos)
@@ -51,8 +53,8 @@ class VideoDataset(data.Dataset):
 def load_data(h5file_path, batch_size, shuffle):
     """Load data from specified file path and return a Dataset that loads full video tensors.
 
-    Each element is a triple of the form
-    (video, embedding_sequence, sequence_length)
+    Each element is a 4-tuple of the form
+    (video, embedding_sequence, sequence_length, eos_gt)
     """
     transforms.ToTensor()
     transform = transforms.Compose(
@@ -84,6 +86,7 @@ class LookupDataset(data.Dataset):
         self.embeddings = self.archive['embeddings']
         self.video_ids = self.archive['videoId']
         self.transform = transform
+        self.eos_gts = self.archive['eos_gt']
         self.video_lookup_dict = {vid_id: load_vid_from_id(vid_id+1) for vid_id in range(vid_range[0], vid_range[1])}
 
     def __getitem__(self, index):
@@ -91,9 +94,10 @@ class LookupDataset(data.Dataset):
         seq_len = self.seq_lens[index]
         video_id = self.video_ids[index]
         video = self.video_lookup_dict[video_id]
+        eos_gt = self.eos_gts[index]
         if self.transform != None:
             video = self.transform(video)
-        return video, embedding_seq, seq_len
+        return video, embedding_seq, seq_len, eos_gt
 
     def __len__(self):
         return len(self.seq_lens)
@@ -106,8 +110,8 @@ class LookupDataset(data.Dataset):
 def load_data_lookup(h5file_path, vid_range, batch_size, shuffle):
     """Load data from specified file path and return a Dataset that uses a lookup table for videos.
 
-    Each element returned is a triple of the form
-    (video, embedding_sequence, sequence_length)
+    Each element returned is a 4-tuple of the form
+    (video, embedding_sequence, sequence_length, eos_gt)
     
     The lookup table consumes ~15G memory for the full train set, ~1G for the full validation set
     and ~5G for the full test set. There are mini-datasets available by passing the --mini flag 
@@ -155,7 +159,8 @@ class TestConvNet(torch.nn.Module):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    new_data_loaded = load_data_lookup('../data/dummy_data/train_data_dummy.h5', batch_size=2, vid_range=(1,1201), shuffle=True)    
+    #new_data_loaded = load_data_lookup('../data/dummy_data/train_data_dummy.h5', batch_size=2, vid_range=(1,1201), shuffle=True)    
+    new_data_loaded = load_data_lookup('../data/mini/train_data.h5', batch_size=2, vid_range=(1,21), shuffle=True)    
     for epoch in range(5):
         print(epoch)
         print("Number of batches:", len(new_data_loaded), "\n")
@@ -165,6 +170,7 @@ if __name__ == "__main__":
             print(data[0].shape)
             print(data[1].shape)
             print(data[2].shape)
+            print(data[3].shape)
             #print(data[0].type())
             #print(data[2])
             #print(data[0][0,0,0,0,0])

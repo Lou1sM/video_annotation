@@ -27,9 +27,9 @@ def load_arguments():
             help = "optimzer"
         )
     argparser.add_argument("--model",
-            choices = ['seq2seq', 'reg'],
+            choices = ['seq2seq', 'reg', 'eos'],
             required = True,
-            help = "whether to print network info before starting training"
+            help = "which subnetwork to train"
         )
     argparser.add_argument("--verbose",
             action = "store_true",
