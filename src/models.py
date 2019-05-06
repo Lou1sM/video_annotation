@@ -1,3 +1,4 @@
+import numpy as np
 import random
 import re
 import string
@@ -71,14 +72,14 @@ class DecoderRNN(nn.Module):
         #print('enc_perm', enc_perm.shape)
         drop_input_perm = drop_input.permute(1,0, 2)
         #print('drop_perm', drop_input_perm.shape)
-        dot_attn_weights = F.softmax(torch.bmm(drop_input_perm, enc_perm))
-        #print('dot_attn', dot_attn_weights.shape)
+        dot_attn_weights = torch.bmm(drop_input_perm, enc_perm)
+        normalized_dot_attn_weights = F.softmax(dot_attn_weights, dim=2)
         enc_perm_2 = encoder_outputs.permute(1,0,2)
         #print('enc_perm_2', enc_perm_2.shape)
     #     attn_weights = F.softmax(
     #         self.attn(torch.cat((drop_input[0], hidden[0]), 1)), dim=1)
     #     #attn_applied = torch.bmm(attn_weights.unsqueeze(0),
-        attn_applied = torch.bmm(dot_attn_weights, enc_perm_2).permute(1,0,2)
+        attn_applied = torch.bmm(normalized_dot_attn_weights, enc_perm_2).permute(1,0,2)
         #print('attn_applied', attn_applied.shape)
 
 
