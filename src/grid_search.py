@@ -4,7 +4,6 @@ import utils
 import options
 import models
 import torch
-import pycuda.driver as cuda
 import numpy as np
 from data_loader import load_data, load_data_lookup, video_lookup_table_from_range
 
@@ -83,8 +82,7 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
 
 
 def grid_search(model, dec_sizes, batch_sizes, lrs, opts, weight_decays):
-    cuda.init()
-    cuda_devs = ["cuda: {}".format(i) for i in range(cuda.Device.count())]
+    cuda_devs = ["cuda: {}".format(i) for i in range(torch.cuda.device_count())]
     print("Available devices:")
     if cuda_devs == []:
         cuda_devs = ['cpu']
