@@ -314,8 +314,6 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
     start = time.time()
     loss_plot_file_path = '../data/loss_plots/loss{}.png'.format(exp_name)
     plot_losses = []
-    print_loss_total = 0  # Reset every print_every
-    plot_loss_total = 0  # Reset every plot_every
 
     if args.optimizer == "SGD":
         encoder_optimizer = optim.SGD(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
@@ -390,8 +388,6 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
 
     start = time.time()
     plot_losses = []
-    print_loss_total = 0  # Reset every print_every
-    plot_loss_total = 0  # Reset every plot_every
 
     if args.optimizer == "SGD":
         optimizer = optim.SGD(regressor.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
@@ -463,8 +459,6 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
 
     start = time.time()
     plot_losses = []
-    print_loss_total = 0  # Reset every print_every
-    plot_loss_total = 0  # Reset every plot_every
 
     if args.optimizer == "SGD":
         optimizer = optim.SGD(eos.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
@@ -517,7 +511,6 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
                 target_tensor = target_tensor.cuda()
                 target_number = target_number.cuda()
             new_val_loss = eval_network_on_batch("eval_eos", args, input_tensor, target_tensor, target_number, eos_target, encoder=encoder, eos=eos, eos_criterion=criterion)
-            total_val_loss += new_val_loss
             batch_val_losses.append(new_val_loss)
 
             if args.quick_run:
