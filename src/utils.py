@@ -22,7 +22,7 @@ def plot_losses(train_losses, val_losses, file_path):
 	    plt.xlabel('Epoch')
 	    plt.ylabel('MSE')
 	    plt.legend(loc='upper right')
-	    plt.xticks(np.arange(0, len(train_losses), 1.0))
+	    plt.xticks(np.arange(0, len(train_losses), int(.125*len(train_losses))))
 	    plt.savefig(file_path)
 	    #plt.show()
 	    plt.close()
