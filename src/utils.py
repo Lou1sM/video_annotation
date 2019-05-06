@@ -16,15 +16,18 @@ def get_datetime_stamp():
 
 
 def plot_losses(train_losses, val_losses, file_path):
-    plt.plot(train_losses, label='Train Loss')
-    plt.plot(val_losses, label='Validation Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('MSE')
-    plt.legend(loc='upper right')
-    plt.xticks(np.arange(0, len(train_losses), 1.0))
-    plt.savefig(file_path)
-    plt.show()
-    plt.close()
+	try:
+	    plt.plot(train_losses, label='Train Loss')
+	    plt.plot(val_losses, label='Validation Loss')
+	    plt.xlabel('Epoch')
+	    plt.ylabel('MSE')
+	    plt.legend(loc='upper right')
+	    plt.xticks(np.arange(0, len(train_losses), 1.0))
+	    plt.savefig(file_path)
+	    plt.show()
+	    plt.close()
+	except:
+		print("Display not available")
 
 def asMinutes(s):
     m = math.floor(s / 60)

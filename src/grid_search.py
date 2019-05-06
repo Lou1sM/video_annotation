@@ -39,7 +39,7 @@ def train_with_hyperparams(model, param_dict, exp_name=None, best_val_loss=0):
         h5_val_generator = load_data_lookup('../data/mini/val_data.h5', vid_range=(1201,1211), batch_size=args.batch_size, shuffle=args.shuffle)
     else:
         h5_train_generator = load_data('../data/datasets/four_vids.h5', vid_range=(1,1201), batch_size=args.batch_size, shuffle=args.shuffle)
-        h5_val_generator = load_data('../data/datasets/four_vids.h5', vid_range(1201,1301), batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_val_generator = load_data('../data/datasets/four_vids.h5', vid_range=(1201,1301), batch_size=args.batch_size, shuffle=args.shuffle)
 
     if model == 'seq2seq':
         decoder = models.DecoderRNN(args, device).to(device)

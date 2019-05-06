@@ -131,7 +131,7 @@ class NumIndEOS(nn.Module):
         drop_input = self.dropout(input)#.view(args.max_length, args.batch_size, -1))
 
         enc_perm = encoder_outputs.permute(1,2,0)
-        #print('enc_perm', enc_perm.shape)
+
         drop_input_perm = drop_input.permute(1,0, 2)
         #print('drop_perm', drop_input_perm.shape)
         dot_attn_weights = F.softmax(torch.bmm(drop_input_perm, enc_perm))
@@ -272,15 +272,18 @@ def eval_network_on_batch(mode, args, input_tensor, target_tensor, target_number
 
     elif mode == "eval_seq2seq":
         decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device)
-        decoder_hidden = encoder_hidden
+        decoder_hidden_0 = encoder_hidden
         if torch.cuda.is_available():
             decoder_input = decoder_input.cuda()
         dec_loss = 0
         for b in range(args.batch_size):
-            single_dec_input = decoder_input[:, b]
+            single_dec_input = decoder_input[:, b].view(1, 1, -1)
+            decoder_hidden = decoder_hidden_0[:, b].unsqueeze(1)
             for l in range(target_number_tensor.shape[0]):
-                decoder_output, decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.ones(1), encoder_outputs=encoder_outputs, hidden=decoder_hidden)
-                dec_loss += dec_criterion(decoder_output, target_tensor[l, b])
+                decoder_output, decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs[:, b].unsqueeze(1), hidden=decoder_hidden) #input_lengths=torch.tensor([target_number_tensor[b]])
+                dec_loss += dec_criterion(decoder_output, target_tensor[l, b].unsqueeze(0).unsqueeze(0))
+                single_dec_input = decoder_output
+
             dec_loss = dec_loss / float(l)
         dec_loss /= float(b) 
         return dec_loss.item()
@@ -365,8 +368,8 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
                 target_number = target_number.cuda()
-            #new_val_loss = eval_network_on_batch("eval_seq2seq", args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, dec_criterion=criterion)
-            new_val_loss = 0.5
+            new_val_loss = eval_network_on_batch("eval_seq2seq", args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, dec_criterion=criterion)
+            #new_val_loss = 0.5
             batch_val_losses.append(new_val_loss)
 
             if args.quick_run:
