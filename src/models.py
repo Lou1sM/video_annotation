@@ -101,9 +101,9 @@ class DecoderRNN(nn.Module):
         #undo the packing operation
         output, _ = torch.nn.utils.rnn.pad_packed_sequence(packed)
 
-        print("input lengths", input_lengths[0], input_lengths[1])
-        print("OUTPUT:", output.shape)
-        print(output)
+        #print("input lengths", input_lengths[0], input_lengths[1])
+        #print("OUTPUT:", output.shape)
+        #print(output)
         
         #output, hidden = self.gru(packed, hidden)
 
@@ -231,9 +231,9 @@ def train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number_tens
     
     target_tensor = target_tensor[:, perm_idx]
 
-    print("target_number_tensor", target_number_tensor[0], target_number_tensor[1])
-    print("TARGET TENSOR:", target_tensor[:decoder_outputs.shape[0],:,:].shape)
-    print(target_tensor[:decoder_outputs.shape[0],:,:])
+    #print("target_number_tensor", target_number_tensor[0], target_number_tensor[1])
+    #print("TARGET TENSOR:", target_tensor[:decoder_outputs.shape[0],:,:].shape)
+    #print(target_tensor[:decoder_outputs.shape[0],:,:])
 
 
     loss = criterion(decoder_outputs, target_tensor[:decoder_outputs.shape[0],:,:])
@@ -311,8 +311,8 @@ def eval_network_on_batch(mode, args, input_tensor, target_tensor, target_number
         for b in range(args.batch_size):
             single_dec_input = decoder_input[:, b].view(1, 1, -1)
             decoder_hidden = decoder_hidden_0[:, b].unsqueeze(1)
-            for l in range(target_number_tensor.shape[0]):
-                decoder_output, decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs[:, b].unsqueeze(1), hidden=decoder_hidden) #input_lengths=torch.tensor([target_number_tensor[b]])
+            for l in range(target_number_tensor[b].int()):
+                decoder_output, decoder_hidden, perm_idx = decoder(input=single_dec_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs[:, b].unsqueeze(1), hidden=decoder_hidden) #input_lengths=torch.tensor([target_number_tensor[b]])
                 dec_loss += dec_criterion(decoder_output, target_tensor[l, b].unsqueeze(0).unsqueeze(0))
                 single_dec_input = decoder_output
 
@@ -336,7 +336,7 @@ def eval_network_on_batch(mode, args, input_tensor, target_tensor, target_number
         dec_loss = 0
         for b in range(args.batch_size):
             single_dec_input = decoder_input[:, b]
-            for l in range(target_number_tensor.shape[0]):
+            for l in range(target_number_tensor[b]):
                 decoder_output, decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.ones(1), encoder_outputs=encoder_outputs, hidden=decoder_hidden)
                 dec_loss += criterion(decoder_output, target_tensor[l, b])
             dec_loss = dec_loss / float(l)
