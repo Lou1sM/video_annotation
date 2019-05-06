@@ -336,7 +336,7 @@ def eval_network_on_batch(mode, args, input_tensor, target_tensor, target_number
         dec_loss = 0
         for b in range(args.batch_size):
             single_dec_input = decoder_input[:, b]
-            for l in range(target_number_tensor[b]):
+            for l in range(target_number_tensor[b].int()):
                 decoder_output, decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.ones(1), encoder_outputs=encoder_outputs, hidden=decoder_hidden)
                 dec_loss += criterion(decoder_output, target_tensor[l, b])
             dec_loss = dec_loss / float(l)
@@ -344,7 +344,7 @@ def eval_network_on_batch(mode, args, input_tensor, target_tensor, target_number
         return dec_loss.item(), reg_loss.item()
 
     
-def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name=""):
+def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name="", device='cuda'):
 
     start = time.time()
     loss_plot_file_path = '../data/loss_plots/loss{}.png'.format(exp_name)
@@ -377,13 +377,10 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
         print("Epoch:", epoch_num+1)
     
         for iter_, training_triplet in enumerate(train_generator):
-            input_tensor = training_triplet[0].float().transpose(0,1)
-            target_tensor = training_triplet[1].float().transpose(0,1)
-            target_number = training_triplet[2].float()
-            if torch.cuda.is_available():
-                input_tensor = input_tensor.cuda()
-                target_tensor = target_tensor.cuda()
-                target_number = target_number.cuda()
+            input_tensor = training_triplet[0].float().transpose(0,1).to(device)
+            target_tensor = training_triplet[1].float().transpose(0,1).to(device)
+            target_number = training_triplet[2].float().to(device)
+            
             new_train_loss = train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer, criterion=criterion)
             print(iter_, new_train_loss)
 
@@ -418,8 +415,7 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
             return EarlyStop.val_loss_min
 
 
-
-def train_iters_reg(args, encoder, regressor, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name=""):
+def train_iters_reg(args, encoder, regressor, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name="", device="cuda"):
 
     start = time.time()
     plot_losses = []
@@ -449,13 +445,9 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
         print("Epoch:", epoch_num+1)
     
         for iter_, training_triplet in enumerate(train_generator):
-            input_tensor = training_triplet[0].float().transpose(0,1)
-            target_tensor = training_triplet[1].float().transpose(0,1)
-            target_number = training_triplet[2].float()
-            if torch.cuda.is_available():
-                input_tensor = input_tensor.cuda()
-                target_tensor = target_tensor.cuda()
-                target_number = target_number.cuda()
+            input_tensor = training_triplet[0].float().transpose(0,1).to(device)
+            target_tensor = training_triplet[1].float().transpose(0,1).to(device)
+            target_number = training_triplet[2].float().to(device)
             new_train_loss = train_reg_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, regressor=regressor, optimizer=optimizer, criterion=criterion)
 
             print(iter_, new_train_loss)
@@ -490,7 +482,7 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
             return EarlyStop.val_loss_min
 
 
-def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name=""):
+def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name="", device="cuda"):
 
     start = time.time()
     plot_losses = []
@@ -539,10 +531,10 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
 
         batch_val_losses =[] 
         for iter_, training_triplet in enumerate(val_generator):
-            input_tensor = training_triplet[0].float().transpose(0,1)
-            target_tensor = training_triplet[1].float().transpose(0,1)
-            target_number = training_triplet[2].float()
-            eos_target = training_triplet[3].float().permute(1,0)
+            input_tensor = training_triplet[0].float().transpose(0,1).to(device)
+            target_tensor = training_triplet[1].float().transpose(0,1).to(device)
+            target_number = training_triplet[2].float().to(device)
+            eos_target = training_triplet[3].float().permute(1,0).to(device)
             if torch.cuda.is_available():
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()

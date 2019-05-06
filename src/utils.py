@@ -24,7 +24,7 @@ def plot_losses(train_losses, val_losses, file_path):
 	    plt.legend(loc='upper right')
 	    plt.xticks(np.arange(0, len(train_losses), 1.0))
 	    plt.savefig(file_path)
-	    plt.show()
+	    #plt.show()
 	    plt.close()
 	except:
 		print("Display not available")

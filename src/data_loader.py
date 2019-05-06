@@ -23,6 +23,10 @@ def load_vid_from_id(vid_id):
     return np.load('../data/frames/vid{}_resized.npz'.format(vid_id))['arr_0']
 
 
+def video_lookup_table_from_range(start_idx, end_idx):
+    return {vid_id: load_vid_from_id(vid_id+1) for vid_id in range(start_idx, end_idx)}
+
+
 class VideoDataset(data.Dataset):
     """Dataset object that expects h5 file containing full video tensors, not ids."""
     def __init__(self, archive, transform=None):
@@ -80,20 +84,21 @@ class LookupDataset(data.Dataset):
       vid_range: range of video ids for building lookup table
     """
 
-    def __init__(self, archive, vid_range, transform=None):
+    def __init__(self, archive, video_lookup_table, transform=None):
         self.archive = h5.File(archive, 'r')
         self.seq_lens = np.array(self.archive['embedding_len'], dtype=np.int32)
         self.embeddings = self.archive['embeddings']
         self.video_ids = self.archive['videoId']
         self.transform = transform
         self.eos_gts = self.archive['eos_gt']
-        self.video_lookup_dict = {vid_id: load_vid_from_id(vid_id+1) for vid_id in range(vid_range[0], vid_range[1])}
+        self.video_lookup_table = video_lookup_table
+        #{vid_id: load_vid_from_id(vid_id+1) for vid_id in range(vid_range[0], vid_range[1])}
 
     def __getitem__(self, index):
         embedding_seq = self.embeddings[index]
         seq_len = self.seq_lens[index]
         video_id = self.video_ids[index]
-        video = self.video_lookup_dict[video_id]
+        video = self.video_lookup_table[video_id]
         eos_gt = self.eos_gts[index]
         if self.transform != None:
             video = self.transform(video)
@@ -107,7 +112,7 @@ class LookupDataset(data.Dataset):
 
 
 
-def load_data_lookup(h5file_path, vid_range, batch_size, shuffle):
+def load_data_lookup(h5file_path, video_lookup_table, batch_size, shuffle):
     """Load data from specified file path and return a Dataset that uses a lookup table for videos.
 
     Each element returned is a 4-tuple of the form
@@ -135,7 +140,7 @@ def load_data_lookup(h5file_path, vid_range, batch_size, shuffle):
         [transforms.ToTensor()],
         )
 
-    new_data = LookupDataset(h5file_path, vid_range)
+    new_data = LookupDataset(h5file_path, video_lookup_table=video_lookup_table)
     new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle, drop_last=True)
     return new_data_loaded
 

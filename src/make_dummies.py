@@ -4,7 +4,7 @@ import numpy as np
 
 
 #vid_ids = list(range(1201, 1301))
-N = 10
+#N = 10
 
 def r():
     rand_seq_len = np.random.randint(high=10, low=2)
@@ -41,7 +41,7 @@ def make_json(size, file_path):
         dp = {
             'embeddings': get_dummy_json_dpoint(),
             #'video_id': np.random.choice(vids)
-            'videoId': np.random.randint(low=1201, high=1211)
+            'videoId': np.random.randint(low=1, high=11)
         }
         data.append(dp)
 
@@ -59,12 +59,6 @@ def padded_emb_seq_from_lists(list_of_lists, N=10):
     return padded_array
 
 
-dummy_vid_ids = []
-dummy_emb_seqs = []
-dummy_emb_lens = []
-dummy_inds = []
-dummy_preds = []
-
 #vid_table_dict = {vid_id: load_vid_from_id(vid_id) for vid_id in vids}
 
 def convert_json_to_h5(json_file_path, out_h5_file_path):
@@ -80,9 +74,9 @@ def convert_json_to_h5(json_file_path, out_h5_file_path):
     print('making h5')
     for idx, dp in enumerate(embeddings_and_ids):
         new_vid_id = dp['videoId']
-        print(new_vid_id)
+        #print(new_vid_id)
         id_dataset[idx] = new_vid_id
-        print(id_dataset[idx])
+        #print(id_dataset[idx])
         list_of_lists = dp['embeddings']
         seq_len_dataset[idx] = len(list_of_lists)
         emb_seq_dataset[idx] = padded_emb_seq_from_lists(list_of_lists)
@@ -93,8 +87,8 @@ def convert_json_to_h5(json_file_path, out_h5_file_path):
 
 if __name__ == "__main__":
 
-    make_json(100, '../data/mini/val_data.json')
-    convert_json_to_h5('../data/mini/val_data.json', '../data/mini/val_data.h5')
+    make_json(100, '../data/mini/data.json')
+    #convert_json_to_h5('../data/dummy_data/val_data.json', '../data/dummy_data/val_data.h5')
 
 
 """
