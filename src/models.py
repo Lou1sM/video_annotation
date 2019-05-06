@@ -98,13 +98,27 @@ class DecoderRNN(nn.Module):
 
         packed = torch.nn.utils.rnn.pack_padded_sequence(output, input_lengths.int())
         packed, hidden = self.gru(packed, hidden)
-        # undo the packing operation
+        #undo the packing operation
         output, _ = torch.nn.utils.rnn.pad_packed_sequence(packed)
+
+        print("input lengths", input_lengths[0], input_lengths[1])
+        print("OUTPUT:", output.shape)
+        print(output)
+        
+        #output, hidden = self.gru(packed, hidden)
+
+        #output = output.contiguous()
+        #output = output.view(-1, output.shape[2])
+
+        output = self.out(output)
+
+        #output = output.view(self.max_length, self.batch_size, self.hidden_size)
+
+
         #output = torch.cuda.FloatTensor(10,2,300).fill_(0)
 
         #output: (max_length, batch_size, ind_size)
-
-        return output, hidden
+        return output, hidden, perm_idx
 
     def initHidden(self):
         return torch.zeros(1, self.batch_size, self.hidden_size, device=self.device)
@@ -157,6 +171,8 @@ class NumIndEOS(nn.Module):
         #output = torch.cat((drop_input[0], attn_applied[0]), 1)
         #output = self.attn_combine(output).unsqueeze(0)
 
+        #print(input_lengths)
+
         output = F.sigmoid(output)
         input_lengths, perm_idx = input_lengths.sort(0, descending=True)
         output =  output[:, perm_idx]
@@ -171,6 +187,7 @@ class NumIndEOS(nn.Module):
         #output = F.log_softmax(self.out(output[0]), dim=1)
 
         output = self.out(output)
+
         #print('output', output.shape)
 
         return output, hidden
@@ -210,8 +227,15 @@ def train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number_tens
 
     decoder_hidden = encoder_hidden
     decoder_inputs = torch.cat((decoder_input, target_tensor[:-1]))
-    decoder_outputs, decoder_hidden = decoder(input=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden)
+    decoder_outputs, decoder_hidden, perm_idx = decoder(input=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden)
     
+    target_tensor = target_tensor[:, perm_idx]
+
+    print("target_number_tensor", target_number_tensor[0], target_number_tensor[1])
+    print("TARGET TENSOR:", target_tensor[:decoder_outputs.shape[0],:,:].shape)
+    print(target_tensor[:decoder_outputs.shape[0],:,:])
+
+
     loss = criterion(decoder_outputs, target_tensor[:decoder_outputs.shape[0],:,:])
     loss.backward()
     encoder_optimizer.step()
