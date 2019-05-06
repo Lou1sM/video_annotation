@@ -6,6 +6,11 @@ import argparse
 def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
+    argparser.add_argument("--quick_run", "-q",
+            default = False,
+            action = "store_true",
+            help = "whether to use mini-dataset, so doesn't exceed ram when running locally"
+        )
     argparser.add_argument("--mini", "-m",
             default = False,
             action = "store_true",
@@ -128,12 +133,12 @@ def load_arguments():
         )
     argparser.add_argument("--h5_val_file_path",
             type = str,
-            default = '../data/dummy_data/val_data_dummy.h5',
+            default = '../data/dummy_data/val_data.h5',
             help = "file to read the data from"
         )
     argparser.add_argument("--h5_train_file_path",
             type = str,
-            default = '../data/dummy_data/train_data_dummy.h5',
+            default = '../data/dummy_data/train_data.h5',
             help = "file to read the data from"
         )
     argparser.add_argument("--shuffle",

@@ -355,7 +355,9 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
             print(iter_, new_train_loss)
 
             batch_train_losses.append(new_train_loss)
-        total_val_loss = 0
+            if args.quick_run:
+                break
+
         batch_val_losses = []
         for iter_, training_triplet in enumerate(val_generator):
             input_tensor = training_triplet[0].float().transpose(0,1)
@@ -369,17 +371,16 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
             new_val_loss = 0.5
             batch_val_losses.append(new_val_loss)
 
-            total_val_loss += new_val_loss
+            if args.quick_run:
+                break
+
         new_epoch_train_loss = sum(batch_train_losses)/len(batch_train_losses)
         new_epoch_val_loss = sum(batch_val_losses)/len(batch_val_losses)
         epoch_train_losses.append(new_epoch_train_loss)
         epoch_val_losses.append(new_epoch_val_loss)
         utils.plot_losses(epoch_train_losses, epoch_val_losses, loss_plot_file_path)
-        save_dict = {
-            'encoder':encoder, 
-            'decoder':decoder, 
-        }
-        EarlyStop(total_val_loss, save_dict, filename='../checkpoints/chkpt{}.pt'.format(exp_name))
+        save_dict = {'encoder':encoder, 'decoder':decoder}
+        EarlyStop(new_epoch_val_loss, save_dict, filename='../checkpoints/chkpt{}.pt'.format(exp_name))
         if EarlyStop.early_stop:
             return EarlyStop.val_loss_min
 
@@ -428,7 +429,9 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
 
             print(iter_, new_train_loss)
             batch_train_losses.append(new_train_loss)
-        
+            if args.quick_run:
+                break
+
         batch_val_losses =[] 
         for iter_, training_triplet in enumerate(val_generator):
             input_tensor = training_triplet[0].float().transpose(0,1)
@@ -441,16 +444,17 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
             new_val_loss = eval_network_on_batch("eval_reg", args, input_tensor, target_tensor, target_number, encoder=encoder, regressor=regressor, reg_criterion=criterion)
 
             batch_val_losses.append(new_val_loss)
-   
+            if args.quick_run:
+                break
+
+
         new_epoch_train_loss = sum(batch_train_losses)/len(batch_train_losses)
         new_epoch_val_loss = sum(batch_val_losses)/len(batch_val_losses)
         epoch_train_losses.append(new_epoch_train_loss)
         epoch_val_losses.append(new_epoch_val_loss)
         utils.plot_losses(epoch_train_losses, epoch_val_losses, loss_plot_file_path)
-        
-        EarlyStop(total_val_loss, {
-            'regressor':regressor},
-            filename='../checkpoints/chkpt{}.pt'.format(exp_name))
+        save_dict =  {'regressor':regressor}
+        EarlyStop(new_epoch_val_loss, save_dict, filename='../checkpoints/chkpt{}.pt'.format(exp_name))
         if EarlyStop.early_stop:
             return EarlyStop.val_loss_min
 
@@ -482,7 +486,6 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
     loss_plot_file_path = '../data/loss_plots/loss{}.png'.format(exp_name)
     epoch_train_losses = []
     epoch_val_losses = []
- 
     for epoch_num in range(args.max_epochs):
         batch_train_losses = []
         print("Epoch:", epoch_num+1)
@@ -501,6 +504,9 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
             print(iter_, new_train_loss)
             batch_train_losses.append(new_train_loss)
 
+            if args.quick_run:
+                break
+
         batch_val_losses =[] 
         for iter_, training_triplet in enumerate(val_generator):
             input_tensor = training_triplet[0].float().transpose(0,1)
@@ -513,17 +519,17 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
             new_val_loss = eval_network_on_batch("eval_eos", args, input_tensor, target_tensor, target_number, eos_target, encoder=encoder, eos=eos, eos_criterion=criterion)
             total_val_loss += new_val_loss
             batch_val_losses.append(new_val_loss)
- 
+
+            if args.quick_run:
+                break
+
         new_epoch_train_loss = sum(batch_train_losses)/len(batch_train_losses)
         new_epoch_val_loss = sum(batch_val_losses)/len(batch_val_losses)
         epoch_train_losses.append(new_epoch_train_loss)
         epoch_val_losses.append(new_epoch_val_loss)
         utils.plot_losses(epoch_train_losses, epoch_val_losses, loss_plot_file_path)
-        
-        EarlyStop(total_val_loss, {
-            'eos': eos},
-            filename='../checkpoints/chkpt{}.pt'.format(exp_name))
-
+        save_dict = {'eos': eos}
+        EarlyStop(new_epoch_val_loss, save_dict, filename='../checkpoints/chkpt{}.pt'.format(exp_name))
         if EarlyStop.early_stop:
             return EarlyStop.val_loss_min
 
