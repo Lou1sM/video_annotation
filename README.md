@@ -22,3 +22,7 @@ Project to annotate videos with formal knowledge, using semantic embeddings gene
 - model with teacher forcing 
 - attention encore vs transformer
 
+# Dataset file formats
+- json list of dicts
+- {'video_id': <int>, 'captions': <list of strings>, 'individuals':<list of strings>, 'embeddings':<sorted list of list of floats>}
+  NB: the outer list of embeddings will be sorted by the first element of the inner lists
