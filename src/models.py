@@ -126,7 +126,8 @@ class NumIndEOS(nn.Module):
         self.gru = nn.GRU(self.hidden_size, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
 
-    def forward(self, input, hidden, encoder_outputs):
+    #def forward(self, input, hidden, encoder_outputs):
+    def forward(self, input, hidden, input_lengths, encoder_outputs):
 
         drop_input = self.dropout(input)#.view(args.max_length, args.batch_size, -1))
 
@@ -157,7 +158,14 @@ class NumIndEOS(nn.Module):
         #output = self.attn_combine(output).unsqueeze(0)
 
         output = F.sigmoid(output)
-        output, hidden = self.gru(output, hidden)
+        input_lengths, perm_idx = input_lengths.sort(0, descending=True)
+        output =  output[:, perm_idx]
+
+        packed = torch.nn.utils.rnn.pack_padded_sequence(output, input_lengths.int())
+        packed, hidden = self.gru(packed, hidden)
+        # undo the packing operation
+        output, _ = torch.nn.utils.rnn.pad_packed_sequence(packed)
+        #output, hidden = self.gru(output, hidden)
 
         #print('output', output.shape)
         #output = F.log_softmax(self.out(output[0]), dim=1)
@@ -232,7 +240,7 @@ def train_reg_on_batch(args, input_tensor, target_tensor, target_number_tensor, 
     return loss.item()
 
 
-def train_eos_on_batch(args, input_tensor, target_tensor, eos_target, encoder, eos, optimizer, criterion):
+def train_eos_on_batch(args, input_tensor, target_tensor, target_number_tensor, eos_target, encoder, eos, optimizer, criterion):
     
     encoder_hidden = encoder.initHidden()
     optimizer.zero_grad()
@@ -247,9 +255,9 @@ def train_eos_on_batch(args, input_tensor, target_tensor, eos_target, encoder, e
 
     eos_hidden = encoder_hidden
     eos_inputs = torch.cat((eos_input, target_tensor[:-1]))
-    outputs, hidden = eos(input=eos_inputs, encoder_outputs=encoder_outputs, hidden=eos_hidden)
+    outputs, hidden = eos(input=eos_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=eos_hidden)
     
-    loss = criterion(outputs.squeeze(2), eos_target)
+    loss = criterion(outputs.squeeze(2), eos_target[:outputs.shape[0],:])
     loss.backward()
     optimizer.step()
 
@@ -291,8 +299,8 @@ def eval_network_on_batch(mode, args, input_tensor, target_tensor, target_number
         if torch.cuda.is_available():
             encoder_hidden = encoder_hidden.cuda()
         eos_inputs = torch.cat((eos_input, target_tensor[:-1]))
-        eos_outputs, hidden = eos(input=eos_inputs, encoder_outputs=encoder_outputs, hidden=eos_hidden)
-        eos_loss = eos_criterion(eos_outputs.squeeze(2), eos_target)
+        eos_outputs, hidden = eos(input=eos_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=eos_hidden)
+        eos_loss = eos_criterion(eos_outputs.squeeze(2), eos_target[:eos_outputs.shape[0],:])
         return eos_loss.item()
     
     elif mode == "test":
@@ -487,12 +495,13 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
         for iter_, training_triplet in enumerate(train_generator):
             input_tensor = training_triplet[0].float().transpose(0,1)
             target_tensor = training_triplet[1].float().transpose(0,1)
+            target_number = training_triplet[2].float()
             eos_target = training_triplet[3].float().permute(1,0)
             if torch.cuda.is_available():
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
                 eos_target = eos_target.cuda()
-            new_train_loss = train_eos_on_batch(args, input_tensor, target_tensor, eos_target, encoder=encoder, eos=eos, optimizer=optimizer, criterion=criterion)
+            new_train_loss = train_eos_on_batch(args, input_tensor, target_tensor, target_number, eos_target, encoder=encoder, eos=eos, optimizer=optimizer, criterion=criterion)
 
 
             print(iter_, new_train_loss)
@@ -506,10 +515,12 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
             input_tensor = training_triplet[0].float().transpose(0,1)
             target_tensor = training_triplet[1].float().transpose(0,1)
             target_number = training_triplet[2].float()
+            eos_target = training_triplet[3].float().permute(1,0)
             if torch.cuda.is_available():
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
                 target_number = target_number.cuda()
+                eos_target = eos_target.cuda()
             new_val_loss = eval_network_on_batch("eval_eos", args, input_tensor, target_tensor, target_number, eos_target, encoder=encoder, eos=eos, eos_criterion=criterion)
             batch_val_losses.append(new_val_loss)
 
