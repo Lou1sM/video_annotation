@@ -71,7 +71,7 @@ class DecoderRNN(nn.Module):
         #print('enc_perm', enc_perm.shape)
         drop_input_perm = drop_input.permute(1,0, 2)
         #print('drop_perm', drop_input_perm.shape)
-        dot_attn_weights = torch.bmm(drop_input_perm, enc_perm)
+        dot_attn_weights = F.softmax(torch.bmm(drop_input_perm, enc_perm))
         #print('dot_attn', dot_attn_weights.shape)
         enc_perm_2 = encoder_outputs.permute(1,0,2)
         #print('enc_perm_2', enc_perm_2.shape)
@@ -134,7 +134,7 @@ class NumIndEOS(nn.Module):
         #print('enc_perm', enc_perm.shape)
         drop_input_perm = drop_input.permute(1,0, 2)
         #print('drop_perm', drop_input_perm.shape)
-        dot_attn_weights = torch.bmm(drop_input_perm, enc_perm)
+        dot_attn_weights = F.softmax(torch.bmm(drop_input_perm, enc_perm))
         #print('dot_attn', dot_attn_weights.shape)
         enc_perm_2 = encoder_outputs.permute(1,0,2)
         #print('enc_perm_2', enc_perm_2.shape)
@@ -156,7 +156,7 @@ class NumIndEOS(nn.Module):
         #output = torch.cat((drop_input[0], attn_applied[0]), 1)
         #output = self.attn_combine(output).unsqueeze(0)
 
-        output = F.relu(output)
+        output = F.sigmoid(output)
         output, hidden = self.gru(output, hidden)
 
         #print('output', output.shape)
