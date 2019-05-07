@@ -1,4 +1,8 @@
 """Functions for creating a h5 file from a json in the agree-upon format.
+
+When called from the command line, takes 4 arguments: the path of the json
+file to read from, and three paths to write the train, test and validation
+h5 files to respectively.
 """
 
 
@@ -37,9 +41,10 @@ def padded_emb_seq_from_lists(list_of_lists, already_sorted=True, embedding_size
 def make_eos_gt(num_embeddings, max_len=10):
     """Make the ground truth for the eos network.
 
-    The eos predicts, at each output time step, whether the embedding sequence has
-    ended (ie we are now in the padding) or not. A 0 means the sequence hasn't ended
-    and a 1 means it has. 
+    The eos predicts, at each output time step, whether the embedding sequence is
+    on its last element. Ie, if the embedding sequence is of length 4 then it should
+    predict a high value on the 4th element and a low value everywhere else. The
+    ground truth is thus a ohe vector of the end position of the embedding sequence.
 
     Args:
       num_embeddings: an int equal to the sequence length (before padding)
@@ -59,11 +64,12 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
     h5 file. The videoIds are ints in the json file and are passed as is to the
     h5 file. The embeddings are unpadded, unsorted lists of lists in the json
     file. They are converted to np arrays, padded and sorted (by first element)
-    before being passed to the h5 file. Their unpadded length is also measured
-    and passed to the h5 file as 'embedding_len'. 
+    before being passed to the h5 file. Their unpadded length is measured and
+    passed to the h5 file as 'embedding_len', and this length is also used to
+    compute the eos ground truth.
 
-    Each h5 file thus contains 3 datasets: videoId (ints), embeddings (np arrays)
-    and embedding_lens (ints).
+    Each h5 file thus contains 4 datasets: videoId (ints), embeddings (np arrays)
+    and embedding_lens (ints), eos_gt (np arrays).
 
     Args:
       json_file_path: path of the json file to read from
@@ -150,8 +156,12 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
 
 if __name__ == "__main__":
     
-    convert_json_to_h5s('../data/dummy_data/data.json', '../data/dummy_data/train_data.h5', '../data/dummy_data/val_data.h5', '../data/dummy_data/test_data.h5')
-    #convert_json_to_h5s('../data/mini/data.json', '../data/mini/train_data.h5', 'dudval.h5', 'dudtest.h5')
+    convert_json_to_h5s(
+        json_file_path='../data/dummy_data/data.json', 
+        out_h5_train_file_path='../data/dummy_data/train_data.h5',
+        out_h5_val_file_path= '../data/dummy_data/val_data.h5',
+        out_h5_test_file_path= '../data/dummy_data/test_data.h5'
+        )
 
     """
     from make_dummies import get_dummy_json_dpoint
