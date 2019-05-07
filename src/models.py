@@ -150,7 +150,7 @@ class NumIndEOS(nn.Module):
 
         drop_input_perm = drop_input.permute(1,0, 2)
         #print('drop_perm', drop_input_perm.shape)
-        dot_attn_weights = F.softmax(torch.bmm(drop_input_perm, enc_perm))
+        dot_attn_weights = F.softmax(torch.bmm(drop_input_perm, enc_perm), dim=2)
         #print('dot_attn', dot_attn_weights.shape)
         enc_perm_2 = encoder_outputs.permute(1,0,2)
         #print('enc_perm_2', enc_perm_2.shape)
@@ -174,7 +174,7 @@ class NumIndEOS(nn.Module):
 
         #print(input_lengths)
 
-        output = F.sigmoid(output)
+        output = torch.sigmoid(output)
         input_lengths, perm_idx = input_lengths.sort(0, descending=True)
         output =  output[:, perm_idx]
 
@@ -347,9 +347,7 @@ def eval_network_on_batch(mode, args, input_tensor, target_tensor, target_number
     
 def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name="", device='cuda'):
 
-    start = time.time()
     loss_plot_file_path = '../data/loss_plots/loss{}.png'.format(exp_name)
-    plot_losses = []
 
     if args.optimizer == "SGD":
         encoder_optimizer = optim.SGD(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
@@ -418,9 +416,6 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
 
 def train_iters_reg(args, encoder, regressor, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name="", device="cuda"):
 
-    start = time.time()
-    plot_losses = []
-
     if args.optimizer == "SGD":
         optimizer = optim.SGD(regressor.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     elif args.optimizer == "Adam":
@@ -431,12 +426,9 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
     criterion = nn.MSELoss()
     EarlyStop = EarlyStopper(patience=args.patience, verbose=True)
 
-    # Freeze layers in vgg19 that we don't want to train
-    v = 1
-    for param in encoder.vgg.parameters():
-        if v <= args.vgg_layers_to_freeze*2: # Assuming each layer has two params
-            param.requires_grad = False
-        v += 1
+    # Freeze encoder to save computing gradient
+    for param in encoder.parameters():
+        param.requires_grad = False
     
     loss_plot_file_path = '../data/loss_plots/loss{}.png'.format(exp_name)
     epoch_train_losses = []
@@ -485,9 +477,6 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
 
 def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name="", device="cuda"):
 
-    start = time.time()
-    plot_losses = []
-
     if args.optimizer == "SGD":
         optimizer = optim.SGD(eos.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     elif args.optimizer == "Adam":
@@ -498,13 +487,10 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
     criterion = nn.MSELoss()
     EarlyStop = EarlyStopper(patience=args.patience, verbose=True)
 
-    # Freeze layers in vgg19 that we don't want to train
-    v = 1
-    for param in encoder.vgg.parameters():
-        if v <= args.vgg_layers_to_freeze*2: # Assuming each layer has two params
-            param.requires_grad = False
-        v += 1
-    
+    # Freeze encoder to save computing gradient
+    for param in encoder.parameters():
+        param.requires_grad = False
+        
     loss_plot_file_path = '../data/loss_plots/loss{}.png'.format(exp_name)
     epoch_train_losses = []
     epoch_val_losses = []
@@ -522,7 +508,6 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
                 target_tensor = target_tensor.cuda()
                 eos_target = eos_target.cuda()
             new_train_loss = train_eos_on_batch(args, input_tensor, target_tensor, target_number, eos_target, encoder=encoder, eos=eos, optimizer=optimizer, criterion=criterion)
-
 
             print(iter_, new_train_loss)
             batch_train_losses.append(new_train_loss)
