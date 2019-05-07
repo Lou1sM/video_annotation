@@ -212,19 +212,24 @@ class NumIndRegressor(nn.Module):
         return output
 
 
-def train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion):
+def train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, device):
+    print(device)
     
-    encoder_hidden = encoder.initHidden()
+    encoder_hidden = encoder.initHidden().to(device)
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
 
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
-    decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device)
+    encoder_outputs = encoder_outputs.to(device)
+    encoder_hidden = encoder_hidden.to(device)
+    decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device).to(device)
     
+    """
     if torch.cuda.is_available():
         encoder_hidden = encoder_hidden.cuda()
         encoder_outputs = encoder_outputs.cuda()
         decoder_input = decoder_input.cuda()
+    """
 
     decoder_hidden = encoder_hidden
     decoder_inputs = torch.cat((decoder_input, target_tensor[:-1]))
@@ -245,16 +250,20 @@ def train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number_tens
     return loss.item()
 
 
-def train_reg_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, regressor, optimizer, criterion):
+def train_reg_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, regressor, optimizer, criterion, device):
 
-    encoder_hidden = encoder.initHidden()
+    encoder_hidden = encoder.initHidden().to(device)
     optimizer.zero_grad()
 
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
+    encoder_outputs = encoder_outputs.to(device)
+    encoder_hidden = encoder_hidden.to(device)
 
+    """
     if torch.cuda.is_available():
         encoder_hidden = encoder_hidden.cuda()
         encoder_outputs = encoder_outputs.cuda()
+    """
 
     regressor_output = regressor(encoder_outputs)
     loss = criterion(regressor_output, target_number_tensor)
@@ -265,18 +274,21 @@ def train_reg_on_batch(args, input_tensor, target_tensor, target_number_tensor, 
     return loss.item()
 
 
-def train_eos_on_batch(args, input_tensor, target_tensor, target_number_tensor, eos_target, encoder, eos, optimizer, criterion):
+def train_eos_on_batch(args, input_tensor, target_tensor, target_number_tensor, eos_target, encoder, eos, optimizer, criterion, device):
     
-    encoder_hidden = encoder.initHidden()
+    encoder_hidden = encoder.initHidden().to(device)
     optimizer.zero_grad()
 
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
-    eos_input = torch.zeros(1, args.batch_size, args.ind_size, device=eos.device)
+    eos_input = torch.zeros(1, args.batch_size, args.ind_size, device=eos.device).to(device)
     
-    if torch.cuda.is_available():
-        encoder_hidden = encoder_hidden.cuda()
-        encoder_outputs = encoder_outputs.cuda()
-        eos_input = eos_input.cuda()
+    encoder_outputs = encoder_outputs.to(device)
+    encoder_hidden = encoder_hidden.to(device)
+    
+    #if torch.cuda.is_available():
+    #    encoder_hidden = encoder_hidden.cuda()
+    #    encoder_outputs = encoder_outputs.cuda()
+    #    eos_input = eos_input.cuda()
 
     eos_hidden = encoder_hidden
     eos_inputs = torch.cat((eos_input, target_tensor[:-1]))
@@ -289,25 +301,21 @@ def train_eos_on_batch(args, input_tensor, target_tensor, target_number_tensor, 
     return loss.item()
 
 
-def eval_network_on_batch(mode, args, input_tensor, target_tensor, target_number_tensor=None, eos_target=None, encoder=None, decoder=None, regressor=None, eos=None, dec_criterion=None, reg_criterion=None, eos_criterion=None):
+def eval_network_on_batch(mode, args, input_tensor, target_tensor, target_number_tensor=None, eos_target=None, encoder=None, decoder=None, regressor=None, eos=None, dec_criterion=None, reg_criterion=None, eos_criterion=None, device='cpu'):
     """Possible values for 'mode' arg: {"eval_seq2seq", "eval_reg", "eval_eos", "test"}"""
-    encoder_hidden = encoder.initHidden()
+    encoder_hidden = encoder.initHidden().to(device)
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
     
-    if torch.cuda.is_available():
-        encoder_hidden = encoder_hidden.cuda()
-        encoder_outputs = encoder_outputs.cuda()
-
     if mode == "eval_reg":
         regressor_output = regressor(encoder_outputs)
         reg_loss = reg_criterion(regressor_output, target_number_tensor)
         return reg_loss.item()
 
     elif mode == "eval_seq2seq":
-        decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device)
+        decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device).to(device)
         decoder_hidden_0 = encoder_hidden
-        if torch.cuda.is_available():
-            decoder_input = decoder_input.cuda()
+        #if torch.cuda.is_available():
+            #decoder_input = decoder_input.cuda()
         dec_loss = 0
         for b in range(args.batch_size):
             single_dec_input = decoder_input[:, b].view(1, 1, -1)
@@ -322,10 +330,8 @@ def eval_network_on_batch(mode, args, input_tensor, target_tensor, target_number
         return dec_loss.item()
 
     elif mode == "eval_eos":
-        eos_input = torch.zeros(1, args.batch_size, args.ind_size, device=eos.device)
+        eos_input = torch.zeros(1, args.batch_size, args.ind_size, device=eos.device).to(device)
         eos_hidden = encoder_hidden
-        if torch.cuda.is_available():
-            encoder_hidden = encoder_hidden.cuda()
         eos_inputs = torch.cat((eos_input, target_tensor[:-1]))
         eos_outputs, hidden = eos(input=eos_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=eos_hidden)
         eos_loss = eos_criterion(eos_outputs.squeeze(2), eos_target[:eos_outputs.shape[0],:])
@@ -345,7 +351,8 @@ def eval_network_on_batch(mode, args, input_tensor, target_tensor, target_number
         return dec_loss.item(), reg_loss.item()
 
     
-def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name="", device='cuda'):
+def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, exp_name, device):
+    print(device)
 
     loss_plot_file_path = '../data/loss_plots/loss{}.png'.format(exp_name)
 
@@ -380,7 +387,7 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
             target_tensor = training_triplet[1].float().transpose(0,1).to(device)
             target_number = training_triplet[2].float().to(device)
             
-            new_train_loss = train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer, criterion=criterion)
+            new_train_loss = train_seq2seq_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer, criterion=criterion, device=device)
             print(iter_, new_train_loss)
 
             batch_train_losses.append(new_train_loss)
@@ -389,14 +396,10 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
 
         batch_val_losses = []
         for iter_, training_triplet in enumerate(val_generator):
-            input_tensor = training_triplet[0].float().transpose(0,1)
-            target_tensor = training_triplet[1].float().transpose(0,1)
-            target_number = training_triplet[2].float()
-            if torch.cuda.is_available():
-                input_tensor = input_tensor.cuda()
-                target_tensor = target_tensor.cuda()
-                target_number = target_number.cuda()
-            new_val_loss = eval_network_on_batch("eval_seq2seq", args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, dec_criterion=criterion)
+            input_tensor = training_triplet[0].float().transpose(0,1).to(device)
+            target_tensor = training_triplet[1].float().transpose(0,1).to(device)
+            target_number = training_triplet[2].float().to(device)
+            new_val_loss = eval_network_on_batch("eval_seq2seq", args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, dec_criterion=criterion, device=device)
             #new_val_loss = 0.5
             batch_val_losses.append(new_val_loss)
 
@@ -414,7 +417,7 @@ def train_iters_seq2seq(args, encoder, decoder, train_generator, val_generator, 
             return EarlyStop.val_loss_min
 
 
-def train_iters_reg(args, encoder, regressor, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name="", device="cuda"):
+def train_iters_reg(args, encoder, regressor, train_generator, val_generator, exp_name, device):
 
     if args.optimizer == "SGD":
         optimizer = optim.SGD(regressor.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
@@ -441,7 +444,7 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
             input_tensor = training_triplet[0].float().transpose(0,1).to(device)
             target_tensor = training_triplet[1].float().transpose(0,1).to(device)
             target_number = training_triplet[2].float().to(device)
-            new_train_loss = train_reg_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, regressor=regressor, optimizer=optimizer, criterion=criterion)
+            new_train_loss = train_reg_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, regressor=regressor, optimizer=optimizer, criterion=criterion, device=device)
 
             print(iter_, new_train_loss)
             batch_train_losses.append(new_train_loss)
@@ -450,14 +453,10 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
 
         batch_val_losses =[] 
         for iter_, training_triplet in enumerate(val_generator):
-            input_tensor = training_triplet[0].float().transpose(0,1)
-            target_tensor = training_triplet[1].float().transpose(0,1)
-            target_number = training_triplet[2].float()
-            if torch.cuda.is_available():
-                input_tensor = input_tensor.cuda()
-                target_tensor = target_tensor.cuda()
-                target_number = target_number.cuda()
-            new_val_loss = eval_network_on_batch("eval_reg", args, input_tensor, target_tensor, target_number, encoder=encoder, regressor=regressor, reg_criterion=criterion)
+            input_tensor = training_triplet[0].float().transpose(0,1).to(device)
+            target_tensor = training_triplet[1].float().transpose(0,1).to(device)
+            target_number = training_triplet[2].float().to(device)
+            new_val_loss = eval_network_on_batch("eval_reg", args, input_tensor, target_tensor, target_number, encoder=encoder, regressor=regressor, reg_criterion=criterion, device=device)
 
             batch_val_losses.append(new_val_loss)
             if args.quick_run:
@@ -475,7 +474,7 @@ def train_iters_reg(args, encoder, regressor, train_generator, val_generator, pr
             return EarlyStop.val_loss_min
 
 
-def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_every=1000, plot_every=1000, exp_name="", device="cuda"):
+def train_iters_eos(args, encoder, eos, train_generator, val_generator, exp_name, device):
 
     if args.optimizer == "SGD":
         optimizer = optim.SGD(eos.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
@@ -499,15 +498,11 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
         print("Epoch:", epoch_num+1)
     
         for iter_, training_triplet in enumerate(train_generator):
-            input_tensor = training_triplet[0].float().transpose(0,1)
-            target_tensor = training_triplet[1].float().transpose(0,1)
-            target_number = training_triplet[2].float()
-            eos_target = training_triplet[3].float().permute(1,0)
-            if torch.cuda.is_available():
-                input_tensor = input_tensor.cuda()
-                target_tensor = target_tensor.cuda()
-                eos_target = eos_target.cuda()
-            new_train_loss = train_eos_on_batch(args, input_tensor, target_tensor, target_number, eos_target, encoder=encoder, eos=eos, optimizer=optimizer, criterion=criterion)
+            input_tensor = training_triplet[0].float().transpose(0,1).to(device)
+            target_tensor = training_triplet[1].float().transpose(0,1).to(device)
+            target_number = training_triplet[2].float().to(device)
+            eos_target = training_triplet[3].float().permute(1,0).to(device)
+            new_train_loss = train_eos_on_batch(args, input_tensor, target_tensor, target_number, eos_target, encoder=encoder, eos=eos, optimizer=optimizer, criterion=criterion, device=device)
 
             print(iter_, new_train_loss)
             batch_train_losses.append(new_train_loss)
@@ -521,12 +516,7 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
             target_tensor = training_triplet[1].float().transpose(0,1).to(device)
             target_number = training_triplet[2].float().to(device)
             eos_target = training_triplet[3].float().permute(1,0).to(device)
-            if torch.cuda.is_available():
-                input_tensor = input_tensor.cuda()
-                target_tensor = target_tensor.cuda()
-                target_number = target_number.cuda()
-                eos_target = eos_target.cuda()
-            new_val_loss = eval_network_on_batch("eval_eos", args, input_tensor, target_tensor, target_number, eos_target, encoder=encoder, eos=eos, eos_criterion=criterion)
+            new_val_loss = eval_network_on_batch("eval_eos", args, input_tensor, target_tensor, target_number, eos_target, encoder=encoder, eos=eos, eos_criterion=criterion, device=device)
             batch_val_losses.append(new_val_loss)
 
             if args.quick_run:

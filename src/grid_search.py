@@ -14,15 +14,6 @@ def get_best_dev_file_path(dev):
     return os.path.join(SUMMARY_DIR, "best_on_device{}.txt".format(dev))
 
 
-"""
-def load_vid_from_id(vid_id):
-    return np.load('../data/frames/vid{}_resized.npz'.format(vid_id))['arr_0']
-
-
-def video_lookup_table_from_range(start_idx, end_idx):
-    return {vid_id: load_vid_from_id(vid_id+1) for vid_id in range(start_idx, end_idx)}
-"""
-
 class HyperParamSet():
     def __init__(self, param_dict):
         self.ind_size = 300
@@ -43,6 +34,7 @@ class HyperParamSet():
 
 def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=None, best_val_loss=0, device="cuda"):
 
+    print(device)
     args = HyperParamSet(param_dict)
     if exp_name == None:
         exp_name = utils.get_datetime_stamp()
@@ -50,20 +42,20 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
         h5_train_generator = load_data_lookup('../data/mini/train_data.h5', video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
         h5_val_generator = load_data_lookup('../data/mini/val_data.h5', video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
     else:
-        h5_train_generator = load_data('../data/dummy_data/train_data.h5', video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
-        h5_val_generator = load_data('../data/dummy_data/val_data.h5', video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_train_generator = load_data_lookup('../data/dummy_data/train_data.h5', video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_val_generator = load_data_lookup('../data/dummy_data/val_data.h5', video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
 
 
     encoder = models.EncoderRNN(args, device).to(device)
     if model == 'seq2seq':
         decoder = models.DecoderRNN(args, device).to(device)
-        val_loss = models.train_iters_seq2seq(args, encoder, decoder, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name, device=device)
+        val_loss = models.train_iters_seq2seq(args, encoder, decoder, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
     elif model == 'reg':
         regressor = models.NumIndRegressor(args, device).to(device)
-        val_loss = models.train_iters_reg(args, encoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name, device=device)
+        val_loss = models.train_iters_reg(args, encoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
     elif model == 'eos':
         eos = models.NumIndEOS(args, device).to(device)
-        val_loss = models.train_iters_eos(args, encoder, eos, train_generator=h5_train_generator, val_generator=h5_val_generator, print_every=1, plot_every=1, exp_name=exp_name, device=device)
+        val_loss = models.train_iters_eos(args, encoder, eos, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
 
     summary_file_path = os.path.join(SUMMARY_DIR, "{}.txt".format(exp_name))
     summary_file = open(summary_file_path, 'w')
@@ -82,7 +74,7 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
 
 
 def grid_search(model, dec_sizes, batch_sizes, lrs, opts, weight_decays):
-    cuda_devs = ["cuda: {}".format(i) for i in range(torch.cuda.device_count())]
+    cuda_devs = ["cuda: {}".format(i) for i in range(torch.cuda.device_count())][1:]
     print("Available devices:")
     if cuda_devs == []:
         cuda_devs = ['cpu']
@@ -93,14 +85,13 @@ def grid_search(model, dec_sizes, batch_sizes, lrs, opts, weight_decays):
     it = 0
  
     
+    print("Loading video lookup tables..")
     if mini:
         train_table = video_lookup_table_from_range(1,11)
         val_table = video_lookup_table_from_range(1201,1211)
     else:
         train_table = video_lookup_table_from_range(1,1201)
         val_table = video_lookup_table_from_range(1201,1301)
-        #h5_train_generator = load_data('../data/datasets/four_vids.h5', vid_range=(1,1201), batch_size=args.batch_size, shuffle=args.shuffle)
-        #h5_val_generator = load_data('../data/datasets/four_vids.h5', vid_range=(1201,1301), batch_size=args.batch_size, shuffle=args.shuffle)
 
     best_val_loss = float('inf')
     for dec_size in dec_sizes:
