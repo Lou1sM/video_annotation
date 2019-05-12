@@ -11,7 +11,7 @@ import numpy as np
 import h5py
 
 
-def padded_emb_seq_from_lists(list_of_lists, already_sorted=True, embedding_size=300, max_len=10):
+def padded_emb_seq_from_lists(list_of_lists, already_sorted=True, embedding_size=50, max_len=10):
     """Convert a list of lists to a sorted, padded np array.
 
     Json files can't store np arrays, so the agreed-upon json format stores
@@ -30,10 +30,14 @@ def padded_emb_seq_from_lists(list_of_lists, already_sorted=True, embedding_size
 
     unsorted_unpadded_array = np.array(list_of_lists)
     if already_sorted:
-        sorted_unpadded_array = unsorted_unpadded_array
+        sorted_unpadded_array = np.squeeze(unsorted_unpadded_array)
     else:
-        sorted_unpadded_array = unsorted_unpadded_array[np.argsort(unsorted_unpadded_array[:,0])]
+        sorted_unpadded_array = np.squeeze(unsorted_unpadded_array[np.argsort(unsorted_unpadded_array[:,0])])
     padding = np.zeros(shape=(max_len-sorted_unpadded_array.shape[0], embedding_size))
+    # print(sorted_unpadded_array.shape)
+    # print(sorted_unpadded_array[0])
+    # print(padding.shape)
+    # print(padding[0])
     sorted_padded_array = np.concatenate([sorted_unpadded_array, padding], axis=0)
     return sorted_padded_array
 
@@ -51,12 +55,13 @@ def make_eos_gt(num_embeddings, max_len=10):
       max_len: an int equal to the maximum number of embeddings, ie what each seq-
               uence is padded up to
     """
+    print("num_embeddings:", num_embeddings)
     tmp = np.zeros(max_len)
     tmp[num_embeddings-1] = 1
     return tmp
 
 
-def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_path, out_h5_test_file_path, embedding_size=300, max_len=10):
+def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_path, out_h5_test_file_path, embedding_size=50, max_len=10):
     """Convert json in agreed-upon format to train, test and val h5 in format expected by the Dataset.
 
     The json contains a list of datapoint, each having keys 'videoId', 'embed-
@@ -129,7 +134,7 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
             id_train_dataset[idx_train] = new_vid_id
             list_of_lists = dp['embeddings']
             seq_len_train_dataset[idx_train] = len(list_of_lists)
-            eos_gt_train_dataset[idx_train] = make_eos_gt(len(list_of_lists))
+            eos_gt_train_dataset[idx_train] = make_eos_gt(len(list_of_lists), max_len=max_len)
             emb_seq_train_dataset[idx_train] = padded_emb_seq_from_lists(list_of_lists, embedding_size=embedding_size, max_len=max_len)
             idx_train += 1
         
@@ -137,7 +142,7 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
             id_val_dataset[idx_val] = new_vid_id
             list_of_lists = dp['embeddings']
             seq_len_val_dataset[idx_val] = len(list_of_lists)
-            eos_gt_val_dataset[idx_val] = make_eos_gt(len(list_of_lists))
+            eos_gt_val_dataset[idx_val] = make_eos_gt(len(list_of_lists), max_len=max_len)
             emb_seq_val_dataset[idx_val] = padded_emb_seq_from_lists(list_of_lists, embedding_size=embedding_size, max_len=max_len)
             idx_val += 1
         
@@ -145,7 +150,7 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
             id_test_dataset[idx_test] = new_vid_id
             list_of_lists = dp['embeddings']
             seq_len_test_dataset[idx_test] = len(list_of_lists)
-            eos_gt_test_dataset[idx_test] = make_eos_gt(len(list_of_lists))
+            eos_gt_test_dataset[idx_test] = make_eos_gt(len(list_of_lists), max_len=max_len)
             emb_seq_test_dataset[idx_test] = padded_emb_seq_from_lists(list_of_lists, embedding_size=embedding_size, max_len=max_len)
             idx_test += 1
     
@@ -157,10 +162,12 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
 if __name__ == "__main__":
     
     convert_json_to_h5s(
-        json_file_path='../data/dummy_data/data.json', 
-        out_h5_train_file_path='../data/dummy_data/train_data.h5',
-        out_h5_val_file_path= '../data/dummy_data/val_data.h5',
-        out_h5_test_file_path= '../data/dummy_data/test_data.h5'
+        json_file_path='../data/rdf_video_captions/50d.json', 
+        out_h5_train_file_path='../data/rdf_video_captions/train_50d.h5',
+        out_h5_val_file_path= '../data/rdf_video_captions/val_50d.h5',
+        out_h5_test_file_path= '../data/rdf_video_captions/test_50d.h5',
+        embedding_size=50,
+        max_len=29
         )
 
     """
