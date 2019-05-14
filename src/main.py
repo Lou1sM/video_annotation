@@ -30,16 +30,22 @@ def main():
         print(regressor)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    encoder = models.EncoderRNN(args, device).to(device)
-
 
     if args.model == 'seq2seq':
+        encoder = models.EncoderRNN(args, device).to(device)
         decoder = models.DecoderRNN(args, device).to(device)
         models.train_iters_seq2seq(args, encoder, decoder, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
     elif args.model == 'reg':
+        checkpoint = torch.load("../checkpoints/chkpt05-08_18:16:17.pt")
+        print("\n begin checkpoint")
+        print(checkpoint)
+        print("\n end \n")
+        encoder = checkpoint['encoder']
         regressor = models.NumIndRegressor(args,device).to(device)
         models.train_iters_reg(args, encoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
     elif args.model == 'eos':
+        checkpoint = torch.load("../checkpoints/chkpt05-08_18:16:17.pt")
+        encoder = checkpoint['encoder']
         eos = models.NumIndEOS(args, device).to(device)
         models.train_iters_eos(args, encoder, eos, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
     
