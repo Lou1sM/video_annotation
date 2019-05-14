@@ -17,7 +17,7 @@ def get_best_dev_file_path(dev):
 class HyperParamSet():
     def __init__(self, param_dict):
         self.ind_size = 50
-        self.dec_size = param_dict['dec_size']
+        #self.dec_size = param_dict['dec_size']
         self.num_frames = 8
         self.batch_size = param_dict['batch_size']
         self.learning_rate = param_dict['lr']
@@ -27,9 +27,12 @@ class HyperParamSet():
         self.dropout = 0
         self.shuffle = True
         self.max_epochs = 200
-        self.patience = 5
+        self.patience = 10
         self.vgg_layers_to_freeze = 17
         self.quick_run = False
+        self.enc_layers = param_dict['enc_layers']
+        self.dec_layers = param_dict['dec_layers']
+        self.teacher_forcing_ratio = param_dict['teacher_forcing_ratio']
         
 
 def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=None, best_val_loss=0, checkpoint_path=None, device="cuda"):
@@ -85,7 +88,7 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
 
     return val_loss, exp_name
 
-def grid_search(model, dec_sizes, batch_sizes, lrs, opts, weight_decays, checkpoint_path=None):
+def grid_search(model, dec_sizes, batch_sizes, lrs, opts, weight_decays, enc_layers, dec_layers, teacher_forcing_ratio, checkpoint_path=None):
     cuda_devs = ["cuda:{}".format(i) for i in range(torch.cuda.device_count())]
     print(cuda_devs)
     print("Available devices:")
@@ -93,15 +96,13 @@ def grid_search(model, dec_sizes, batch_sizes, lrs, opts, weight_decays, checkpo
         cuda_devs = ['cpu']
     for d in cuda_devs:
         print(d)
-    if cuda_devs == []:
-        cuda_devs = ['cpu']
     it = 0
  
     
     print("Loading video lookup tables..")
     if mini:
-        train_table = video_lookup_table_from_range(1,11)
-        val_table = video_lookup_table_from_range(1201,1211)
+        train_table = video_lookup_table_from_range(1,3)
+        val_table = video_lookup_table_from_range(1,3)
     else:
         train_table = video_lookup_table_from_range(1,1201)
         val_table = video_lookup_table_from_range(1201,1301)
@@ -113,20 +114,27 @@ def grid_search(model, dec_sizes, batch_sizes, lrs, opts, weight_decays, checkpo
             for lr in lrs:
                 for opt in opts:
                     for weight_decay in weight_decays:
-                        param_dict = {
-                            'dec_size': dec_size,
-                            'batch_size': batch_size,
-                            'lr': lr,
-                            'opt': opt,
-                            'weight_decay': weight_decay}
-                        next_available_device = cuda_devs[it%len(cuda_devs)]
-                        print("Executing run on {}".format(next_available_device))
-                        new_val_loss, new_exp_name = train_with_hyperparams(model, train_table, val_table, param_dict, it, best_val_loss, checkpoint_path=checkpoint_path, device=next_available_device)
-                        if new_val_loss < best_val_loss:
-                            best_it = it
-                            best_val_loss = new_val_loss
-                            best_exp_name = new_exp_name
-                        it += 1
+                        for dec_layer in dec_layers:
+                            for enc_layer in enc_layers:
+                                if enc_layer >= dec_layer:
+                                    param_dict = {
+                                        'dec_size': dec_size,
+                                        'batch_size': batch_size,
+                                        'lr': lr,
+                                        'opt': opt,
+                                        'weight_decay': weight_decay, 
+                                        'dec_layers': dec_layer,
+                                        'enc_layers': enc_layer, 
+                                        'teacher_forcing_ratio': teacher_forcing_ratio}
+                                    next_available_device = cuda_devs[it%len(cuda_devs)]
+                                    print("Executing run on {}".format(next_available_device))
+                                    name_str='_batch'+str(batch_size)+'_lr'+str(lr)+'_enc'+str(enc_layer)+'_dec'+str(dec_layer)+'_tfratio'+str(teacher_forcing_ratio)+'_wgDecay'+str(weight_decay)+'_'+opt
+                                    new_val_loss, new_exp_name = train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=name_str, best_val_loss=best_val_loss, checkpoint_path=checkpoint_path, device=next_available_device)
+                                    if new_val_loss < best_val_loss:
+                                        best_it = it
+                                        best_val_loss = new_val_loss
+                                        best_exp_name = new_exp_name
+                                    it += 1
     return best_exp_name
 
 if __name__=="__main__":
@@ -134,9 +142,12 @@ if __name__=="__main__":
     #dec_sizes = [1,2,3,4]
     dec_sizes = [4]
     batch_sizes = [64]
-    lrs = [1e-5]
-    opts = ['Adam']
-    weight_decays = [0]
+    lrs = [1e-3]
+    opts = ['RMS']
+    weight_decays = [0.0]
+    enc_layers = [1]
+    dec_layers = [1]
+    teacher_forcing_ratio = 0.6
 
     if len(sys.argv) == 1:
         mini = False
@@ -148,16 +159,17 @@ if __name__=="__main__":
         print("Unrecognized argument")
         sys.exit()
 
-    best_exp_name = grid_search('seq2seq', dec_sizes, batch_sizes, lrs, opts, weight_decays)
-    grid_search('eos', dec_sizes, batch_sizes, lrs, opts, weight_decays, checkpoint_path='../checkpoints/chkpt{}.pt'.format(best_exp_name))
+    best_exp_name = grid_search('seq2seq', dec_sizes, batch_sizes, lrs, opts, weight_decays, enc_layers, dec_layers, teacher_forcing_ratio)
+    #best_exp_name = '0'
+    grid_search('eos', dec_sizes, batch_sizes, lrs, opts, weight_decays, enc_layers, dec_layers, teacher_forcing_ratio, checkpoint_path='../checkpoints/chkpt{}.pt'.format(best_exp_name))
 
-    with open("checkpoit.out", 'w') as f:
+    with open("checkpoint.out", 'w') as f:
         f.write('../checkpoints/chkpt{}.pt'.format(best_exp_name))
 
     ckpt_path = '../checkpoints/chkpt{}.pt'.format(best_exp_name)
 
-    test_table = video_lookup_table_from_range(1301,1970)
-    num_lines = 1900 - 1301
+    test_table = video_lookup_table_from_range(1301,1969)
+    num_lines = 1969 - 1301
     h5_test_generator = load_data_lookup('../data/rdf_video_captions/test_50d.h5', video_lookup_table=test_table, batch_size=num_lines, shuffle=False)
     print(h5_test_generator)
     for t in h5_test_generator:
