@@ -67,6 +67,9 @@ def load_data(h5file_path, batch_size, shuffle):
 
     new_data = VideoDataset(h5file_path)
     new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle, drop_last=True)
+
+    
+
     return new_data_loaded
 
 
@@ -142,6 +145,11 @@ def load_data_lookup(h5file_path, video_lookup_table, batch_size, shuffle):
 
     new_data = LookupDataset(h5file_path, video_lookup_table=video_lookup_table)
     new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle, drop_last=True)
+
+    #print("\n NEW DATA LOADED \n")
+    #print(new_data.video_ids)
+    #print(new_data.video_lookup_table)
+
     return new_data_loaded
 
 
