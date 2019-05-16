@@ -25,10 +25,11 @@ class HyperParamSet():
         self.max_length = 29
         self.weight_decay = param_dict['weight_decay']
         self.dropout = 0
-        self.shuffle = True
+        self.shuffle = False
         self.max_epochs = 200
         self.patience = 10
-        self.vgg_layers_to_freeze = 17
+        self.vgg_layers_to_freeze = 10
+        self.output_vgg_size = 2000
         self.quick_run = False
         self.enc_layers = param_dict['enc_layers']
         self.dec_layers = param_dict['dec_layers']
@@ -42,8 +43,8 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
     if exp_name == None:
         exp_name = utils.get_datetime_stamp()
     if mini:
-        h5_train_generator = load_data_lookup('../data/mini/train_data.h5', video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
-        h5_val_generator = load_data_lookup('../data/mini/val_data.h5', video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_train_generator = load_data_lookup('../data/rdf_video_captions/50d_overfitting.h5', video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_val_generator = load_data_lookup('../data/rdf_video_captions/50d_overfitting.h5', video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
     else:
         h5_train_generator = load_data_lookup('../data/rdf_video_captions/train_50d.h5', video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
         h5_val_generator = load_data_lookup('../data/rdf_video_captions/val_50d.h5', video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
@@ -51,7 +52,7 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
     if model == 'seq2seq':
         encoder = models.EncoderRNN(args, device).to(device)
         decoder = models.DecoderRNN(args, device).to(device)
-        val_loss = models.train_iters_seq2seq(args, encoder, decoder, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
+        val_loss = models.train(args, encoder, decoder, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
     elif model == 'reg':
         if checkpoint_path == None: 
             print("\nPath to the encoder weights checkpoints needed\n")
@@ -101,8 +102,8 @@ def grid_search(model, dec_sizes, batch_sizes, lrs, opts, weight_decays, enc_lay
     
     print("Loading video lookup tables..")
     if mini:
-        train_table = video_lookup_table_from_range(1,3)
-        val_table = video_lookup_table_from_range(1,3)
+        train_table = video_lookup_table_from_range(1,4)
+        val_table = video_lookup_table_from_range(1,4)
     else:
         train_table = video_lookup_table_from_range(1,1201)
         val_table = video_lookup_table_from_range(1201,1301)
@@ -116,25 +117,24 @@ def grid_search(model, dec_sizes, batch_sizes, lrs, opts, weight_decays, enc_lay
                     for weight_decay in weight_decays:
                         for dec_layer in dec_layers:
                             for enc_layer in enc_layers:
-                                if enc_layer >= dec_layer:
-                                    param_dict = {
-                                        'dec_size': dec_size,
-                                        'batch_size': batch_size,
-                                        'lr': lr,
-                                        'opt': opt,
-                                        'weight_decay': weight_decay, 
-                                        'dec_layers': dec_layer,
-                                        'enc_layers': enc_layer, 
-                                        'teacher_forcing_ratio': teacher_forcing_ratio}
-                                    next_available_device = cuda_devs[it%len(cuda_devs)]
-                                    print("Executing run on {}".format(next_available_device))
-                                    name_str='_batch'+str(batch_size)+'_lr'+str(lr)+'_enc'+str(enc_layer)+'_dec'+str(dec_layer)+'_tfratio'+str(teacher_forcing_ratio)+'_wgDecay'+str(weight_decay)+'_'+opt
-                                    new_val_loss, new_exp_name = train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=name_str, best_val_loss=best_val_loss, checkpoint_path=checkpoint_path, device=next_available_device)
-                                    if new_val_loss < best_val_loss:
-                                        best_it = it
-                                        best_val_loss = new_val_loss
-                                        best_exp_name = new_exp_name
-                                    it += 1
+                                param_dict = {
+                                    'dec_size': dec_size,
+                                    'batch_size': batch_size,
+                                    'lr': lr,
+                                    'opt': opt,
+                                    'weight_decay': weight_decay, 
+                                    'dec_layers': dec_layer,
+                                    'enc_layers': enc_layer, 
+                                    'teacher_forcing_ratio': teacher_forcing_ratio}
+                                next_available_device = cuda_devs[it%len(cuda_devs)]
+                                print("Executing run on {}".format(next_available_device))
+                                name_str='_batch'+str(batch_size)+'_lr'+str(lr)+'_enc'+str(enc_layer)+'_dec'+str(dec_layer)+'_tfratio'+str(teacher_forcing_ratio)+'_wgDecay'+str(weight_decay)+'_'+opt
+                                new_val_loss, new_exp_name = train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=name_str, best_val_loss=best_val_loss, checkpoint_path=checkpoint_path, device=next_available_device)
+                                if new_val_loss < best_val_loss:
+                                    best_it = it
+                                    best_val_loss = new_val_loss
+                                    best_exp_name = new_exp_name
+                                it += 1
     return best_exp_name
 
 if __name__=="__main__":
@@ -143,10 +143,10 @@ if __name__=="__main__":
     dec_sizes = [4]
     batch_sizes = [64]
     lrs = [1e-3]
-    opts = ['RMS']
+    opts = ['Adam']
     weight_decays = [0.0]
     enc_layers = [1]
-    dec_layers = [1]
+    dec_layers = [5]
     teacher_forcing_ratio = 0.6
 
     if len(sys.argv) == 1:
@@ -154,6 +154,7 @@ if __name__=="__main__":
         print("running grid search on full dataset")
     elif sys.argv[1] == 'm':
         mini = True
+        batch_sizes = [3]
         print("running grid search on mini dataset")
     else:
         print("Unrecognized argument")
