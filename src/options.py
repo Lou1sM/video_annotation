@@ -151,6 +151,11 @@ def load_arguments():
             default = 7,
             help = "number of epochs to allow without improvement before early-stopping"
         )
+    argparser.add_argument("--output_vgg_size",
+            type = int,
+            default = 2000,
+            help = "size of the output of the vgg layers"
+        )
 
 
 
