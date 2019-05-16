@@ -161,14 +161,22 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
 
 if __name__ == "__main__":
     
+    # convert_json_to_h5s(
+    #     json_file_path='../data/rdf_video_captions/50d.json', 
+    #     out_h5_train_file_path='../data/rdf_video_captions/train_50d.h5',
+    #     out_h5_val_file_path= '../data/rdf_video_captions/val_50d.h5',
+    #     out_h5_test_file_path= '../data/rdf_video_captions/test_50d.h5',
+    #     embedding_size=50,
+    #     max_len=29
+    #     )
+
     convert_json_to_h5s(
-        json_file_path='../data/rdf_video_captions/50d.json', 
-        out_h5_train_file_path='../data/rdf_video_captions/train_50d.h5',
-        out_h5_val_file_path= '../data/rdf_video_captions/val_50d.h5',
-        out_h5_test_file_path= '../data/rdf_video_captions/test_50d.h5',
+        json_file_path='../data/rdf_video_captions/50d.overfitting.json', 
+        out_h5_train_file_path='../data/rdf_video_captions/50d_overfitting.h5',
+        out_h5_val_file_path= '../data/rdf_video_captions/over_val.h5',
+        out_h5_test_file_path= '../data/rdf_video_captions/over_test.h5',
         embedding_size=50,
-        max_len=29
-        )
+        max_len=29)
 
     """
     from make_dummies import get_dummy_json_dpoint
