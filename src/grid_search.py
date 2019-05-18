@@ -25,10 +25,10 @@ class HyperParamSet():
         self.max_length = 29
         self.weight_decay = param_dict['weight_decay']
         self.dropout = 0
-        self.shuffle = False
-        self.max_epochs = 200
-        self.patience = 10
-        self.vgg_layers_to_freeze = 10
+        self.shuffle = True
+        self.max_epochs = 10000
+        self.patience = 20
+        self.vgg_layers_to_freeze = 17
         self.output_vgg_size = 2000
         self.quick_run = False
         self.enc_layers = param_dict['enc_layers']
@@ -146,8 +146,8 @@ if __name__=="__main__":
     opts = ['Adam']
     weight_decays = [0.0]
     enc_layers = [1]
-    dec_layers = [5]
-    teacher_forcing_ratio = 0.6
+    dec_layers = [1]
+    teacher_forcing_ratio = 1.0
 
     if len(sys.argv) == 1:
         mini = False

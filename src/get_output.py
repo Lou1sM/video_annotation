@@ -16,18 +16,18 @@ def get_output(checkpoint_path, input_tensor, target_number_tensor, rnge, mode='
 	encoder = checkpoint['encoder']
 	decoder = checkpoint['decoder']
 
-	if mode == 'eos':
-		num_predictor = checkpoint['eos']
-	elif mode == 'regressor':
-		num_predictor = checkpoint['regressor']
-	else:
-		print("Wrong input for mode parameter")
-		exit()
+	# if mode == 'eos':
+	# 	num_predictor = checkpoint['eos']
+	# elif mode == 'regressor':
+	# 	num_predictor = checkpoint['regressor']
+	# else:
+	# 	print("Wrong input for mode parameter")
+	# 	exit()
 
 	num_test_samples = 100
 	encoder.batch_size = num_test_samples
 	decoder.batch_size = num_test_samples
-	num_predictor.batch_size = num_test_samples
+	#num_predictor.batch_size = num_test_samples
 
 	# Pass input through encoder
 	encoder_hidden = encoder.initHidden().to(device)
@@ -42,7 +42,7 @@ def get_output(checkpoint_path, input_tensor, target_number_tensor, rnge, mode='
 		decoder_hidden = decoder_hidden_0[:, b].unsqueeze(1)
 		single_dec_output = []
 		for l in range(target_number_tensor[b].int()):
-			decoder_output, decoder_hidden, perm_idx = decoder(input=single_dec_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs[:, b].unsqueeze(1), hidden=decoder_hidden) #input_lengths=torch.tensor([target_number_tensor[b]])
+			decoder_output, decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs[:, b].unsqueeze(1), hidden=decoder_hidden) #input_lengths=torch.tensor([target_number_tensor[b]])
 			single_dec_output.append(decoder_output.squeeze().detach().cpu().numpy().tolist())
 			single_dec_input = decoder_output
 			#print(single_dec_output)
@@ -53,7 +53,7 @@ def get_output(checkpoint_path, input_tensor, target_number_tensor, rnge, mode='
 if __name__=="__main__":
 
 	device='cuda'
-	checkpoint_path = '../checkpoints/chkpt_batch64_lr0.001_enc1_dec1_tfratio0.7_wgDecay0.0_Adam.pt'
+	checkpoint_path = '../checkpoints/chkpt_batch64_lr0.001_enc1_dec1_tfratio1.0_wgDecay0.0_Adam.pt'
 	rnge = [1201, 1301]
 	test_table = video_lookup_table_from_range(rnge[0],rnge[1])
 

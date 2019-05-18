@@ -1,5 +1,6 @@
 import numpy as np
 import random
+from random import shuffle
 import re
 import string
 import time
@@ -82,13 +83,14 @@ class DecoderRNN(nn.Module):
 
 		self.out1 = nn.Linear(self.hidden_size, self.hidden_size)
 		self.out2 = nn.Linear(self.hidden_size, self.hidden_size)
+		self.out3 = nn.Linear(self.hidden_size, self.hidden_size)
 
 	def forward(self, input, hidden, input_lengths, encoder_outputs):
 		# apply dropout
 		drop_input = self.dropout(input)
 		
 		#pack the sequence to avoid useless computations
-		packed = torch.nn.utils.rnn.pack_padded_sequence(drop_input, input_lengths.int())
+		packed = torch.nn.utils.rnn.pack_padded_sequence(drop_input, input_lengths.int(), enforce_sorted=False)
 		packed, hidden = self.gru(packed, hidden)
 		output, _ = torch.nn.utils.rnn.pad_packed_sequence(packed)
 
@@ -101,10 +103,12 @@ class DecoderRNN(nn.Module):
 		# apply attention
 		output_perm, attn = self.attention(output_perm, enc_perm)
 		# permute back to (max_length, batch_size, ind_size)
-		output = output_perm.permute(1,0,2)
+		#output = output_perm.permute(1,0,2)
 
-		output = self.out1(output)
+		output = self.out1(output_perm)
 		output = self.out2(output)
+		output = self.out3(output)
+		# output = self.out4(output)
 
 		return output, hidden
 
@@ -122,10 +126,6 @@ class DecoderRNN(nn.Module):
 
 
 def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, device):
-	# order elemetns in batch on the ground of their output length
-	target_number_tensor, perm_idx = target_number_tensor.sort(0, descending=True)
-	input_tensor = input_tensor[:, perm_idx]
-	target_tensor = target_tensor[:, perm_idx]
 
 	use_teacher_forcing = True if random.random() < args.teacher_forcing_ratio else False
 
@@ -139,28 +139,36 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
 
 	decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device).to(device)
 
-	if not use_teacher_forcing:
-		decoder_hidden = encoder_hidden.expand(decoder.num_layers, decoder.batch_size,50)
+	if use_teacher_forcing:
+
+		print("target tensor", target_tensor.shape)
+		decoder_hidden = encoder_hidden#.expand(decoder.num_layers, decoder.batch_size, args.ind_size)
 		decoder_inputs = torch.cat((decoder_input, target_tensor[:-1]))
 		decoder_outputs, decoder_hidden = decoder(input=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden.contiguous())
 
-		arange = torch.arange(0, decoder_outputs.shape[0], step=1).expand(args.ind_size, args.batch_size, decoder_outputs.shape[0]).cuda()
-		arange = arange.permute(2, 1, 0)
-		lengths = target_number_tensor.expand(decoder_outputs.shape[0], args.ind_size, args.batch_size).long().cuda()
-		lengths = lengths.permute(0, 2, 1)
-		mask = arange < lengths 
-		mask = mask.cuda().float()
+		# Note: target_tensor is passed to the decoder with shape (length, batch_size, ind_size)
+		# but it then needs to be permuted to be compared in the loss. 
+		# Output of decoder size: (batch_size, length, ind_size)
+		target_tensor_perm = target_tensor.permute(1,0,2)
+		print("decoder outputs", decoder_outputs.shape)
+		print("target tensor perm", target_tensor_perm.shape)
 
-		loss = criterion(decoder_outputs*mask, target_tensor[:decoder_outputs.shape[0],:,:]*mask)
+		#loss = criterion(decoder_outputs*mask, target_tensor[:,:decoder_outputs.shape[1],:]*mask)
+		loss = criterion(decoder_outputs, target_tensor_perm[:,:decoder_outputs.shape[1],:])
+
 	else:
+
 		loss = 0 
-		decoder_hidden_0 = encoder_hidden.expand(decoder.num_layers,decoder.batch_size,50)
+		print("encoder_hidden:", encoder_hidden.shape)
+		decoder_hidden_0 = encoder_hidden#.expand(decoder.num_layers,decoder.batch_size, args.ind_size)
 		for b in range(args.batch_size):
 			single_dec_input = decoder_input[:, b].view(1, 1, -1)
 			decoder_hidden = decoder_hidden_0[:, b].unsqueeze(1)
 			l_loss = 0
 			for l in range(target_number_tensor[b].int()):
 				decoder_output, decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs[:, b].unsqueeze(1), hidden=decoder_hidden.contiguous()) #input_lengths=torch.tensor([target_number_tensor[b]])
+				print(decoder_output.shape)
+				print(target_tensor.shape)
 				l_loss += criterion(decoder_output, target_tensor[l, b].unsqueeze(0).unsqueeze(0))
 				single_dec_input = decoder_output
 			loss += l_loss/float(l)
@@ -288,7 +296,7 @@ def eval_on_batch(mode, args, input_tensor, target_tensor, target_number_tensor=
 		lengths = lengths.permute(1,0)
 		mask = arange < lengths 
 		mask = mask.cuda().float()
-		#eos_target = torch.argmax(eos_target, dim=1)
+		eos_target = torch.argmax(eos_target, dim=1)
 		
 		eos_loss = eos_criterion(eos_outputs*mask, eos_target*mask)
 		return eos_loss.item()
