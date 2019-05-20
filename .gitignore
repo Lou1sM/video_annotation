@@ -6,3 +6,5 @@ data/loss_plots/*
 data/frames/*
 data/dummy_data/*
 dev/
+checkpoints/
+*.h5
