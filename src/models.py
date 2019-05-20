@@ -82,8 +82,8 @@ class DecoderRNN(nn.Module):
 		self.dropout = nn.Dropout(self.dropout_p)
 
 		self.out1 = nn.Linear(self.hidden_size, self.hidden_size)
-		self.out2 = nn.Linear(self.hidden_size, self.hidden_size)
-		self.out3 = nn.Linear(self.hidden_size, self.hidden_size)
+		#self.out2 = nn.Linear(self.hidden_size, self.hidden_size)
+		#self.out3 = nn.Linear(self.hidden_size, self.hidden_size)
 
 	def forward(self, input, hidden, input_lengths, encoder_outputs):
 		# apply dropout
@@ -106,8 +106,8 @@ class DecoderRNN(nn.Module):
 		#output = output_perm.permute(1,0,2)
 
 		output = self.out1(output_perm)
-		output = self.out2(output)
-		output = self.out3(output)
+		#output = self.out2(output)
+		#output = self.out3(output)
 		# output = self.out4(output)
 
 		return output, hidden
