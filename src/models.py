@@ -52,6 +52,15 @@ class EncoderRNN(nn.Module):
 		# pass the output of the vgg layers through the GRU cell
 		outputs, hidden = self.gru(vgg_outputs, hidden)
 
+		print(" \n VGG OUTPUTS (first element in batch) \n")
+		print(vgg_outputs[:, 0])
+		print(" \n VGG OUTPUTS (second element in batch) \n")
+		print(vgg_outputs[:, 1])
+		print(" \n OUTPUTS (first element in batch \n")
+		print(outputs[:, 0])
+		print(" \n OUTPUTS (second element in batch \n")
+		print(outputs[:, 1])
+
 		return outputs, hidden
 
 	def initHidden(self):
