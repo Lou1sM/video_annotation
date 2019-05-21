@@ -7,6 +7,9 @@ import os
 for i in range(1,1971):
     filepath = os.path.join('../data/frames', 'vid{}_resized.npz'.format(i))
     float_img = img_as_float(np.ndarray.astype(np.load(filepath)['arr_0'].transpose(0,2,3,1), dtype=np.uint8))
+    #print(float_img[0,:5,:5,:])
+    float_img = np.divide(np.add(float_img, [-.485, -.456, -.406]),[0.229, 0.224, 0.225])
+    #print(float_img[0,:5,:5,:])
     #plt.imshow(float_img[0])
     #plt.show()
     print(i)
