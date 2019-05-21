@@ -6,6 +6,14 @@ import argparse
 def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
+    argparser.add_argument("--enc_layers", 
+            default = 1,
+            help = "number of layers in encoder rnn"
+        )
+    argparser.add_argument("--dec_layers", 
+            default = 1,
+            help = "number of layers in decoder rnn"
+        )
     argparser.add_argument("--quick_run", "-q",
             default = False,
             action = "store_true",
