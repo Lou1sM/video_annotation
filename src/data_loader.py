@@ -20,7 +20,8 @@ from skimage import img_as_float
 
 
 def load_vid_from_id(vid_id):
-    return np.load('../data/frames/vid{}_resized.npz'.format(vid_id))['arr_0']
+    #return np.load('../data/frames/vid{}_resized.npz'.format(vid_id))['arr_0']
+    return np.load('../data/frames/vid{}.npz'.format(vid_id))['arr_0']
 
 
 def video_lookup_table_from_range(start_idx, end_idx):
@@ -173,7 +174,9 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     #new_data_loaded = load_data_lookup('../data/dummy_data/train_data_dummy.h5', batch_size=2, vid_range=(1,1201), shuffle=True)    
-    new_data_loaded = load_data_lookup('../data/mini/train_data.h5', batch_size=2, vid_range=(1,21), shuffle=True)    
+    video_lookup_table = video_lookup_table_from_range(1,4)
+    print(video_lookup_table.keys())
+    new_data_loaded = load_data_lookup('over_train.h5', batch_size=1, video_lookup_table=video_lookup_table, shuffle=False)    
     for epoch in range(5):
         print(epoch)
         print("Number of batches:", len(new_data_loaded), "\n")
@@ -184,6 +187,7 @@ if __name__ == "__main__":
             print(data[1].shape)
             print(data[2].shape)
             print(data[3].shape)
+            print(data[1][0][0])
             #print(data[0].type())
             #print(data[2])
             #print(data[0][0,0,0,0,0])

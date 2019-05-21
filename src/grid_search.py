@@ -8,7 +8,7 @@ import numpy as np
 from data_loader import load_data, load_data_lookup, video_lookup_table_from_range
 
 
-SUMMARY_DIR = '../data/logs'
+DATA_DIR = '/home/eleonora/video_annotation/data'
 
 def get_best_dev_file_path(dev):
     return os.path.join(SUMMARY_DIR, "best_on_device{}.txt".format(dev))
@@ -28,7 +28,7 @@ class HyperParamSet():
         self.shuffle = True
         self.max_epochs = 10000
         self.patience = 20
-        self.vgg_layers_to_freeze = 17
+        self.vgg_layers_to_freeze = 19
         self.output_vgg_size = 2000
         self.quick_run = False
         self.enc_layers = param_dict['enc_layers']
@@ -43,11 +43,11 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
     if exp_name == None:
         exp_name = utils.get_datetime_stamp()
     if mini:
-        h5_train_generator = load_data_lookup('../data/rdf_video_captions/50d_overfitting.h5', video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
-        h5_val_generator = load_data_lookup('../data/rdf_video_captions/50d_overfitting.h5', video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_train_generator = load_data_lookup(os.path.join(DATA_DIR, 'rdf_video_captions/50d_overfitting.h5'), video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_val_generator = load_data_lookup(os.path.join(DATA_DIR, 'rdf_video_captions/50d_overfitting.h5'), video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
     else:
-        h5_train_generator = load_data_lookup('../data/rdf_video_captions/train_50d.h5', video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
-        h5_val_generator = load_data_lookup('../data/rdf_video_captions/val_50d.h5', video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_train_generator = load_data_lookup(os.path.join(DATA_DIR,'rdf_video_captions/train_50d.h5'), video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_val_generator = load_data_lookup(os.path.join(DATA_DIR, 'rdf_video_captions/val_50d.h5'), video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
 
     if model == 'seq2seq':
         encoder = models.EncoderRNN(args, device).to(device)
@@ -74,7 +74,7 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
         eos = models.NumIndEOS(args, device).to(device)
         val_loss = models.train_iters_eos(args, encoder, decoder, eos, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
 
-    summary_file_path = os.path.join(SUMMARY_DIR, "{}.txt".format(exp_name))
+    summary_file_path = os.path.join(DATA_DIR, "logs/{}.txt".format(exp_name))
     summary_file = open(summary_file_path, 'w')
     summary_file.write("Val loss:" + ': ' + str(round(val_loss, 3)))
     for key in sorted(param_dict.keys()):

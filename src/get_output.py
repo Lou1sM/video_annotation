@@ -59,13 +59,13 @@ def get_output(checkpoint_path, input_tensor, target_number_tensor, rnge, mode='
 if __name__=="__main__":
 
 	device='cuda'
-	checkpoint_path = '../checkpoints/chkpt_batch3_lr0.001_enc1_dec1_tfratio1.0_wgDecay0.0_Adam.pt'
+	checkpoint_path = '/home/eleonora/video_annotation/checkpoints/chkpt_batch3_lr0.001_enc1_dec1_tfratio1.0_wgDecay0.0_Adam.pt'
 	rnge = [1,4]
 	test_table = video_lookup_table_from_range(rnge[0],rnge[1])
 
 	num_lines = rnge[1] - rnge[0] 
 
-	h5_test_generator = load_data_lookup('../data/rdf_video_captions/50d_overfitting.h5', video_lookup_table=test_table, batch_size=num_lines, shuffle=False)
+	h5_test_generator = load_data_lookup('/home/eleonora/video_annotation/data/rdf_video_captions/50d_overfitting.h5', video_lookup_table=test_table, batch_size=num_lines, shuffle=False)
 	for iter_, training_triplet in enumerate(h5_test_generator):
 		input_tensor = training_triplet[0].float().transpose(0,1).to(device)
 		target_tensor = training_triplet[1].float().transpose(0,1).to(device)
