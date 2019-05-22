@@ -104,9 +104,10 @@ class LookupDataset(data.Dataset):
         video_id = self.video_ids[index]
         video = self.video_lookup_table[video_id]
         eos_gt = self.eos_gts[index]
+        video_id = self.video_ids[index].astype(np.int32)
         if self.transform != None:
             video = self.transform(video)
-        return video, embedding_seq, seq_len, eos_gt
+        return video, embedding_seq, seq_len, eos_gt, video_id
 
     def __len__(self):
         return len(self.seq_lens)
@@ -119,8 +120,8 @@ class LookupDataset(data.Dataset):
 def load_data_lookup(h5file_path, video_lookup_table, batch_size, shuffle):
     """Load data from specified file path and return a Dataset that uses a lookup table for videos.
 
-    Each element returned is a 4-tuple of the form
-    (video, embedding_sequence, sequence_length, eos_gt)
+    Each element returned is a 5-tuple of the form
+    (video, embedding_sequence, sequence_length, eos_gt, video_id)
     
     The lookup table consumes ~15G memory for the full train set, ~1G for the full validation set
     and ~5G for the full test set. There are mini-datasets available by passing the --mini flag 
@@ -180,6 +181,7 @@ if __name__ == "__main__":
     for epoch in range(5):
         print(epoch)
         print("Number of batches:", len(new_data_loaded), "\n")
+        print(new_data_loaded)
         for i, data in enumerate(new_data_loaded):
             #print(i, type(data))
             print("Number of elements in each batch:",len(data), "\n")
@@ -187,7 +189,8 @@ if __name__ == "__main__":
             print(data[1].shape)
             print(data[2].shape)
             print(data[3].shape)
-            print(data[1][0][0])
+            print(data[4])
+            #print(data[1][0][0])
             #print(data[0].type())
             #print(data[2])
             #print(data[0][0,0,0,0,0])

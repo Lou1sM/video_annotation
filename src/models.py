@@ -52,18 +52,18 @@ class EncoderRNN(nn.Module):
         # pass the output of the vgg layers through the GRU cell
         outputs, hidden = self.gru(vgg_outputs, hidden)
 
-        print(" \n NETWORK INPUTS (first element in batch) \n")
-        print(input[0,0,:,:,0])
-        print(" \n NETWORK INPUTS (second element in batch) \n")
-        print(input[0,1,:,:,0])
-        print(" \n VGG OUTPUTS (first element in batch) \n")
-        print(vgg_outputs[:, 0])
-        print(" \n VGG OUTPUTS (second element in batch) \n")
-        print(vgg_outputs[:, 1])
-        print(" \n OUTPUTS (first element in batch \n")
-        print(outputs[:, 0])
-        print(" \n OUTPUTS (second element in batch \n")
-        print(outputs[:, 1])
+        #print(" \n NETWORK INPUTS (first element in batch) \n")
+        #print(input[0,0,:,:,0])
+        #print(" \n NETWORK INPUTS (second element in batch) \n")
+        #print(input[0,1,:,:,0])
+        #print(" \n VGG OUTPUTS (first element in batch) \n")
+        #print(vgg_outputs[:, 0])
+        #print(" \n VGG OUTPUTS (second element in batch) \n")
+        #print(vgg_outputs[:, 1])
+        #print(" \n OUTPUTS (first element in batch \n")
+        #print(outputs[:, 0])
+        #print(" \n OUTPUTS (second element in batch \n")
+        #print(outputs[:, 1])
 
         return outputs, hidden
 
@@ -154,8 +154,11 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
 
     if use_teacher_forcing:
 
-        print("target tensor", target_tensor.shape)
-        decoder_hidden = encoder_hidden#.expand(decoder.num_layers, decoder.batch_size, args.ind_size)
+        if args.enc_layers == args.dec_layers:
+            decoder_hidden = encoder_hidden#.expand(decoder.num_layers, decoder.batch_size, args.ind_size)
+        else:
+            decoder_hidden = torch.zeros(decoder.num_layers, 1, decoder.hidden_size)
+            #decoder_hidden = torch.zeros(args.dec_layers, args.batch_size, args.ind_size)
         decoder_inputs = torch.cat((decoder_input, target_tensor[:-1]))
         decoder_outputs, decoder_hidden = decoder(input=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden.contiguous())
 
@@ -163,11 +166,11 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
         # but it then needs to be permuted to be compared in the loss. 
         # Output of decoder size: (batch_size, length, ind_size)
         target_tensor_perm = target_tensor.permute(1,0,2)
-        print("decoder outputs", decoder_outputs.shape)
-        print("target tensor perm", target_tensor_perm.shape)
 
         #loss = criterion(decoder_outputs*mask, target_tensor[:,:decoder_outputs.shape[1],:]*mask)
         loss = criterion(decoder_outputs, target_tensor_perm[:,:decoder_outputs.shape[1],:])
+        mse_rescale = (args.ind_size*args.batch_size*decoder_outputs.shape[1])/torch.sum(target_number_tensor)
+        loss = loss*mse_rescale
 
     else:
 
@@ -246,7 +249,6 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
             if args.quick_run:
                 break
 
-        print(batch_train_losses, batch_val_losses)
         new_epoch_train_loss = sum(batch_train_losses)/len(batch_train_losses)
         new_epoch_val_loss = sum(batch_val_losses)/len(batch_val_losses)
         epoch_train_losses.append(new_epoch_train_loss)
@@ -294,7 +296,7 @@ def eval_on_batch(mode, args, input_tensor, target_tensor, target_number_tensor=
             dec_loss += l_loss/float(l)
 
         dec_loss /= float(b) 
-        return dec_loss.item()
+        return 50*dec_loss.item()
 
     elif mode == "eval_eos":
         eos_input = torch.zeros(1, args.batch_size, args.ind_size, device=eos.device).to(device)

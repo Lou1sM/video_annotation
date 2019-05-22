@@ -11,7 +11,8 @@ from data_loader import load_data, load_data_lookup, video_lookup_table_from_ran
 DATA_DIR = '/home/eleonora/video_annotation/data'
 
 def get_best_dev_file_path(dev):
-    return os.path.join(SUMMARY_DIR, "best_on_device{}.txt".format(dev))
+    #return os.path.join(SUMMARY_DIR, "best_on_device{}.txt".format(dev))
+    return "../data/logs/best_on_device{}.txt".format(dev)
 
 
 class HyperParamSet():
@@ -27,13 +28,14 @@ class HyperParamSet():
         self.dropout = 0
         self.shuffle = True
         self.max_epochs = 10000
-        self.patience = 20
+        self.patience = 7
         self.vgg_layers_to_freeze = 19
         self.output_vgg_size = 2000
         self.quick_run = False
         self.enc_layers = param_dict['enc_layers']
         self.dec_layers = param_dict['dec_layers']
         self.teacher_forcing_ratio = param_dict['teacher_forcing_ratio']
+        self.embedding_size = 50
         
 
 def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=None, best_val_loss=0, checkpoint_path=None, device="cuda"):
@@ -74,7 +76,8 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
         eos = models.NumIndEOS(args, device).to(device)
         val_loss = models.train_iters_eos(args, encoder, decoder, eos, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
 
-    summary_file_path = os.path.join(DATA_DIR, "logs/{}.txt".format(exp_name))
+    #summary_file_path = os.path.join(DATA_DIR, "logs/{}.txt".format(exp_name))
+    summary_file_path = "../data/logs/{}.txt".format(exp_name)
     summary_file = open(summary_file_path, 'w')
     summary_file.write("Val loss:" + ': ' + str(round(val_loss, 3)))
     for key in sorted(param_dict.keys()):
@@ -142,12 +145,14 @@ if __name__=="__main__":
     #dec_sizes = [1,2,3,4]
     dec_sizes = [4]
     batch_sizes = [64]
-    lrs = [1e-3]
-    opts = ['Adam']
-    weight_decays = [0.0]
-    enc_layers = [1]
-    dec_layers = [1]
+    lrs = [1e-3, 3e-3, 1e-4]
+    opts = ['Adam', 'RMS']
+    weight_decays = [0.0, 0.2, 0.4]
+    dropout = [0.0, 0.3, 0.5]
+    enc_layers = [1,2]
+    dec_layers = [1,2]
     teacher_forcing_ratio = 1.0
+    vgg_layers_to_train = [0,1,2]
 
     if len(sys.argv) == 1:
         mini = False

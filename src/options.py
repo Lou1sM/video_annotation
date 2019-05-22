@@ -116,7 +116,7 @@ def load_arguments():
         )
     argparser.add_argument("--ind_size",
             type = int,
-            default = 300,
+            default = 50,
             help = "size of the individuals embeddings"
         )
     argparser.add_argument("--max_length",

@@ -8,3 +8,4 @@ data/dummy_data/*
 dev/
 checkpoints/
 *.h5
+nohup.out
