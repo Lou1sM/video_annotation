@@ -10,10 +10,10 @@ def main():
     exp_name = utils.get_datetime_stamp()
     print(args)
     if args.mini:
-        train_table = video_lookup_table_from_range(1,11)
-        val_table = video_lookup_table_from_range(1201,1211)
-        h5_train_generator = load_data_lookup('../data/mini/train_data.h5', video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
-        h5_val_generator = load_data_lookup('../data/mini/val_data.h5', video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
+        train_table = video_lookup_table_from_range(1,4)
+        val_table = video_lookup_table_from_range(1,4)
+        h5_train_generator = load_data_lookup('../data/50d_overfitting.h5', video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_val_generator = load_data_lookup('../data/50d_overfitting.h5', video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
     else:
         train_table = video_lookup_table_from_range(1,1201)
         val_table = video_lookup_table_from_range(1201,1301)

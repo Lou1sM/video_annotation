@@ -6,6 +6,14 @@ import argparse
 def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
+    argparser.add_argument("--dec_size", 
+            default = 200,
+            help = "number of units in decoder rnn"
+        )
+    argparser.add_argument("--enc_size", 
+            default = 200,
+            help = "number of units in encoder rnn"
+        )
     argparser.add_argument("--enc_layers", 
             default = 1,
             help = "number of layers in encoder rnn"
@@ -41,7 +49,7 @@ def load_arguments():
         )
     argparser.add_argument("--model",
             choices = ['seq2seq', 'reg', 'eos'],
-            required = True,
+            default = 'seq2seq',
             help = "which subnetwork to train"
         )
     argparser.add_argument("--verbose",
@@ -109,11 +117,6 @@ def load_arguments():
             default = 256,
             help = "height of a single frame"
         )
-    argparser.add_argument("--dec_size",
-            type = int,
-            default = 256,
-            help = "decoder hidden size"
-        )
     argparser.add_argument("--ind_size",
             type = int,
             default = 50,
@@ -126,7 +129,7 @@ def load_arguments():
         )
     argparser.add_argument("--teacher_forcing_ratio",
             type = float,
-            default = 0.5,
+            default = 1.0,
             help = "teacher forcing ratio"
         )
     argparser.add_argument("--lmbda",
@@ -141,12 +144,12 @@ def load_arguments():
         )
     argparser.add_argument("--h5_val_file_path",
             type = str,
-            default = '../data/dummy_data/val_data.h5',
+            default = '/home/eleonora/video_annotation/data/rdf_video_captions/val_50d.h5',
             help = "file to read the data from"
         )
     argparser.add_argument("--h5_train_file_path",
             type = str,
-            default = '../data/dummy_data/train_data.h5',
+            default = '/home/eleonora/video_annotation/data/rdf_video_captions/train_50d.h5',
             help = "file to read the data from"
         )
     argparser.add_argument("--shuffle",
