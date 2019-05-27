@@ -32,6 +32,11 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if args.model == 'seq2seq':
+        if args.reload_path:
+            print('Reloading model from {}'.format(args.reload_path))
+            saved_model = torch.load(args.reload_path)
+            encoder = saved_model['encoder']
+            decoder = saved_model['decoder']
         encoder = models.EncoderRNN(args, device).to(device)
         decoder = models.DecoderRNN(args, device).to(device)
         models.train(args, encoder, decoder, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
