@@ -6,6 +6,10 @@ import argparse
 def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
+    argparser.add_argument("--reload_path", 
+            default = None,
+            help = "path of checkpoint to reload from, None means random init"
+        )
     argparser.add_argument("--dec_size", 
             default = 200,
             help = "number of units in decoder rnn"
