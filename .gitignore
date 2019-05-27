@@ -9,3 +9,4 @@ dev/
 checkpoints/
 *.h5
 nohup.out
+src/output.txt
