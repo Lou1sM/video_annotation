@@ -48,12 +48,14 @@ class EncoderRNN(nn.Module):
     def forward(self, input, hidden):
 
         # pass the input throught the vgg layers 
-        vgg_outputs = torch.zeros(self.num_frames, self.batch_size, self.output_vgg_size, device=self.device)
+        #print(self.output_vgg_size, self.hidden_size, self.num_layers)
+        vgg_outputs = torch.zeros(self.num_frames, input.shape[1], self.output_vgg_size, device=self.device)
         for i, inp in enumerate(input):
             embedded = self.vgg(inp)#.view(1, self.batch_size, -1)
             vgg_outputs[i] = embedded 
 
         # pass the output of the vgg layers through the GRU cell
+        #print(vgg_outputs.shape)
         outputs, hidden = self.gru(vgg_outputs, hidden)
         
         outputs = self.resize(outputs)
@@ -150,6 +152,8 @@ class DecoderRNN(nn.Module):
 
 def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, device):
 
+    #encoder.train()
+    #decoder.train()
 
     use_teacher_forcing = True if random.random() < args.teacher_forcing_ratio else False
 
@@ -166,7 +170,8 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
 
     if use_teacher_forcing:
 
-        if args.enc_layers == args.dec_layers and False:
+        #if args.enc_layers == args.dec_layers:
+        if args.enc_dec_hidden_init:
             decoder_hidden = encoder_hidden#.expand(decoder.num_layers, args.batch_size, args.ind_size)
         else:
             decoder_hidden = torch.zeros(decoder.num_layers, args.batch_size, decoder.hidden_size).to(device)
@@ -181,6 +186,7 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
 
         #loss = criterion(decoder_outputs*mask, target_tensor[:,:decoder_outputs.shape[1],:]*mask)
         loss = criterion(decoder_outputs, target_tensor_perm[:,:decoder_outputs.shape[1],:])
+        #print('\tcomputing loss between {} and {}, result: {}'.format(decoder_outputs.squeeze()[0,0].item(), target_tensor.squeeze()[0,0].item(), loss))
         mse_rescale = (args.ind_size*args.batch_size*decoder_outputs.shape[1])/torch.sum(target_number_tensor)
         #print(args.batch_size*decoder_outputs.shape[1]/torch.sum(target_number_tensor))
         #print('unscaled_loss', loss)
@@ -210,20 +216,26 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
     return loss.item()
 
 
-def train(args, encoder, decoder, train_generator, val_generator, exp_name, device):
+def train(args, encoder, decoder, train_generator, val_generator, exp_name, device, encoder_optimizer=None, decoder_optimizer=None):
     # where to save the image of the loss funcitons
     loss_plot_file_path = '../data/loss_plots/loss_seq2seq{}.png'.format(exp_name)
     checkpoint_path = '../checkpoints/chkpt{}.pt'.format(exp_name)
 
-    if args.optimizer == "SGD":
-        encoder_optimizer = optim.SGD(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-        decoder_optimizer = optim.SGD(decoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-    elif args.optimizer == "Adam":
-        encoder_optimizer = optim.Adam(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-        decoder_optimizer = optim.Adam(decoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-    elif args.optimizer == "RMS":
-        encoder_optimizer = optim.RMSprop(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-        decoder_optimizer = optim.RMSprop(decoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    if encoder_optimizer == None:
+        if args.optimizer == "SGD":
+            encoder_optimizer = optim.SGD(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+        elif args.optimizer == "Adam":
+            encoder_optimizer = optim.Adam(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+        elif args.optimizer == "RMS":
+            encoder_optimizer = optim.RMSprop(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+
+    if decoder_optimizer == None:
+        if args.optimizer == "SGD":
+            decoder_optimizer = optim.SGD(decoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+        elif args.optimizer == "Adam":
+            decoder_optimizer = optim.Adam(decoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+        elif args.optimizer == "RMS":
+            decoder_optimizer = optim.RMSprop(decoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
     criterion = nn.MSELoss()
     EarlyStop = EarlyStopper(patience=args.patience, verbose=True)
@@ -239,6 +251,8 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
     epoch_train_losses = []
     epoch_val_losses = []
     for epoch_num in range(args.max_epochs):
+        encoder.train()
+        decoder.train()
         batch_train_losses = []
         print("Epoch:", epoch_num+1)
         for iter_, training_triplet in enumerate(train_generator):
@@ -246,22 +260,27 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
             target_tensor = training_triplet[1].float().transpose(0,1).to(device)
             target_number = training_triplet[2].float().to(device)
             video_id = training_triplet[4].float().to(device)
+            #print('input tensor on train', input_tensor.squeeze()[0,0,0,0].item())
             new_train_loss = train_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer, criterion=criterion, device=device)
-            print(video_id)
-            print(target_tensor.squeeze()[0])
+            #print(video_id)
+            #print(target_tensor.squeeze()[0])
             print(iter_, new_train_loss)
-            print(input_tensor[0,0,0,0,0])
+            #print(input_tensor[0,0,0,0,0])
 
             batch_train_losses.append(new_train_loss)
             if args.quick_run:
                 break
+        encoder.eval()
+        decoder.eval()
         batch_val_losses = []
         for iter_, training_triplet in enumerate(val_generator):
             input_tensor = training_triplet[0].float().transpose(0,1).to(device)
             target_tensor = training_triplet[1].float().transpose(0,1).to(device)
             target_number = training_triplet[2].float().to(device)
+            #print('input tensor on eval', input_tensor.squeeze()[0,0,0,0].item())
             new_val_loss = eval_on_batch("eval_seq2seq", args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, dec_criterion=criterion, device=device)
             batch_val_losses.append(new_val_loss)
+            print(iter_, new_val_loss)
 
             if args.quick_run:
                 break
@@ -271,24 +290,26 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
         epoch_train_losses.append(new_epoch_train_loss)
         epoch_val_losses.append(new_epoch_val_loss)
         utils.plot_losses(epoch_train_losses, epoch_val_losses, loss_plot_file_path)
-        save_dict = {'encoder':encoder, 'decoder':decoder}
-        EarlyStop(new_epoch_val_loss, save_dict, filename=checkpoint_path)
-        checkpoint = torch.load(checkpoint_path)
-        reloaded_encoder = checkpoint['encoder']
-        reloaded_decoder = checkpoint['decoder']
-        reload_val_losses = []
-        for iter_, training_triplet in enumerate(val_generator):
-            input_tensor = training_triplet[0].float().transpose(0,1).to(device)
-            target_tensor = training_triplet[1].float().transpose(0,1).to(device)
-            target_number = training_triplet[2].float().to(device)
-            new_reload_val_loss = eval_on_batch("eval_seq2seq", args, input_tensor, target_tensor, target_number, encoder=reloaded_encoder, decoder=reloaded_decoder, dec_criterion=criterion, device=device)
-            reload_val_losses.append(new_reload_val_loss)
+        save_dict = {'encoder':encoder, 'decoder':decoder, 'encoder_optimizer': encoder_optimizer, 'decoder_optimizer': decoder_optimizer}
+        save = (new_epoch_val_loss < 0.5)
+        print(save)
+        EarlyStop(new_epoch_val_loss, save_dict, filename=checkpoint_path, save=save)
+        #checkpoint = torch.load(checkpoint_path)
+        #reloaded_encoder = checkpoint['encoder']
+        #reloaded_decoder = checkpoint['decoder']
+        #reload_val_losses = []
+        #for iter_, training_triplet in enumerate(val_generator):
+        #    input_tensor = training_triplet[0].float().transpose(0,1).to(device)
+        #    target_tensor = training_triplet[1].float().transpose(0,1).to(device)
+        #    target_number = training_triplet[2].float().to(device)
+        #    new_reload_val_loss = eval_on_batch("eval_seq2seq", args, input_tensor, target_tensor, target_number, encoder=reloaded_encoder, decoder=reloaded_decoder, dec_criterion=criterion, device=device)
+        #    reload_val_losses.append(new_reload_val_loss)
 
-            if args.quick_run:
-                break
+        #    if args.quick_run:
+        #        break
 
-        reload_val_loss = sum(reload_val_losses)/len(reload_val_losses)
-        #print('original_val_loss', new_epoch_val_loss)
+        #reload_val_loss = sum(reload_val_losses)/len(reload_val_losses)
+        print('val_loss', new_epoch_val_loss)
         #print('reloaded_val_loss', reload_val_loss)
         if EarlyStop.early_stop:
             return EarlyStop.val_loss_min
@@ -305,6 +326,7 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
 
 def eval_on_batch(mode, args, input_tensor, target_tensor, target_number_tensor=None, eos_target=None, encoder=None, decoder=None, regressor=None, eos=None, dec_criterion=None, reg_criterion=None, eos_criterion=None, device='cpu'):
     """Possible values for 'mode' arg: {"eval_seq2seq", "eval_reg", "eval_eos", "test"}"""
+
     encoder_hidden = encoder.initHidden().to(device)
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
     
@@ -316,32 +338,48 @@ def eval_on_batch(mode, args, input_tensor, target_tensor, target_number_tensor=
     elif mode == "eval_seq2seq":
         decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device).to(device)
 
-        if encoder.hidden_size == decoder.hidden_size and 0:
+        #if encoder.hidden_size == decoder.hidden_size:
+        if args.enc_dec_hidden_init:
             decoder_hidden_0 = encoder_hidden.expand(decoder.num_layers, args.batch_size, decoder.hidden_size)
         else:
             decoder_hidden_0 = torch.zeros(decoder.num_layers, args.batch_size, decoder.hidden_size, device=device)
+        #decoder_hidden_0 = torch.zeros(decoder.num_layers, args.batch_size, decoder.hidden_size, device=device)
         #if torch.cuda.is_available():
             #decoder_input = decoder_input.cuda()
         dec_loss = 0
         denom = 0
+        l2_distances = []
+        total_dist = torch.zeros([50], device=device).float()
         for b in range(args.batch_size):
             single_dec_input = decoder_input[:, b].view(1, 1, -1)
             decoder_hidden = decoder_hidden_0[:, b].unsqueeze(1)
             l_loss = 0
             for l in range(target_number_tensor[b].int()):
-                decoder_output, decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs[:, b].unsqueeze(1), hidden=decoder_hidden.contiguous()) #input_lengths=torch.tensor([target_number_tensor[b]])
+                decoder_output, new_decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs[:, b].unsqueeze(1), hidden=decoder_hidden.contiguous()) #input_lengths=torch.tensor([target_number_tensor[b]])
+                decoder_hidden = new_decoder_hidden
                 l_loss += dec_criterion(decoder_output, target_tensor[l, b].unsqueeze(0).unsqueeze(0))
                 single_dec_input = decoder_output
                 denom += 1
+                #print(decoder_output.squeeze(), target_tensor[l,b].squeeze())
+                l2 = torch.norm(decoder_output.squeeze()-target_tensor[l,b].squeeze(),2).item()
+                dist = decoder_output.squeeze()-target_tensor[l,b].squeeze()
+                total_dist += dist
+                #print('new l2 at', l, b, l2)
+                l2_distances.append(l2)
+                #print('\tcomputing norm between {} and {}, result: {}'.format(decoder_output.squeeze()[0].item(), target_tensor[l,b].squeeze()[0].item(), l2))
+                #print('\tcomputing loss between {} and {}, result: {}'.format(decoder_output.squeeze()[0].item(), target_tensor[l,b].squeeze()[0].item(), l_loss))
             #dec_loss += l_loss/float(l)
             dec_loss += l_loss
 
+        #print('avg_l2_distance', sum(l2_distances)/len(l2_distances))
         #dec_loss /= float(b) 
+        #print('dist', total_dist)
         dec_loss = dec_loss*50/torch.sum(target_number_tensor)
-        if dec_loss < 0.4:
-            print(decoder_output.squeeze())
-            print(target_tensor[l,b].squeeze())
-            print(torch.norm(decoder_output-target_tensor[l,b],2).item())
+        if dec_loss < 2.5:
+            #print(decoder_output.squeeze())
+            #print(target_tensor[l,b].squeeze())
+            #print('l2:', torch.norm(decoder_output-target_tensor[l,b],2).item())
+            pass
         return dec_loss.item()
 
     elif mode == "eval_eos":
