@@ -1,1 +1,0 @@
-Val loss:: 2.004371702671051batch_size: 2dec_size: 2lr: 0.001opt: Adamweight_decay: 0
