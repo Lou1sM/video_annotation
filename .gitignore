@@ -10,3 +10,5 @@ checkpoints/
 *.h5
 nohup.out
 src/output.txt
+data/logs/*
+src/*.swp
