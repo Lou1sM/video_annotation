@@ -6,24 +6,33 @@ import argparse
 def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
+    argparser.add_argument("--enc_dec_hidden_init", 
+            action = "store_true",
+            default = False,
+            help = "whether to init decoder rnn hidden with encoder rnn hidden, otherwise zeroes"
+        )
     argparser.add_argument("--reload_path", 
             default = None,
             help = "path of checkpoint to reload from, None means random init"
         )
     argparser.add_argument("--dec_size", 
             default = 200,
+            type=int,
             help = "number of units in decoder rnn"
         )
     argparser.add_argument("--enc_size", 
             default = 200,
+            type=int,
             help = "number of units in encoder rnn"
         )
     argparser.add_argument("--enc_layers", 
             default = 1,
+            type=int,
             help = "number of layers in encoder rnn"
         )
     argparser.add_argument("--dec_layers", 
             default = 1,
+            type=int,
             help = "number of layers in decoder rnn"
         )
     argparser.add_argument("--quick_run", "-q",
@@ -143,7 +152,7 @@ def load_arguments():
         )
     argparser.add_argument("--batch_size",
             type = int,
-            default = 1,
+            default = 64,
             help = "number of training examples in each batch"
         )
     argparser.add_argument("--h5_val_file_path",
@@ -157,7 +166,8 @@ def load_arguments():
             help = "file to read the data from"
         )
     argparser.add_argument("--shuffle",
-            type = bool,
+            #type = bool,
+            action = "store_false",
             default = True,
             help = "whether to shuffle that data at each epoch"
         )
