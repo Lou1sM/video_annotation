@@ -38,6 +38,7 @@ class HyperParamSet():
         self.embedding_size = 50
         self.enc_size = param_dict['enc_size']
         self.dec_size = param_dict['dec_size']
+        self.enc_dec_hidden_init = param_dict['enc_dec_hidden_init']
         
 
 def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=None, best_val_loss=0, checkpoint_path=None, device="cuda"):
@@ -67,7 +68,7 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
         encoder = checkpoint['encoder']
         decoder = checkpoint['decoder']
         regressor = models.NumIndRegressor(args, device).to(device)
-        val_loss = models.train_iters_reg(args, encoder, decoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
+        #val_loss = models.train_iters_reg(args, encoder, decoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
     elif model == 'eos':
         if checkpoint_path == None: 
             print("\nPath to the encoder weights checkpoints needed\n")
@@ -76,7 +77,7 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
         encoder = checkpoint['encoder']
         decoder = checkpoint['decoder']
         eos = models.NumIndEOS(args, device).to(device)
-        val_loss = models.train_iters_eos(args, encoder, decoder, eos, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
+        #val_loss = models.train_iters_eos(args, encoder, decoder, encoder_optimizer=None, decoder_optimizer=None, eos, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
 
     #summary_file_path = os.path.join(DATA_DIR, "logs/{}.txt".format(exp_name))
     summary_file_path = "../data/logs/{}.txt".format(exp_name)
@@ -92,9 +93,14 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
             for key in sorted(param_dict.keys()):
                 summary_file.write(key + ': ' +  str(param_dict[key]) + '\n')
 
+        with open('../data/logs/best.txt', 'w') as summary_file:
+            summary_file.write("Val loss:" + ': ' + str(val_loss) + '\n')
+            for key in sorted(param_dict.keys()):
+                summary_file.write(key + ': ' +  str(param_dict[key]) + '\n')
+
     return val_loss, exp_name
 
-def grid_search(model, dec_sizes, batch_sizes, lrs, opts, weight_decays, dropouts, enc_layers, dec_layers, teacher_forcing_ratio, checkpoint_path=None):
+def grid_search(model, enc_sizes, dec_sizes, enc_dec_hidden_inits, batch_sizes, lrs, opts, weight_decays, dropouts, enc_layers, dec_layers, teacher_forcing_ratio, checkpoint_path=None):
     cuda_devs = ["cuda:{}".format(i) for i in range(torch.cuda.device_count())]
     print(cuda_devs)
     print("Available devices:")
@@ -117,52 +123,57 @@ def grid_search(model, dec_sizes, batch_sizes, lrs, opts, weight_decays, dropout
     best_exp_name = None 
     for enc_size in enc_sizes:
         for dec_size in dec_sizes:
-            for batch_size in batch_sizes:
-                for lr in lrs:
-                    for opt in opts:
-                        for weight_decay in weight_decays:
-                            for dropout in dropouts:
-                                for dec_layer in dec_layers:
-                                    for enc_layer in enc_layers:
-                                        param_dict = {
-                                            'enc_size': enc_size,
-                                            'dec_size': dec_size,
-                                            'batch_size': batch_size,
-                                            'lr': lr,
-                                            'opt': opt,
-                                            'weight_decay': weight_decay, 
-                                            'dropout': dropout,
-                                            'dec_layers': dec_layer,
-                                            'enc_layers': enc_layer, 
-                                            'teacher_forcing_ratio': teacher_forcing_ratio}
-                                        next_available_device = cuda_devs[it%len(cuda_devs)]
-                                        print("Executing run on {}".format(next_available_device))
-                                        print("Parameters:")
-                                        for key in sorted(param_dict.keys()):
-                                            print('\t'+key+': '+str(param_dict[key]))
-                                        name_str='_batch'+str(batch_size)+'_lr'+str(lr)+'_enc'+str(enc_layer)+'_dec'+str(dec_layer)+'_tfratio'+str(teacher_forcing_ratio)+'_wgDecay'+str(weight_decay)+'_'+opt
-                                        new_val_loss, new_exp_name = train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=name_str, best_val_loss=best_val_loss, checkpoint_path=checkpoint_path, device=next_available_device)
-                                        if new_val_loss < best_val_loss:
-                                            best_it = it
-                                            best_val_loss = new_val_loss
-                                            best_exp_name = new_exp_name
-                                        it += 1
-        return best_exp_name
+            for enc_dec_hidden_init in enc_dec_hidden_inits:
+                if enc_dec_hidden_init and (enc_size != dec_size):
+                    continue
+                for batch_size in batch_sizes:
+                    for lr in lrs:
+                        for opt in opts:
+                            for weight_decay in weight_decays:
+                                for dropout in dropouts:
+                                    for dec_layer in dec_layers:
+                                        for enc_layer in enc_layers:
+                                            param_dict = {
+                                                'enc_size': enc_size,
+                                                'dec_size': dec_size,
+                                                'enc_dec_hidden_init': enc_dec_hidden_init,
+                                                'batch_size': batch_size,
+                                                'lr': lr,
+                                                'opt': opt,
+                                                'weight_decay': weight_decay, 
+                                                'dropout': dropout,
+                                                'dec_layers': dec_layer,
+                                                'enc_layers': enc_layer, 
+                                                'teacher_forcing_ratio': teacher_forcing_ratio}
+                                            next_available_device = cuda_devs[it%len(cuda_devs)]
+                                            print("Executing run on {}".format(next_available_device))
+                                            print("Parameters:")
+                                            for key in sorted(param_dict.keys()):
+                                                print('\t'+key+': '+str(param_dict[key]))
+                                            name_str='_batch'+str(batch_size)+'_lr'+str(lr)+'_enc'+str(enc_layer)+'_dec'+str(dec_layer)+'_tfratio'+str(teacher_forcing_ratio)+'_wgDecay'+str(weight_decay)+'_'+opt
+                                            new_val_loss, new_exp_name = train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=name_str, best_val_loss=best_val_loss, checkpoint_path=checkpoint_path, device=next_available_device)
+                                            if new_val_loss < best_val_loss:
+                                                best_it = it
+                                                best_val_loss = new_val_loss
+                                                best_exp_name = new_exp_name
+                                            it += 1
+            return best_exp_name
 
 if __name__=="__main__":
 
     #dec_sizes = [1,2,3,4]
-    enc_sizes = [100, 200, 300]
-    dec_sizes = [100, 200, 300]
+    enc_sizes = [1500, 2000]
+    dec_sizes = [1000, 1500]
+    enc_dec_hidden_inits =[False,True]
     batch_sizes = [64]
-    lrs = [1e-3, 3e-3, 1e-4]
+    lrs = [3e-3, 3e-3, 1e-4]
     opts = ['Adam']
-    weight_decays = [0.0, 0.2, 0.4]
-    dropouts = [0.0, 0.3, 0.5]
-    enc_layers = [1,2]
-    dec_layers = [1,2]
+    weight_decays = [0.0]
+    dropouts = [0.0]
+    enc_layers = [2,3]
+    dec_layers = [2,3]
     teacher_forcing_ratio = 1.0
-    vgg_layers_to_train = [0,1,2]
+    vgg_layers_to_train = [0,6]
 
     if len(sys.argv) == 1:
         mini = False
@@ -175,7 +186,8 @@ if __name__=="__main__":
         print("Unrecognized argument")
         sys.exit()
 
-    best_exp_name = grid_search('seq2seq', dec_sizes, batch_sizes, lrs, opts, weight_decays, dropouts, enc_layers, dec_layers, teacher_forcing_ratio)
+    best_exp_name = grid_search('seq2seq', enc_sizes, dec_sizes, enc_dec_hidden_inits, batch_sizes, lrs, opts, weight_decays, dropouts, enc_layers, dec_layers, teacher_forcing_ratio)
+
     #best_exp_name = '0'
 #    grid_search('eos', dec_sizes, batch_sizes, lrs, opts, weight_decays, enc_layers, dec_layers, teacher_forcing_ratio, checkpoint_path='../checkpoints/chkpt{}.pt'.format(best_exp_name))
 #
