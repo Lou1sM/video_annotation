@@ -2,7 +2,7 @@ import utils
 import options
 import models
 import torch
-from data_loader import load_data_lookup, video_lookup_table_from_range
+from data_loader import load_data_lookup, video_lookup_table_from_range, video_lookup_table_from_ids
 
 
 def main():
@@ -14,13 +14,14 @@ def main():
         args.enc_dec_hidden_init = False
 
     if args.mini:
-        train_table = video_lookup_table_from_range(1,4)
-        val_table = video_lookup_table_from_range(1,4)
-        h5_train_generator = load_data_lookup('../data/50d_overfitting.h5', video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
-        h5_val_generator = load_data_lookup('../data/50d_overfitting.h5', video_lookup_table=val_table, batch_size=args.batch_size, shuffle=False)
+        #vid_table = video_lookup_table_from_range(1,4)
+        vid_table = video_lookup_table_from_ids([1218,1337,1571,1443,1833,1874], cnn=args.enc_cnn)
+        args.batch_size = 1
+        h5_train_generator = load_data_lookup('../data/rdf_video_captions/50d.6dp.h5', video_lookup_table=vid_table, batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_val_generator = load_data_lookup('../data/rdf_video_captions/50d.6dp.h5', video_lookup_table=vid_table, batch_size=args.batch_size, shuffle=False)
     else:
-        train_table = video_lookup_table_from_range(1,1201)
-        val_table = video_lookup_table_from_range(1201,1301)
+        train_table = video_lookup_table_from_range(1,1201, cnn=args.enc_cnn)
+        val_table = video_lookup_table_from_range(1201,1301, cnn=args.enc_cnn)
         h5_train_generator = load_data_lookup(args.h5_train_file_path, video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
         h5_val_generator = load_data_lookup(args.h5_val_file_path, video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
 

@@ -19,13 +19,22 @@ import h5py as h5
 from skimage import img_as_float
 
 
-def load_vid_from_id(vid_id):
+def load_vid_from_id(vid_id, cnn):
     #return np.load('../data/frames/vid{}_resized.npz'.format(vid_id))['arr_0']
-    return np.load('../data/frames/vid{}.npz'.format(vid_id))['arr_0']
+    if cnn == "vgg":
+        return np.load('../data/frames/vid{}.npz'.format(vid_id))['arr_0']
+    elif cnn == "nasnet":
+        return np.load('../data/frames_331_nasnet/vid{}.npz'.format(vid_id))['arr_0']
+    else:
+        print("Unknown value for enc_cnn:", cnn)
 
 
-def video_lookup_table_from_range(start_idx, end_idx):
-    return {vid_id: load_vid_from_id(vid_id+1) for vid_id in range(start_idx, end_idx)}
+def video_lookup_table_from_range(start_idx, end_idx, cnn):
+    return {vid_id: load_vid_from_id(vid_id+1, cnn) for vid_id in range(start_idx, end_idx)}
+
+
+def video_lookup_table_from_ids(video_ids, cnn):
+    return {vid_id: load_vid_from_id(vid_id+1, cnn) for vid_id in video_ids}
 
 
 class VideoDataset(data.Dataset):
@@ -54,7 +63,6 @@ class VideoDataset(data.Dataset):
         self.archive.close()
 
 
-
 def load_data(h5file_path, batch_size, shuffle):
     """Load data from specified file path and return a Dataset that loads full video tensors.
 
@@ -68,8 +76,6 @@ def load_data(h5file_path, batch_size, shuffle):
 
     new_data = VideoDataset(h5file_path)
     new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle, drop_last=True)
-
-    
 
     return new_data_loaded
 
@@ -177,19 +183,22 @@ if __name__ == "__main__":
     #new_data_loaded = load_data_lookup('../data/dummy_data/train_data_dummy.h5', batch_size=2, vid_range=(1,1201), shuffle=True)    
     video_lookup_table = video_lookup_table_from_range(1,4)
     print(video_lookup_table.keys())
-    new_data_loaded = load_data_lookup('over_train.h5', batch_size=1, video_lookup_table=video_lookup_table, shuffle=False)    
-    for epoch in range(5):
+    new_data_loaded = load_data_lookup('over_train.h5', batch_size=1, video_lookup_table=video_lookup_table, shuffle=True)    
+    for epoch in range(1):
         print(epoch)
         print("Number of batches:", len(new_data_loaded), "\n")
         print(new_data_loaded)
         for i, data in enumerate(new_data_loaded):
             #print(i, type(data))
-            print("Number of elements in each batch:",len(data), "\n")
-            print(data[0].shape)
-            print(data[1].shape)
-            print(data[2].shape)
-            print(data[3].shape)
-            print(data[4])
+            #print("Number of elements in each batch:",len(data), "\n")
+            #print(data[0].shape)
+            #print(data[1].shape)
+            #print(data[2].shape)
+            #print(data[3].shape)
+            print('video id', data[4].item())
+            print('first inp elem', data[0][0,0,0,0,0].item())
+            print('first outp elem', data[1][0,0,0].item())
+            #print(data[1].squeeze()[0])
             #print(data[1][0][0])
             #print(data[0].type())
             #print(data[2])
@@ -212,4 +221,4 @@ if __name__ == "__main__":
             #print(data[0][0,0,:,:,:])
             #print("Test output:\n")
             #print(outp[0])
-        break
+        #break

@@ -8,7 +8,7 @@ import options
 import models
 import torch
 import numpy as np
-from data_loader import load_data, load_data_lookup, video_lookup_table_from_range
+from data_loader import load_data, load_data_lookup, video_lookup_table_from_range, video_lookup_table_from_ids
 
 
 def get_output(checkpoint_path, input_tensor, target_number_tensor, rnge, mode='seq2seq', device='cuda'):
@@ -87,7 +87,7 @@ def get_output_gen(checkpoint_path, data_generator, mode='seq2seq', device='cuda
 
         #print("real number of embeddings in video: ", int(target_number.item()))
         decoder_input = torch.zeros(1, 1, 50, device=decoder.device).to(device)
-        if encoder.num_layers == decoder.num_layers:
+        if encoder.num_layers == decoder.num_layers and False:
             decoder_hidden = encoder_hidden
         else:
             decoder_hidden = torch.zeros(decoder.num_layers, 1, decoder.hidden_size).to(device)
@@ -132,13 +132,11 @@ if __name__=="__main__":
     #checkpoint_path = '/home/louis/video_annotation/checkpoints/chkpt_batch3_lr0.001_enc1_dec1_tfratio1.0_wgDecay0.0_Adam.pt'
     #checkpoint_path = '../checkpoints/chkpt05-26_16:29:28.pt'
     checkpoint_path = sys.argv[1]
-    rnge = [1,4]
-    lookup_table = video_lookup_table_from_range(rnge[0],rnge[1])
 
-    lookup_table = video_lookup_table_from_range(1,4)
-    num_lines = rnge[1] - rnge[0] 
+    #lookup_table = video_lookup_table_from_range(1,4)
+    lookup_table = video_lookup_table_from_ids([1218,1337,1571,1443,1833,1874])
 
-    test_data_generator = load_data_lookup('../data/50d_overfitting.h5', video_lookup_table=lookup_table, batch_size=1, shuffle=False)
+    test_data_generator = load_data_lookup('../data/rdf_video_captions/50d.6dp.h5', video_lookup_table=lookup_table, batch_size=1, shuffle=False)
     #h5_test_generator = load_data_lookup('/home/eleonora/video_annotation/data/rdf_video_captions/50d_overfitting.h5', video_lookup_table=test_table, batch_size=1, shuffle=False)
     """
     for iter_, training_triplet in enumerate(h5_test_generator):

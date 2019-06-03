@@ -6,6 +6,21 @@ import argparse
 def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
+    argparser.add_argument("--enc_cnn", 
+            choices = ["vgg", "nasnet"],
+            default = "vgg",
+            help = "which cnn to use as first part of encoder"
+        )    
+    argparser.add_argument("--dec_rnn", 
+            choices = ["gru", "lstm"],
+            default = "gru",
+            help = "which rnn to use for the decoder"
+        )    
+    argparser.add_argument("--enc_rnn", 
+            choices = ["gru", "lstm"],
+            default = "gru",
+            help = "which rnn to use for the encoder"
+        )
     argparser.add_argument("--enc_dec_hidden_init", 
             action = "store_true",
             default = False,
@@ -45,10 +60,10 @@ def load_arguments():
             action = "store_true",
             help = "whether to use mini-dataset, so doesn't exceed ram when running locally"
         )
-    argparser.add_argument("--vgg_layers_to_freeze",
+    argparser.add_argument("--cnn_layers_to_freeze",
             type = int,
             default = 17,
-            help = "how many of vgg19's layers to freeze during training"
+            help = "how many of the CNN's layers to freeze during training"
         )
     argparser.add_argument("--weight_decay",
             type = int,
@@ -176,10 +191,10 @@ def load_arguments():
             default = 7,
             help = "number of epochs to allow without improvement before early-stopping"
         )
-    argparser.add_argument("--output_vgg_size",
+    argparser.add_argument("--output_cnn_size",
             type = int,
             default = 2000,
-            help = "size of the output of the vgg layers"
+            help = "size of the output of the cnn layers"
         )
 
 
