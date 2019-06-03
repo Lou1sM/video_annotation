@@ -68,14 +68,20 @@ class EncoderRNN(nn.Module):
         self.resize = nn.Linear(self.hidden_size, args.ind_size)
     
     def cnn_vector(self, input_):
-        x = self.cnn.features(input_)
-        if self.cnn_type == "nasnet":
-            x = self.cnn.relu(x)
-        x = x.mean(2).mean(2)
-        x = x.squeeze()
-        reshape = nn.Linear(x.shape[0], self.output_cnn_size).to(self.device)
-        x = reshape(x)
-        return x
+        if self.cnn_type == "vgg_old":
+            num_ftrs = self.cnn.classifier[6].in_features
+            Changes the size of VGG output to the GRU size
+            self.cnn.classifier[6] = nn.Linear(num_ftrs, self.output_cnn_size)
+            x = self.cnn.features(input_)
+            return self.cnn(input_)
+        else:
+            if self.cnn_type == "nasnet":
+                x = self.cnn.relu(x)
+            x = x.mean(2).mean(2)
+            x = x.squeeze()
+            reshape = nn.Linear(x.shape[0], self.output_cnn_size).to(self.device)
+            x = reshape(x)
+            return x
 
     def forward(self, input, hidden):
         # pass the input throught the.cnn layers 

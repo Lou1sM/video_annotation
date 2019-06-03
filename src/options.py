@@ -7,8 +7,8 @@ def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
     argparser.add_argument("--enc_cnn", 
-            choices = ["vgg", "nasnet"],
-            default = "vgg",
+            choices = ["vgg", "nasnet", "vgg_old"],
+            default = "vgg_old",
             help = "which cnn to use as first part of encoder"
         )    
     argparser.add_argument("--dec_rnn", 
