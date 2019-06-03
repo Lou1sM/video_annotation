@@ -38,12 +38,13 @@ class HyperParamSet():
         self.embedding_size = 50
         self.enc_size = param_dict['enc_size']
         self.dec_size = param_dict['dec_size']
+        self.enc_rnn = param_dict['enc_rnn']
+        self.dec_rnn = param_dict['dec_rnn']
         self.enc_dec_hidden_init = param_dict['enc_dec_hidden_init']
         
 
 def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=None, best_val_loss=0, checkpoint_path=None, device="cuda"):
 
-    print(device)
     args = HyperParamSet(param_dict)
     if exp_name == None:
         exp_name = utils.get_datetime_stamp()
@@ -124,46 +125,52 @@ def grid_search(model, enc_sizes, dec_sizes, enc_dec_hidden_inits, batch_sizes, 
     for enc_size in enc_sizes:
         for dec_size in dec_sizes:
             for enc_dec_hidden_init in enc_dec_hidden_inits:
-                if enc_dec_hidden_init and (enc_size != dec_size):
-                    continue
-                for batch_size in batch_sizes:
-                    for lr in lrs:
-                        for opt in opts:
-                            for weight_decay in weight_decays:
-                                for dropout in dropouts:
-                                    for dec_layer in dec_layers:
-                                        for enc_layer in enc_layers:
-                                            param_dict = {
-                                                'enc_size': enc_size,
-                                                'dec_size': dec_size,
-                                                'enc_dec_hidden_init': enc_dec_hidden_init,
-                                                'batch_size': batch_size,
-                                                'lr': lr,
-                                                'opt': opt,
-                                                'weight_decay': weight_decay, 
-                                                'dropout': dropout,
-                                                'dec_layers': dec_layer,
-                                                'enc_layers': enc_layer, 
-                                                'teacher_forcing_ratio': teacher_forcing_ratio}
-                                            next_available_device = cuda_devs[it%len(cuda_devs)]
-                                            print("Executing run on {}".format(next_available_device))
-                                            print("Parameters:")
-                                            for key in sorted(param_dict.keys()):
-                                                print('\t'+key+': '+str(param_dict[key]))
-                                            name_str='_batch'+str(batch_size)+'_lr'+str(lr)+'_enc'+str(enc_layer)+'_dec'+str(dec_layer)+'_tfratio'+str(teacher_forcing_ratio)+'_wgDecay'+str(weight_decay)+'_'+opt
-                                            new_val_loss, new_exp_name = train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=name_str, best_val_loss=best_val_loss, checkpoint_path=checkpoint_path, device=next_available_device)
-                                            if new_val_loss < best_val_loss:
-                                                best_it = it
-                                                best_val_loss = new_val_loss
-                                                best_exp_name = new_exp_name
-                                            it += 1
-            return best_exp_name
+                for enc_rnn in enc_rnns:
+                    for dec_rnn in dec_rnns:
+                        if enc_dec_hidden_init and ((enc_size != dec_size) or (enc_rnn != dec_rnn)):
+                            continue
+                        for batch_size in batch_sizes:
+                            for lr in lrs:
+                                for opt in opts:
+                                    for weight_decay in weight_decays:
+                                        for dropout in dropouts:
+                                            for dec_layer in dec_layers:
+                                                for enc_layer in enc_layers:
+                                                    param_dict = {
+                                                        'enc_size': enc_size,
+                                                        'dec_size': dec_size,
+                                                        'enc_rnn': enc_rnn,
+                                                        'dec_rnn': dec_rnn,
+                                                        'enc_dec_hidden_init': enc_dec_hidden_init,
+                                                        'batch_size': batch_size,
+                                                        'lr': lr,
+                                                        'opt': opt,
+                                                        'weight_decay': weight_decay, 
+                                                        'dropout': dropout,
+                                                        'dec_layers': dec_layer,
+                                                        'enc_layers': enc_layer, 
+                                                        'teacher_forcing_ratio': teacher_forcing_ratio}
+                                                    next_available_device = cuda_devs[it%len(cuda_devs)]
+                                                    print("Executing run on {}".format(next_available_device))
+                                                    print("Parameters:")
+                                                    for key in sorted(param_dict.keys()):
+                                                        print('\t'+key+': '+str(param_dict[key]))
+                                                    name_str='_batch'+str(batch_size)+'_lr'+str(lr)+'_enc'+str(enc_layer)+'_dec'+str(dec_layer)+'_tfratio'+str(teacher_forcing_ratio)+'_wgDecay'+str(weight_decay)+'_'+opt
+                                                    new_val_loss, new_exp_name = train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=name_str, best_val_loss=best_val_loss, checkpoint_path=checkpoint_path, device=next_available_device)
+                                                    if new_val_loss < best_val_loss:
+                                                        best_it = it
+                                                        best_val_loss = new_val_loss
+                                                        best_exp_name = new_exp_name
+                                                    it += 1
+                return best_exp_name
 
 if __name__=="__main__":
 
     #dec_sizes = [1,2,3,4]
     enc_sizes = [1500, 2000]
     dec_sizes = [1000, 1500]
+    enc_rnns = ['gru', 'lstm']
+    dec_rnns = ['gru', 'lstm']
     enc_dec_hidden_inits =[False,True]
     batch_sizes = [64]
     lrs = [3e-3, 3e-3, 1e-4]
