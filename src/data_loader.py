@@ -21,7 +21,7 @@ from skimage import img_as_float
 
 def load_vid_from_id(vid_id, cnn):
     #return np.load('../data/frames/vid{}_resized.npz'.format(vid_id))['arr_0']
-    if cnn == "vgg":
+    if cnn in ["vgg", "vgg_old"]:
         return np.load('../data/frames/vid{}.npz'.format(vid_id))['arr_0']
     elif cnn == "nasnet":
         return np.load('../data/frames_331_nasnet/vid{}.npz'.format(vid_id))['arr_0']

@@ -35,7 +35,10 @@ class EarlyStopper:
         '''Saves model when validation loss decrease.'''
         if self.verbose:
             print('Validation loss decreased ({} --> {}).  Saving model to {} ...'.format(self.val_loss_min, val_loss, filename))
-        torch.save(model_dict,filename)
+        try:
+            torch.save(model_dict,filename)
+        except FileNotFoundError:
+            print("Can't save file to {} because the directory doesn't exist.".format(filename))
         self.val_loss_min = val_loss
         
 

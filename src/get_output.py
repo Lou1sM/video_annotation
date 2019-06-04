@@ -82,7 +82,8 @@ def get_output_gen(checkpoint_path, data_generator, mode='seq2seq', device='cuda
         print('first outp elem', target_tensor[0,0,0].item())
         print(input_tensor.shape)
 
-        encoder_hidden = encoder.initHidden().to(device)
+        #encoder_hidden = encoder.initHidden().to(device)
+        encoder_hidden = encoder.initHidden()
         encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
 
         #print("real number of embeddings in video: ", int(target_number.item()))
@@ -133,11 +134,11 @@ if __name__=="__main__":
     #checkpoint_path = '../checkpoints/chkpt05-26_16:29:28.pt'
     checkpoint_path = sys.argv[1]
 
-    #lookup_table = video_lookup_table_from_range(1,4)
-    lookup_table = video_lookup_table_from_ids([1218,1337,1571,1443,1833,1874])
+    lookup_table = video_lookup_table_from_range(1,4, cnn="vgg_old")
+    #lookup_table = video_lookup_table_from_ids([1218,1337,1571,1443,1833,1874])
 
-    test_data_generator = load_data_lookup('../data/rdf_video_captions/50d.6dp.h5', video_lookup_table=lookup_table, batch_size=1, shuffle=False)
-    #h5_test_generator = load_data_lookup('/home/eleonora/video_annotation/data/rdf_video_captions/50d_overfitting.h5', video_lookup_table=test_table, batch_size=1, shuffle=False)
+    #test_data_generator = load_data_lookup('../data/rdf_video_captions/50d.6dp.h5', video_lookup_table=lookup_table, batch_size=1, shuffle=False)
+    test_data_generator = load_data_lookup('/home/eleonora/video_annotation/data/rdf_video_captions/50d_overfitting.h5', video_lookup_table=lookup_table, batch_size=1, shuffle=False)
     """
     for iter_, training_triplet in enumerate(h5_test_generator):
         input_tensor = training_triplet[0].float().transpose(0,1).to(device)

@@ -8,23 +8,24 @@ from data_loader import load_data_lookup, video_lookup_table_from_range, video_l
 def main():
     #dummy_output = 10
     exp_name = utils.get_datetime_stamp()
-    print(args)
     if args.enc_dec_hidden_init and (args.enc_size != args.dec_size):
         print("Not applying enc_dec_hidden_init because the encoder and decoder are different sizes")
         args.enc_dec_hidden_init = False
 
     if args.mini:
-        #vid_table = video_lookup_table_from_range(1,4)
-        vid_table = video_lookup_table_from_ids([1218,1337,1571,1443,1833,1874], cnn=args.enc_cnn)
+        vid_table = video_lookup_table_from_range(1,4, cnn=args.enc_cnn)
+        #vid_table = video_lookup_table_from_ids([1218,1337,1571,1443,1833,1874], cnn=args.enc_cnn)
         args.batch_size = 1
-        h5_train_generator = load_data_lookup('../data/rdf_video_captions/50d.6dp.h5', video_lookup_table=vid_table, batch_size=args.batch_size, shuffle=args.shuffle)
-        h5_val_generator = load_data_lookup('../data/rdf_video_captions/50d.6dp.h5', video_lookup_table=vid_table, batch_size=args.batch_size, shuffle=False)
+        #h5_train_generator = load_data_lookup('../data/rdf_video_captions/50d.6dp.h5', video_lookup_table=vid_table, batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_train_generator = load_data_lookup('/home/eleonora/video_annotation/data/rdf_video_captions/50d_overfitting.h5', video_lookup_table=vid_table, batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_val_generator = load_data_lookup('/home/eleonora/video_annotation/data/rdf_video_captions/50d_overfitting.h5', video_lookup_table=vid_table, batch_size=args.batch_size, shuffle=False)
     else:
         train_table = video_lookup_table_from_range(1,1201, cnn=args.enc_cnn)
         val_table = video_lookup_table_from_range(1201,1301, cnn=args.enc_cnn)
         h5_train_generator = load_data_lookup(args.h5_train_file_path, video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
         h5_val_generator = load_data_lookup(args.h5_val_file_path, video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
 
+    print(args)
     
     if args.verbose:
         print("\nENCODER")

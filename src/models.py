@@ -36,7 +36,7 @@ class EncoderRNN(nn.Module):
         self.num_layers = args.enc_layers
         self.rnn_type = args.enc_rnn
         self.cnn_type = args.enc_cnn
-        if args.enc_cnn == "vgg":
+        if args.enc_cnn in ["vgg", "vgg_old"]:
             self.cnn = models.vgg19(pretrained=True)
             #num_ftrs = self.cnn.classifier[6].in_features
             #Changes the size of VGG output to the GRU size
@@ -70,9 +70,8 @@ class EncoderRNN(nn.Module):
     def cnn_vector(self, input_):
         if self.cnn_type == "vgg_old":
             num_ftrs = self.cnn.classifier[6].in_features
-            Changes the size of VGG output to the GRU size
-            self.cnn.classifier[6] = nn.Linear(num_ftrs, self.output_cnn_size)
-            x = self.cnn.features(input_)
+            self.cnn.classifier[6] = nn.Linear(num_ftrs, self.output_cnn_size).to(self.device)
+            #x = self.cnn.features(input_)
             return self.cnn(input_)
         else:
             if self.cnn_type == "nasnet":
@@ -97,10 +96,12 @@ class EncoderRNN(nn.Module):
         #print.cnn_outputs.shape)
         outputs, hidden = self.rnn(cnn_outputs, hidden)
         #c_0 = torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
+        print(outputs.shape)
         #outputs, (hidden, cell) = self.rnn.cnn_outputs, (hidden, c_0))
         #outputs, hidden = self.rnn.cnn_outputs)
         
         outputs = self.resize(outputs)
+        print(outputs.shape)
 
         #print(" \n NETWORK INPUTS (first element in batch) \n")
         #print(input[0,0,:,:,0])
@@ -216,6 +217,7 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
 
     #encoder.train()
     #decoder.train()
+    print(encoder.rnn_type)
 
     use_teacher_forcing = True if random.random() < args.teacher_forcing_ratio else False
 
@@ -224,9 +226,14 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
 
     #encoder_hidden = encoder.initHidden().to(device)
     encoder_hidden = encoder.initHidden()
+    #print(777)
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
-    encoder_outputs = encoder_outputs.to(device)
+    #print(encoder_outputs.shape, encoder_hidden.shape)
+    print(encoder_outputs.shape)
+    print(encoder_outputs[0,0,0].item(), encoder_hidden[0,0].item())
+    #encoder_outputs = encoder_outputs.to(device)
     #encoder_hidden = encoder_hidden.to(device)
+    #print(888)
 
     decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device).to(device)
 
@@ -241,6 +248,7 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
                 decoder_hidden = torch.zeros(decoder.num_layers, args.batch_size, decoder.hidden_size).to(device)
             elif args.dec_rnn == "lstm":
                 decoder_hidden = (torch.zeros(decoder.num_layers, args.batch_size, decoder.hidden_size).to(device), torch.zeros(decoder.num_layers, args.batch_size, decoder.hidden_size).to(device))
+            decoder_hidden = decoder.initHidden()
                 
             #decoder_hidden = torch.zeros(args.dec_layers, args.batch_size, args.ind_size)
         decoder_inputs = torch.cat((decoder_input, target_tensor[:-1]))
@@ -271,6 +279,8 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
             l_loss = 0
             for l in range(target_number_tensor[b].int()):
                 decoder_output, decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs[:, b].unsqueeze(1), hidden=decoder_hidden.contiguous()) #input_lengths=torch.tensor([target_number_tensor[b]])
+                print(decoder_output[0,0,0].item())
+                print()
                 l_loss += criterion(decoder_output, target_tensor[l, b].unsqueeze(0).unsqueeze(0))
                 single_dec_input = decoder_output
             loss += l_loss/float(l)
@@ -331,9 +341,14 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
             #print('input tensor on train', input_tensor.squeeze()[0,0,0,0].item())
             new_train_loss = train_on_batch(args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer, criterion=criterion, device=device)
             #print(video_id)
-            #print(target_tensor.squeeze()[0])
+            #print(type(video_id.item()))
+            #x = video_id.item()
+            #print(x)
+            #print('input tensor on train', x, input_tensor.squeeze()[0,0,0,0].item())
+            print(int(video_id.item()))
+
             print(iter_, new_train_loss)
-            #print(input_tensor[0,0,0,0,0])
+            #print(x, input_tensor[0,0,0,0,0].item())
 
             batch_train_losses.append(new_train_loss)
             if args.quick_run:
@@ -341,14 +356,22 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
         encoder.eval()
         decoder.eval()
         batch_val_losses = []
-        for iter_, training_triplet in enumerate(val_generator):
-            input_tensor = training_triplet[0].float().transpose(0,1).to(device)
-            target_tensor = training_triplet[1].float().transpose(0,1).to(device)
-            target_number = training_triplet[2].float().to(device)
+        for val_iter_, val_training_triplet in enumerate(val_generator):
+            input_tensor = val_training_triplet[0].float().transpose(0,1).to(device)
+            target_tensor = val_training_triplet[1].float().transpose(0,1).to(device)
+            target_number = val_training_triplet[2].float().to(device)
+            video_id = val_training_triplet[4].float().to(device)
+            #print(video_id.item())
             #print('input tensor on eval', input_tensor.squeeze()[0,0,0,0].item())
             new_val_loss = eval_on_batch("eval_seq2seq", args, input_tensor, target_tensor, target_number, encoder=encoder, decoder=decoder, dec_criterion=criterion, device=device)
             batch_val_losses.append(new_val_loss)
-            print(iter_, new_val_loss)
+            #print(val_iter_, new_val_loss)
+            x = video_id.item()
+            #print(video_id).item()
+            #print(target_tensor.squeeze()[0])
+            print(val_iter_, new_val_loss)
+            #print(x, input_tensor[0,0,0,0,0].item())
+
 
             if args.quick_run:
                 break
@@ -357,9 +380,10 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
         new_epoch_val_loss = sum(batch_val_losses)/len(batch_val_losses)
         epoch_train_losses.append(new_epoch_train_loss)
         epoch_val_losses.append(new_epoch_val_loss)
-        utils.plot_losses(epoch_train_losses, epoch_val_losses, loss_plot_file_path)
+        #utils.plot_losses(epoch_train_losses, epoch_val_losses, loss_plot_file_path)
         save_dict = {'encoder':encoder, 'decoder':decoder, 'encoder_optimizer': encoder_optimizer, 'decoder_optimizer': decoder_optimizer}
-        save = (new_epoch_val_loss < 0.5)
+        save = (new_epoch_train_loss < 0.2)
+        #EarlyStop(new_epoch_train_loss, save_dict, filename=checkpoint_path, save=save)
         EarlyStop(new_epoch_val_loss, save_dict, filename=checkpoint_path, save=save)
         #checkpoint = torch.load(checkpoint_path)
         #reloaded_encoder = checkpoint['encoder']
@@ -376,7 +400,7 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
         #        break
 
         #reload_val_loss = sum(reload_val_losses)/len(reload_val_losses)
-        print('val_loss', new_epoch_val_loss)
+        #print('val_loss', new_epoch_val_loss)
         #print('reloaded_val_loss', reload_val_loss)
         if EarlyStop.early_stop:
             print("Stopping at val loss:", EarlyStop.val_loss_min)
@@ -398,6 +422,8 @@ def eval_on_batch(mode, args, input_tensor, target_tensor, target_number_tensor=
     #encoder_hidden = encoder.initHidden().to(device)
     encoder_hidden = encoder.initHidden()
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
+    print(encoder_outputs.shape, encoder_hidden.shape)
+    print(encoder_outputs[0,0,0].item(), encoder_hidden[0,0].item())
     
     if mode == "eval_reg":
         regressor_output = regressor(encoder_outputs)
