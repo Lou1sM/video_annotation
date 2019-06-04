@@ -28,7 +28,9 @@ class EncoderRNN(nn.Module):
     def __init__(self, args, device):
         super(EncoderRNN, self).__init__()
         self.num_frames = args.num_frames
-        self.output_cnn_size = args.output_cnn_size
+        #self.output_cnn_size = args.output_cnn_size
+        #self.output_cnn_size = args.ind_size
+        self.output_cnn_size = 4096
         #self.hidden_size = args.ind_size
         self.hidden_size = args.enc_size
         self.device = device
@@ -39,13 +41,12 @@ class EncoderRNN(nn.Module):
         if args.enc_cnn in ["vgg", "vgg_old"]:
             self.cnn = models.vgg19(pretrained=True)
             #num_ftrs = self.cnn.classifier[6].in_features
+            num_ftrs = self.cnn.classifier[0].out_features
             #Changes the size of VGG output to the GRU size
             #self.cnn.classifier[6] = nn.Linear(num_ftrs, self.output_cnn_size)
         elif args.enc_cnn == "nasnet":
             model_name = 'nasnetalarge'
             self.cnn = pretrainedmodels.__dict__[model_name](num_classes=1000, pretrained='imagenet')
-            #se VGG, NOTE: param.requires_grad are set to True by default
-
             #self.cnn = models.nasnetalarge(pretrained='imagenet')
             #num_ftrs = self.cnn.classifier[6].in_features
             #Changes the size of VGG output to the GRU size
@@ -55,8 +56,14 @@ class EncoderRNN(nn.Module):
             #self.cnn = nn.Sequential(self.cnn.features, self.cnn.relu, self.cnn.avg_pool, nn.Linear(1000, self.output_cnn_size))
         else:
             print(args.enc_cnn)
-
         
+       
+        #self.resize = nn.Linear(4096, self.output_cnn_size)
+        #self.resize = nn.Linear(4096, args.ind_size) 
+
+        # To reshape output to ind_size for the attention model in the decoder
+        self.resize = nn.Linear(self.hidden_size, args.ind_size) 
+
         
         #Encoder Recurrent layer
         if self.rnn_type == "gru":
@@ -65,22 +72,31 @@ class EncoderRNN(nn.Module):
             self.rnn = nn.LSTM(self.output_cnn_size, self.hidden_size, num_layers=self.num_layers)
 
         # Resize outputs to ind_size
-        self.resize = nn.Linear(self.hidden_size, args.ind_size)
+        #self.resize = nn.Linear(self.hidden_size, args.ind_size)
     
     def cnn_vector(self, input_):
         if self.cnn_type == "vgg_old":
             num_ftrs = self.cnn.classifier[6].in_features
             self.cnn.classifier[6] = nn.Linear(num_ftrs, self.output_cnn_size).to(self.device)
             #x = self.cnn.features(input_)
-            return self.cnn(input_)
-        else:
-            if self.cnn_type == "nasnet":
-                x = self.cnn.relu(x)
-            x = x.mean(2).mean(2)
-            x = x.squeeze()
-            reshape = nn.Linear(x.shape[0], self.output_cnn_size).to(self.device)
-            x = reshape(x)
-            return x
+            x = self.cnn(input_)
+        elif self.cnn_type == "vgg":
+            x = self.cnn.features(input_)
+            x = self.cnn.avgpool(x)
+            x = x.view(x.size(0), -1)
+            x = self.cnn.classifier[0](x)
+            #print('vgg output size', x.size())
+        elif self.cnn_type == "nasnet":
+            x = self.cnn.features(input_)
+            x = self.cnn.relu(x)
+            #x = x.mean(2).mean(2)
+            x = self.cnn.avgpool(x)
+            x = x.view(x.size(0),-1)
+            print('nasnet output size', x.size())
+            #reshape = nn.Linear(x.shape[0], self.output_cnn_size).to(self.device)
+
+        #return self.resize(x)
+        return x
 
     def forward(self, input, hidden):
         # pass the input throught the.cnn layers 
@@ -90,18 +106,17 @@ class EncoderRNN(nn.Module):
             inp = torch.zeros(self.batch_size, 3, 331, 331, device=self.device)
             #embedded = self.cnn_vector(inp)#.view(1, self.batch_size, -1)
             embedded = self.cnn_vector(inp)#.view(1, self.batch_size, -1)
+            #print(embedded.size())
             cnn_outputs[i] = embedded 
 
         # pass the output of the.cnn layers through the GRU cell
         #print.cnn_outputs.shape)
         outputs, hidden = self.rnn(cnn_outputs, hidden)
         #c_0 = torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
-        print(outputs.shape)
         #outputs, (hidden, cell) = self.rnn.cnn_outputs, (hidden, c_0))
         #outputs, hidden = self.rnn.cnn_outputs)
         
         outputs = self.resize(outputs)
-        print(outputs.shape)
 
         #print(" \n NETWORK INPUTS (first element in batch) \n")
         #print(input[0,0,:,:,0])
@@ -117,6 +132,7 @@ class EncoderRNN(nn.Module):
         #print(outputs[:, 1])
 
         return outputs, hidden
+
 
     def initHidden(self):
         if self.rnn_type == "gru":
@@ -185,8 +201,10 @@ class DecoderRNN(nn.Module):
 
         # apply attention
         #output_perm, attn = self.attention(output_perm, enc_perm)
+        #print('output b4 linear', output_perm.size())
         output = self.out1(output_perm)
-        #print('output b4 attn', output)
+        #print('output b4 attn', output.size())
+        #print('enc_perm', enc_perm.size())
         output, attn = self.attention(output, enc_perm)
         # permute back to (max_length, batch_size, ind_size)
         #output = output_perm.permute(1,0,2)
@@ -217,7 +235,7 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
 
     #encoder.train()
     #decoder.train()
-    print(encoder.rnn_type)
+    #print(encoder.rnn_type)
 
     use_teacher_forcing = True if random.random() < args.teacher_forcing_ratio else False
 
@@ -229,8 +247,10 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
     #print(777)
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
     #print(encoder_outputs.shape, encoder_hidden.shape)
-    print(encoder_outputs.shape)
-    print(encoder_outputs[0,0,0].item(), encoder_hidden[0,0].item())
+    #print(encoder_outputs.shape)
+    #print(encoder_outputs[0,0,0].item())
+    #print(encoder_hidden[0].shape, encoder_hidden[1].shape)
+    #print(encoder_hidden[0][0,0,0].item())
     #encoder_outputs = encoder_outputs.to(device)
     #encoder_hidden = encoder_hidden.to(device)
     #print(888)
@@ -299,13 +319,20 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
     loss_plot_file_path = '../data/loss_plots/loss_seq2seq{}.png'.format(exp_name)
     checkpoint_path = '../checkpoints/chkpt{}.pt'.format(exp_name)
 
+    v = 1
+    for param in encoder.cnn.parameters():
+        #if v <= args.cnn_layers_to_freeze*2: # Assuming each layer has two params
+        param.requires_grad = False
+        v += 1
+
     if encoder_optimizer == None:
+        encoder_params = filter(lambda enc: enc.requires_grad, encoder.parameters())
         if args.optimizer == "SGD":
-            encoder_optimizer = optim.SGD(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+            encoder_optimizer = optim.SGD(encoder_params, lr=args.learning_rate, weight_decay=args.weight_decay)
         elif args.optimizer == "Adam":
-            encoder_optimizer = optim.Adam(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+            encoder_optimizer = optim.Adam(encoder_params, lr=args.learning_rate, weight_decay=args.weight_decay)
         elif args.optimizer == "RMS":
-            encoder_optimizer = optim.RMSprop(encoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+            encoder_optimizer = optim.RMSprop(encoder_params, lr=args.learning_rate, weight_decay=args.weight_decay)
 
     if decoder_optimizer == None:
         if args.optimizer == "SGD":
@@ -319,12 +346,6 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
     EarlyStop = EarlyStopper(patience=args.patience, verbose=True)
 
     # Freeze.cnn layers that we don't want to train
-    v = 1
-    for param in encoder.cnn.parameters():
-        if v <= args.cnn_layers_to_freeze*2: # Assuming each layer has two params
-            param.requires_grad = False
-        v += 1
-
 
     epoch_train_losses = []
     epoch_val_losses = []
@@ -345,7 +366,7 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
             #x = video_id.item()
             #print(x)
             #print('input tensor on train', x, input_tensor.squeeze()[0,0,0,0].item())
-            print(int(video_id.item()))
+            #print(int(video_id.item()))
 
             print(iter_, new_train_loss)
             #print(x, input_tensor[0,0,0,0,0].item())
@@ -422,8 +443,8 @@ def eval_on_batch(mode, args, input_tensor, target_tensor, target_number_tensor=
     #encoder_hidden = encoder.initHidden().to(device)
     encoder_hidden = encoder.initHidden()
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
-    print(encoder_outputs.shape, encoder_hidden.shape)
-    print(encoder_outputs[0,0,0].item(), encoder_hidden[0,0].item())
+    #print(encoder_outputs.shape, encoder_hidden[0].shape, encoder_hidden[1].shape)
+    #print(encoder_outputs[0,0,0].item(), encoder_hidden[0][0,0,0].item())
     
     if mode == "eval_reg":
         regressor_output = regressor(encoder_outputs)
