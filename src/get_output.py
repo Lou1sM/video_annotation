@@ -91,14 +91,15 @@ def get_output_gen(checkpoint_path, data_generator, mode='seq2seq', device='cuda
         if encoder.num_layers == decoder.num_layers and False:
             decoder_hidden = encoder_hidden
         else:
-            decoder_hidden = torch.zeros(decoder.num_layers, 1, decoder.hidden_size).to(device)
+            #decoder_hidden = torch.zeros(decoder.num_layers, 1, decoder.hidden_size).to(device)
+            decoder_hidden = decoder.initHidden()
         dp_output = []
         gt_embeddings = []
         l2_distances = []
         l_loss = 0
         for l in range(target_number.int()):
             decoder_output, decoder_hidden_new = decoder(input=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden) 
-            print(decoder_input.squeeze()[0].item(), encoder_outputs.squeeze()[0,0].item(), decoder_hidden.squeeze()[0,0].item(), 'GOES TO', decoder_output.squeeze()[0].item())
+            #print(decoder_input.squeeze()[0].item(), encoder_outputs.squeeze()[0,0].item(), decoder_hidden.squeeze()[0,0].item(), 'GOES TO', decoder_output.squeeze()[0].item())
             decoder_hidden = decoder_hidden_new
             dp_output.append(decoder_output.squeeze().detach().cpu().numpy().tolist())
             gt_embeddings.append(target_tensor[iter_].squeeze().detach().cpu().numpy().tolist())

@@ -41,7 +41,7 @@ class HyperParamSet():
         self.enc_rnn = param_dict['enc_rnn']
         self.dec_rnn = param_dict['dec_rnn']
         self.enc_dec_hidden_init = param_dict['enc_dec_hidden_init']
-        self.enc_cnn = "vgg_old"
+        self.enc_cnn = "vgg"
         
 
 def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=None, best_val_loss=0, checkpoint_path=None, device="cuda"):
@@ -102,6 +102,7 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
 
     return val_loss, exp_name
 
+
 def grid_search(model, enc_sizes, dec_sizes, enc_dec_hidden_inits, batch_sizes, lrs, opts, weight_decays, dropouts, enc_layers, dec_layers, teacher_forcing_ratio, checkpoint_path=None):
     cuda_devs = ["cuda:{}".format(i) for i in range(torch.cuda.device_count())]
     print(cuda_devs)
@@ -115,8 +116,8 @@ def grid_search(model, enc_sizes, dec_sizes, enc_dec_hidden_inits, batch_sizes, 
     
     print("Loading video lookup tables..")
     if mini:
-        train_table = video_lookup_table_from_range(1,4, cnn="vgg_old")
-        val_table = video_lookup_table_from_range(1,4, cnn="vgg_old")
+        train_table = video_lookup_table_from_range(1,4, cnn="vgg")
+        val_table = video_lookup_table_from_range(1,4, cnn="vgg")
     else:
         train_table = video_lookup_table_from_range(1,1201)
         val_table = video_lookup_table_from_range(1201,1301)
@@ -168,20 +169,20 @@ def grid_search(model, enc_sizes, dec_sizes, enc_dec_hidden_inits, batch_sizes, 
 if __name__=="__main__":
 
     #dec_sizes = [1,2,3,4]
-    enc_sizes = [1500, 2000]
-    dec_sizes = [1000, 1500]
+    enc_sizes = [2000, 2500]
+    dec_sizes = [1500, 2000]
     enc_rnns = ['gru', 'lstm']
     dec_rnns = ['gru', 'lstm']
     enc_dec_hidden_inits =[False,True]
-    batch_sizes = [64]
+    batch_sizes = [32, 64, 128]
     lrs = [3e-3, 3e-3, 1e-4]
     opts = ['Adam']
     weight_decays = [0.0]
     dropouts = [0.0]
-    enc_layers = [3]
-    dec_layers = [3]
+    enc_layers = [2,3]
+    dec_layers = [2,3]
     teacher_forcing_ratio = 1.0
-    vgg_layers_to_train = [0,6]
+    vgg_layers_to_train = [0]
 
     if len(sys.argv) == 1:
         mini = False
