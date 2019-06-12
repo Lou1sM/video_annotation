@@ -32,6 +32,8 @@ def padded_emb_seq_from_lists(list_of_lists, already_sorted=True, embedding_size
     if already_sorted:
         sorted_unpadded_array = np.squeeze(unsorted_unpadded_array)
     else:
+        #print(np.argsort(unsorted_unpadded_array[:,0,0]))
+        #print(unsorted_unpadded_array.shape)
         sorted_unpadded_array = np.squeeze(unsorted_unpadded_array[np.argsort(unsorted_unpadded_array[:,0])])
     padding = np.zeros(shape=(max_len-sorted_unpadded_array.shape[0], embedding_size))
     # print(sorted_unpadded_array.shape)
@@ -55,7 +57,7 @@ def make_eos_gt(num_embeddings, max_len=10):
       max_len: an int equal to the maximum number of embeddings, ie what each seq-
               uence is padded up to
     """
-    print("num_embeddings:", num_embeddings)
+    #print("num_embeddings:", num_embeddings)
     tmp = np.zeros(max_len)
     tmp[num_embeddings-1] = 1
     return tmp
@@ -128,9 +130,16 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
     idx_val = 0
     idx_test = 0
     print('Making h5...')
+    print(list(set([len(dp['embeddings']) for dp in embeddings_and_ids])))
     for idx, dp in enumerate(embeddings_and_ids):
         new_vid_id = dp['videoId']
+        #print(new_vid_id)
+        #print(dp['embeddings'][0])
+        #x
+        #if len(dp['embeddings']) == 36:
+        #    print(dp['embeddings'][0][0])
         if new_vid_id <= 1200:
+            #print('train')
             id_train_dataset[idx_train] = new_vid_id
             list_of_lists = dp['embeddings']
             seq_len_train_dataset[idx_train] = len(list_of_lists)
@@ -139,6 +148,7 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
             idx_train += 1
         
         elif new_vid_id <= 1300:
+            #print('val')
             id_val_dataset[idx_val] = new_vid_id
             list_of_lists = dp['embeddings']
             seq_len_val_dataset[idx_val] = len(list_of_lists)
@@ -147,6 +157,7 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
             idx_val += 1
         
         elif new_vid_id <= 1970:
+            #print('test') 
             id_test_dataset[idx_test] = new_vid_id
             list_of_lists = dp['embeddings']
             seq_len_test_dataset[idx_test] = len(list_of_lists)
@@ -161,22 +172,22 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
 
 if __name__ == "__main__":
     
-    # convert_json_to_h5s(
-    #     json_file_path='../data/rdf_video_captions/50d.json', 
-    #     out_h5_train_file_path='../data/rdf_video_captions/train_50d.h5',
-    #     out_h5_val_file_path= '../data/rdf_video_captions/val_50d.h5',
-    #     out_h5_test_file_path= '../data/rdf_video_captions/test_50d.h5',
-    #     embedding_size=50,
-    #     max_len=29
-    #     )
-
     convert_json_to_h5s(
-        json_file_path='../data/rdf_video_captions/50d.overfitting.json', 
-        out_h5_train_file_path='../data/rdf_video_captions/50d_overfitting.h5',
-        out_h5_val_file_path= '../data/rdf_video_captions/over_val.h5',
-        out_h5_test_file_path= '../data/rdf_video_captions/over_test.h5',
-        embedding_size=50,
-        max_len=29)
+         json_file_path='/data2/commons/rdf_video_captions/10d-det.json', 
+         out_h5_train_file_path='../data/rdf_video_captions/train_10d-det.h5',
+         out_h5_val_file_path= '../data/rdf_video_captions/val_10d-det.h5',
+         out_h5_test_file_path= '../data/rdf_video_captions/test_10d-det.h5',
+         embedding_size=10,
+         max_len=29
+         )
+
+    #convert_json_to_h5s(
+    #    json_file_path='/home/eleonora/video_annotation/data/rdf_video_captions/50d.overfitting.json', 
+    #    out_h5_train_file_path='../data/rdf_video_captions/50d_overfitting.h5',
+    #    out_h5_val_file_path= '../data/rdf_video_captions/over_val.h5',
+    #    out_h5_test_file_path= '../data/rdf_video_captions/over_test.h5',
+    #    embedding_size=50,
+    #    max_len=29)
 
     """
     from make_dummies import get_dummy_json_dpoint

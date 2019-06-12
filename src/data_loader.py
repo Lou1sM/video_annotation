@@ -30,11 +30,11 @@ def load_vid_from_id(vid_id, cnn):
 
 
 def video_lookup_table_from_range(start_idx, end_idx, cnn):
-    return {vid_id: load_vid_from_id(vid_id+1, cnn) for vid_id in range(start_idx, end_idx)}
+    return {vid_id: load_vid_from_id(vid_id, cnn) for vid_id in range(start_idx, end_idx)}
 
 
 def video_lookup_table_from_ids(video_ids, cnn):
-    return {vid_id: load_vid_from_id(vid_id+1, cnn) for vid_id in video_ids}
+    return {vid_id: load_vid_from_id(vid_id, cnn) for vid_id in video_ids}
 
 
 class VideoDataset(data.Dataset):
@@ -181,9 +181,11 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     #new_data_loaded = load_data_lookup('../data/dummy_data/train_data_dummy.h5', batch_size=2, vid_range=(1,1201), shuffle=True)    
-    video_lookup_table = video_lookup_table_from_range(1,4)
+    video_lookup_table = video_lookup_table_from_range(1201,1301, cnn='vgg')
+    #video_lookup_table = video_lookup_table_from_range(1, 1201, cnn='vgg')
     print(video_lookup_table.keys())
-    new_data_loaded = load_data_lookup('over_train.h5', batch_size=1, video_lookup_table=video_lookup_table, shuffle=True)    
+    #new_data_loaded = load_data_lookup('../data/rdf_video_captions/train_10d-det.h5', batch_size=1, video_lookup_table=video_lookup_table, shuffle=False)    
+    new_data_loaded = load_data_lookup('../data/rdf_video_captions/val_10d-det.h5', batch_size=1, video_lookup_table=video_lookup_table, shuffle=False)    
     for epoch in range(1):
         print(epoch)
         print("Number of batches:", len(new_data_loaded), "\n")
@@ -196,8 +198,11 @@ if __name__ == "__main__":
             #print(data[2].shape)
             #print(data[3].shape)
             print('video id', data[4].item())
-            print('first inp elem', data[0][0,0,0,0,0].item())
-            print('first outp elem', data[1][0,0,0].item())
+            for e in range(data[1].shape[1]):
+                print(data[1][0,e,:])
+            #print('first inp elem', data[1][0,0,0].item())
+            #print('second inp elem', data[1][0,1,0].item())
+            #print('first outp elem', data[1][0,0,0].item())
             #print(data[1].squeeze()[0])
             #print(data[1][0][0])
             #print(data[0].type())
@@ -221,4 +226,5 @@ if __name__ == "__main__":
             #print(data[0][0,0,:,:,:])
             #print("Test output:\n")
             #print(outp[0])
+            break
         #break

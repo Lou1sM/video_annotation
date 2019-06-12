@@ -1,4 +1,3 @@
-
 import sys
 import argparse
 
@@ -6,6 +5,21 @@ import argparse
 def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
+    argparser.add_argument("--device", 
+            type=str,
+            default = 'cuda',
+            help = "whether to train on gpu (cuda) or cpu"
+        )    
+    argparser.add_argument("--chkpt", 
+            action="store_true",
+            default = False,
+            help = "whether to write a checkpoint"
+        )    
+    argparser.add_argument("--exp_name", 
+            type=str,
+            default = "",
+            help = "name of this experiment, defaults to a timestamp"
+        )    
     argparser.add_argument("--enc_cnn", 
             choices = ["vgg", "nasnet", "vgg_old"],
             default = "vgg",
@@ -163,7 +177,7 @@ def load_arguments():
     argparser.add_argument("--lmbda",
             type = float,
             default = 0.1,
-            help = "scalar multiplying the regression loss"
+            help = "scalar multiplying the norm loss"
         )
     argparser.add_argument("--batch_size",
             type = int,
@@ -193,7 +207,7 @@ def load_arguments():
         )
     argparser.add_argument("--output_cnn_size",
             type = int,
-            default = 2000,
+            default = 4096,
             help = "size of the output of the cnn layers"
         )
 
