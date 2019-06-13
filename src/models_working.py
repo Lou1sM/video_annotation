@@ -32,6 +32,7 @@ class EncoderRNN(nn.Module):
         self.num_layers = args.enc_layers
         self.rnn_type = args.enc_rnn
         self.cnn_type = args.enc_cnn
+        self.output_size = args.ind_size
 
         if args.enc_cnn == "vgg_old":
             self.cnn = models.vgg19(pretrained=True)
@@ -83,8 +84,11 @@ class EncoderRNN(nn.Module):
 
         return outputs, hidden
 
-    def initHidden(self):
-        return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
+    def initHidden(self, zeroes=True):
+        if zeroes:
+            return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
+        else:
+            return torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5)
 
 
 class DecoderRNN(nn.Module):
@@ -92,11 +96,11 @@ class DecoderRNN(nn.Module):
     def __init__(self, args, device):
         super(DecoderRNN, self).__init__()
         self.hidden_size = args.dec_size
-        self.max_length = args.max_length
         self.num_layers = args.dec_layers
         self.dropout_p = args.dropout
         self.batch_size = args.batch_size
         self.device = device
+        self.output_size = args.ind_size
 
         self.gru = nn.GRU(args.ind_size, self.hidden_size, num_layers=self.num_layers)
         self.attention = Attention(args.ind_size)
@@ -119,7 +123,6 @@ class DecoderRNN(nn.Module):
         # permute dimensions to have batch_size in the first
         #enc_perm shape: (batch_size, num_frames, ind_size)
         enc_perm = encoder_outputs.permute(1,0,2)
-        #output_perm shape: (batch_size, max_length, ind_size)
         output_perm = output.permute(1,0,2)
 
         # apply attention
@@ -131,8 +134,11 @@ class DecoderRNN(nn.Module):
 
         return output, hidden
 
-    def initHidden(self):
-        return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
+    def initHidden(self, zeroes):
+        if zeroes:
+            return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
+        else:
+            return torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5)
 
 
 def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, device):
@@ -142,37 +148,38 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
 
-    encoder_hidden = encoder.initHidden().to(device)
+    encoder_hidden = encoder.initHidden(args.enc_zeroes).to(device)
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
     encoder_outputs = encoder_outputs.to(device)
     encoder_hidden = encoder_hidden.to(device)
 
     decoder_input = torch.zeros(1, args.batch_size, args.ind_size, device=decoder.device).to(device)
 
-
     if use_teacher_forcing:
 
         if args.enc_dec_hidden_init:
             decoder_hidden = encoder_hidden#.expand(decoder.num_layers, args.batch_size, args.ind_size)
         else:
-            decoder_hidden = torch.zeros(decoder.num_layers, args.batch_size, decoder.hidden_size).to(device)
+            #decoder_hidden = torch.zeros(decoder.num_layers, args.batch_size, decoder.hidden_size).to(device)
+            decoder_hidden = decoder.initHidden(args.dec_zeroes)
         
         decoder_inputs = torch.cat((decoder_input, target_tensor[:-1]))
         decoder_outputs, decoder_hidden = decoder(input=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden.contiguous())
 
         norms = [torch.norm(decoder_outputs[i][j]).item() for i in range(decoder.batch_size) for j in range(int(target_number_tensor[i].item()))]
-        norms1 = [n for n in norms if n>0.1]
+        #norms1 = [n for n in norms if n>0.1]
 
         # Note: target_tensor is passed to the decoder with shape (length, batch_size, ind_size)
         # but it then needs to be permuted to be compared in the loss. 
         # Output of decoder size: (batch_size, length, ind_size)
         target_tensor_perm = target_tensor.permute(1,0,2)
         
-        arange = torch.arange(0, decoder_outputs.shape[1], step=1).expand(args.batch_size, -1).cuda()
-        lengths = target_number_tensor.expand(decoder_outputs.shape[1], args.batch_size).long().cuda()
+        arange = torch.arange(0, decoder_outputs.shape[1], step=1).expand(args.batch_size, -1).to(args.device)
+        lengths = target_number_tensor.expand(decoder_outputs.shape[1], args.batch_size).long().to(args.device)
         lengths = lengths.permute(1,0)
         mask = arange < lengths 
-        mask = mask.cuda().float().unsqueeze(2)
+        #mask = mask.cuda().float().unsqueeze(2)
+        mask = mask.float().unsqueeze(2)
 
         loss = criterion(decoder_outputs*mask, target_tensor_perm[:,:decoder_outputs.shape[1],:]*mask)
         mse_rescale = (args.ind_size*args.batch_size*decoder_outputs.shape[1])/torch.sum(target_number_tensor)
@@ -180,14 +187,16 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
         
         inv_byte_mask = mask.byte()^1
         inv_mask = inv_byte_mask.float()
-        norm_tensor = decoder_outputs*mask + inv_mask
-        output_norms = torch.norm(norm_tensor, dim=-1)
+        assert (mask+inv_mask == torch.ones(args.batch_size, decoder_outputs.shape[1], 1, device=args.device)).all()
+        #norm_tensor = decoder_outputs*mask + inv_mask
+        #output_norms = torch.norm(norm_tensor, dim=-1)
         output_norms = torch.norm(decoder_outputs, dim=-1)
         mask = mask.squeeze(2)
         inv_mask = inv_mask.squeeze(2)
         output_norms = output_norms*mask + inv_mask
         mean_norm = output_norms.mean()
-        norm_loss = F.relu(1-mean_norm)*mse_rescale
+        #norm_loss = F.relu(1-mean_norm)*mse_rescale
+        norm_loss = F.relu(((args.norm_threshold*torch.ones(args.batch_size, decoder_outputs.shape[1], device=args.device)) - output_norms)*mask).mean()*mse_rescale
         total_loss = loss +  norm_loss*args.lmbda
 
     else:
@@ -208,7 +217,7 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
     encoder_optimizer.step()
     decoder_optimizer.step()
 
-    return loss.item(), norm_loss.item(), norms1
+    return loss.item(), norm_loss.item(), norms
 
 
 def train(args, encoder, decoder, train_generator, val_generator, exp_name, device, encoder_optimizer=None, decoder_optimizer=None):
@@ -304,6 +313,7 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
         #utils.plot_losses(epoch_train_losses, epoch_val_losses, loss_plot_file_path)
         #utils.plot_losses(epoch_train_losses, epoch_val_losses, 'most_recent_lossplot.png')
     
+        """
         print('plotting')
         axes = plt.axes()
         axes.set_ylim([0,min(6.5, max(epoch_val_losses))])
@@ -319,22 +329,25 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
         plt.savefig('../data/loss_plots/most_recent_lossplot.png')
         plt.close()
         plt.clf()
-
+     
+        """
         print(epoch_train_losses)
         print(epoch_val_losses)
         print(epoch_train_norm_losses)
         print(epoch_val_norm_losses)
         save_dict = {'encoder':encoder, 'decoder':decoder, 'encoder_optimizer': encoder_optimizer, 'decoder_optimizer': decoder_optimizer}
-        save = (new_epoch_val_loss < 2.1) and args.chkpt
+        save = (new_epoch_val_loss < 5.1) and args.chkpt
         EarlyStop(new_epoch_val_loss, save_dict, filename=checkpoint_path, save=save)
         
         print('val_loss', new_epoch_val_loss)
         if EarlyStop.early_stop:
             break 
     
+    """
     print('train norms', len(total_norms))
     print('val norms', len(total_val_norms))
-    plt.xlim(min(total_norms)-.1, max(total_norms)+.1)
+    #plt.xlim(min(total_norms)-.1, max(total_norms)+.1)
+    plt.xlim(0,2)
     bins = np.arange(0,2,.01)
     plt.hist(total_norms, bins=bins)
     plt.xlabel('l2')
@@ -351,8 +364,9 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
     plt.title('{}: val norms'.format(args.exp_name))
     plt.savefig('../data/norm_plots/{}_val_norms.png'.format(exp_name))
     plt.clf()
-
+    
     print(total_norms)
+    """
 
     return EarlyStop.early_stop
 
@@ -388,8 +402,8 @@ def eval_on_batch(mode, args, input_tensor, target_tensor, target_number_tensor=
             for l in range(target_number_tensor[b].int()):
                 decoder_output, new_decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs[:, b].unsqueeze(1), hidden=decoder_hidden.contiguous()) 
                 new_norm = torch.norm(decoder_output).item()
-                if new_norm > 0.1:
-                    norms.append(new_norm)
+                #if new_norm > 0.1:
+                norms.append(new_norm)
                 decoder_hidden = new_decoder_hidden
                 output_norm = torch.norm(decoder_output, dim=-1)
                 mean_norm = output_norm.mean()

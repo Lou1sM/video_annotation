@@ -5,6 +5,21 @@ import argparse
 def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
+    argparser.add_argument("--norm_threshold", 
+            type=float,
+            default=1.0,
+            help = "value below which the norm is penalized"
+        )    
+    argparser.add_argument("--dec_zeroes", 
+            action="store_true",
+            default=False,
+            help = "whether init decoder hidden to zeroes or of unit length"
+        )    
+    argparser.add_argument("--enc_zeroes", 
+            action="store_true",
+            default=False,
+            help = "whether init encoder hidden to zeroes or of unit length"
+        )    
     argparser.add_argument("--device", 
             type=str,
             default = 'cuda',
@@ -164,11 +179,6 @@ def load_arguments():
             default = 50,
             help = "size of the individuals embeddings"
         )
-    argparser.add_argument("--max_length",
-            type = int,
-            default = 10,
-            help = "maximum number of individuals for video"
-        )
     argparser.add_argument("--teacher_forcing_ratio",
             type = float,
             default = 1.0,
@@ -183,6 +193,11 @@ def load_arguments():
             type = int,
             default = 64,
             help = "number of training examples in each batch"
+        )
+    argparser.add_argument("--dataset",
+            type = str,
+            default = '10d-det',
+            help = "dataset to train, val and test on"
         )
     argparser.add_argument("--h5_val_file_path",
             type = str,
