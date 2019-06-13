@@ -158,4 +158,3 @@ if __name__=="__main__":
     test_data_generator = load_data_lookup('../data/rdf_video_captions/test_10d-det.h5', video_lookup_table=test_lookup_table, batch_size=1, shuffle=False)
     get_outputs_and_info(encoder=encoder, decoder=decoder, enc_zeroes=ARGS.enc_zeroes, dec_zeroes=ARGS.dec_zeroes, data_generator=test_data_generator, ind_size=10, device='cuda', teacher_forcing=tf, test_name='test_{}'.format(ARGS.test_name))
 
-""
