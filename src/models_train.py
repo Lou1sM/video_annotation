@@ -108,8 +108,6 @@ class DecoderRNN(nn.Module):
 
         # Resize from GRU size to embedding size
         self.out1 = nn.Linear(self.hidden_size, args.ind_size)
-        #self.out2 = nn.Linear(self.hidden_size, self.hidden_size)
-        #self.out3 = nn.Linear(self.hidden_size, self.hidden_size)
 
     def forward(self, input, hidden, input_lengths, encoder_outputs):
         # apply dropout
@@ -128,9 +126,6 @@ class DecoderRNN(nn.Module):
         # apply attention
         output = self.out1(output_perm)
         output, attn = self.attention(output, enc_perm)
-        #output = self.out2(output)
-        #output = self.out3(output)
-        #output = self.out4(output)
 
         return output, hidden
 
@@ -167,7 +162,6 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
         decoder_outputs, decoder_hidden = decoder(input=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden.contiguous())
 
         norms = [torch.norm(decoder_outputs[i][j]).item() for i in range(decoder.batch_size) for j in range(int(target_number_tensor[i].item()))]
-        #norms1 = [n for n in norms if n>0.1]
 
         # Note: target_tensor is passed to the decoder with shape (length, batch_size, ind_size)
         # but it then needs to be permuted to be compared in the loss. 
@@ -178,7 +172,6 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
         lengths = target_number_tensor.expand(decoder_outputs.shape[1], args.batch_size).long().to(args.device)
         lengths = lengths.permute(1,0)
         mask = arange < lengths 
-        #mask = mask.cuda().float().unsqueeze(2)
         mask = mask.float().unsqueeze(2)
 
         loss = criterion(decoder_outputs*mask, target_tensor_perm[:,:decoder_outputs.shape[1],:]*mask)
@@ -188,14 +181,11 @@ def train_on_batch(args, input_tensor, target_tensor, target_number_tensor, enco
         inv_byte_mask = mask.byte()^1
         inv_mask = inv_byte_mask.float()
         assert (mask+inv_mask == torch.ones(args.batch_size, decoder_outputs.shape[1], 1, device=args.device)).all()
-        #norm_tensor = decoder_outputs*mask + inv_mask
-        #output_norms = torch.norm(norm_tensor, dim=-1)
         output_norms = torch.norm(decoder_outputs, dim=-1)
         mask = mask.squeeze(2)
         inv_mask = inv_mask.squeeze(2)
         output_norms = output_norms*mask + inv_mask
         mean_norm = output_norms.mean()
-        #norm_loss = F.relu(1-mean_norm)*mse_rescale
         norm_loss = F.relu(((args.norm_threshold*torch.ones(args.batch_size, decoder_outputs.shape[1], device=args.device)) - output_norms)*mask).mean()*mse_rescale
         total_loss = loss +  norm_loss*args.lmbda
 
@@ -310,27 +300,6 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
 
         epoch_val_losses.append(new_epoch_val_loss)
         epoch_val_norm_losses.append(new_epoch_val_norm_loss)
-        #utils.plot_losses(epoch_train_losses, epoch_val_losses, loss_plot_file_path)
-        #utils.plot_losses(epoch_train_losses, epoch_val_losses, 'most_recent_lossplot.png')
-    
-        """
-        print('plotting')
-        axes = plt.axes()
-        axes.set_ylim([0,min(6.5, max(epoch_val_losses))])
-        plt.plot(epoch_train_losses, label='Train Loss')
-        plt.plot(epoch_train_norm_losses, label='Train Norm Loss')
-        plt.plot(epoch_val_losses, label='Validation Loss')
-        plt.plot(epoch_val_norm_losses, label='Validation Norm Loss')
-        plt.xlabel('Epoch')
-        plt.ylabel('MSE')
-        plt.legend(loc='upper right')
-        plt.xticks(np.arange(0, len(epoch_train_losses), math.ceil(len(epoch_train_losses)/8)))#, int(.125*len(train_losses))))
-        plt.savefig(loss_plot_file_path)
-        plt.savefig('../data/loss_plots/most_recent_lossplot.png')
-        plt.close()
-        plt.clf()
-     
-        """
         print(epoch_train_losses)
         print(epoch_val_losses)
         print(epoch_train_norm_losses)
@@ -342,32 +311,7 @@ def train(args, encoder, decoder, train_generator, val_generator, exp_name, devi
         print('val_loss', new_epoch_val_loss)
         if EarlyStop.early_stop:
             break 
-    
-    """
-    print('train norms', len(total_norms))
-    print('val norms', len(total_val_norms))
-    #plt.xlim(min(total_norms)-.1, max(total_norms)+.1)
-    plt.xlim(0,2)
-    bins = np.arange(0,2,.01)
-    plt.hist(total_norms, bins=bins)
-    plt.xlabel('l2')
-    plt.ylabel('number of embeddings')
-    plt.title("{}: train norms".format(args.exp_name))
-    plt.savefig('../data/norm_plots/{}_train_norms.png'.format(exp_name))
-    plt.clf()
-
-    plt.xlim(min(total_val_norms)-.1, max(total_val_norms)+.1)
-    bins = np.arange(0,2,.01)
-    plt.hist(total_val_norms, bins=bins)
-    plt.xlabel('l2')
-    plt.ylabel('number of embeddings')
-    plt.title('{}: val norms'.format(args.exp_name))
-    plt.savefig('../data/norm_plots/{}_val_norms.png'.format(exp_name))
-    plt.clf()
-    
-    print(total_norms)
-    """
-
+   
     return EarlyStop.early_stop
 
 

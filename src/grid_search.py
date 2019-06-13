@@ -2,7 +2,7 @@ import os
 import sys
 import utils
 import options
-import models
+import models_train
 import torch
 import numpy as np
 from data_loader import load_data, load_data_lookup, video_lookup_table_from_range
@@ -57,9 +57,9 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
         h5_val_generator = load_data_lookup(os.path.join(DATA_DIR, 'rdf_video_captions/val_50d.h5'), video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
 
     if model == 'seq2seq':
-        encoder = models.EncoderRNN(args, device).to(device)
-        decoder = models.DecoderRNN(args, device).to(device)
-        val_loss = models.train(args, encoder, decoder, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
+        encoder = models_train.EncoderRNN(args, device).to(device)
+        decoder = models_train.DecoderRNN(args, device).to(device)
+        val_loss = models_train.train(args, encoder, decoder, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
     elif model == 'reg':
         if checkpoint_path == None: 
             print("\nPath to the encoder weights checkpoints needed\n")
@@ -69,8 +69,8 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
         print(checkpoint)
         encoder = checkpoint['encoder']
         decoder = checkpoint['decoder']
-        regressor = models.NumIndRegressor(args, device).to(device)
-        #val_loss = models.train_iters_reg(args, encoder, decoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
+        regressor = models_train.NumIndRegressor(args, device).to(device)
+        #val_loss = models_train.train_iters_reg(args, encoder, decoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
     elif model == 'eos':
         if checkpoint_path == None: 
             print("\nPath to the encoder weights checkpoints needed\n")
@@ -78,8 +78,8 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
         checkpoint = torch.load(checkpoint_path)
         encoder = checkpoint['encoder']
         decoder = checkpoint['decoder']
-        eos = models.NumIndEOS(args, device).to(device)
-        #val_loss = models.train_iters_eos(args, encoder, decoder, encoder_optimizer=None, decoder_optimizer=None, eos, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
+        eos = models_train.NumIndEOS(args, device).to(device)
+        #val_loss = models_train.train_iters_eos(args, encoder, decoder, encoder_optimizer=None, decoder_optimizer=None, eos, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
 
     #summary_file_path = os.path.join(DATA_DIR, "logs/{}.txt".format(exp_name))
     summary_file_path = "../data/logs/{}.txt".format(exp_name)
@@ -211,6 +211,6 @@ if __name__=="__main__":
 #    print(h5_test_generator)
 #    for t in h5_test_generator:
 #        print(t)
-#    models.get_test_output(ckpt_path, h5_test_generator[0], num_datapoints= num_lines, ind_size=50, use_eos=True, device='cuda')
+#    models_train.get_test_output(ckpt_path, h5_test_generator[0], num_datapoints= num_lines, ind_size=50, use_eos=True, device='cuda')
 #
 

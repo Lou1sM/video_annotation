@@ -2,7 +2,7 @@ import os
 import json
 import utils
 import options
-import models_working
+import models_train
 import torch
 from data_loader import load_data_lookup, video_lookup_table_from_range, video_lookup_table_from_ids
 from get_output import get_outputs_and_info
@@ -40,7 +40,6 @@ def main():
         print("\nREGRESSOR")
         print(regressor)
 
-    #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device = args.device
 
     if args.model == 'seq2seq':
@@ -52,12 +51,12 @@ def main():
             encoder_optimizer = saved_model['encoder_optimizer']
             decoder_optimizer = saved_model['decoder_optimizer']
         else: 
-            encoder = models_working.EncoderRNN(args, device).to(device)
-            decoder = models_working.DecoderRNN(args, device).to(device)
+            encoder = models_train.EncoderRNN(args, device).to(device)
+            decoder = models_train.DecoderRNN(args, device).to(device)
             encoder_optimizer = None
             decoder_optimizer = None
       
-        models_working.train(args, encoder, decoder, train_generator=train_generator, val_generator=val_generator, exp_name=exp_name, device=device, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer)
+        models_train.train(args, encoder, decoder, train_generator=train_generator, val_generator=val_generator, exp_name=exp_name, device=device, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer)
        
         test_table = video_lookup_table_from_range(1301,1971, cnn=args.enc_cnn)
         train_generator = load_data_lookup(train_file_path, video_lookup_table=train_table, batch_size=1, shuffle=False)
