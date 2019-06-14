@@ -1,3 +1,4 @@
+import torch.nn.functional as F
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 import argparse
@@ -22,6 +23,8 @@ def get_outputs(encoder, decoder, enc_zeroes, dec_zeroes, data_generator, teache
     norms = []
     output = []
     positions = []
+    total_l2_distances = []
+    cos_sims = []
     nums_of_inds = {}
     tup_sizes_by_pos = {}
     # Pass input through encoder
@@ -66,14 +69,17 @@ def get_outputs(encoder, decoder, enc_zeroes, dec_zeroes, data_generator, teache
                 decoder_input = decoder_output
             criterion = nn.MSELoss()
             loss = criterion(decoder_output.squeeze(), target_tensor[l].squeeze())
+            l_loss += loss
             l2 = torch.norm(decoder_output.squeeze() - target_tensor[l].squeeze(), 2).item()
             l2_distances.append(l2)
-            l_loss += loss
+            cos_sim = F.cosine_similarity(decoder_output.squeeze(), target_tensor[l].squeeze(),0).item()
+            cos_sims.append(cos_sim)
             positions.append(l+1)
         assert len(dp_output) == len(gt_embeddings), "Wrong number of embeddings in output"
         output.append({'videoId':str(video_id), 'embeddings':dp_output, 'gt_embeddings': gt_embeddings, 'l2_distances': l2_distances, 'avg_l2_distance': sum(l2_distances)/len(l2_distances)})
     assert sum(list(nums_of_inds.values())) == len(norms)
     print('avg_l2_distance', sum(l2_distances)/len(l2_distances))
+    print('avg_cos_sim', sum(cos_sims)/len(cos_sims))
     print('number of embeddings at each position:')
     print('total number of embeddings:', sum(nums_of_inds.values()))
     for k,v in nums_of_inds.items():
@@ -90,18 +96,18 @@ def get_outputs_and_info(encoder, decoder, enc_zeroes, dec_zeroes, data_generato
     plt.xlim(0,2)
     bins = np.arange(0,2,.01)
     plt.hist(norms, bins=bins)
-    plt.xlabel('l2')
+    plt.xlabel('l2 norm')
     plt.ylabel('number of embeddings')
-    plt.title("{}: train norms".format(test_name))
-    plt.savefig('../data/norm_plots/{}_train_norms.png'.format(test_name))
+    plt.title("{}: Embedding Norms".format(test_name))
+    plt.savefig('../data/norm_plots/{}_norms-histogram.png'.format(test_name))
     plt.clf()
     
     plt.xlim(0,10)
     plt.scatter(x=positions, y=norms)
     plt.xlabel('position')
     plt.ylabel('embedding norm')
-    plt.title("{}: train norms_by_position".format(test_name))
-    plt.savefig('../data/norm_plots/{}_train_norms_by_position.png'.format(test_name))
+    plt.title("{}: Norms by Position".format(test_name))
+    plt.savefig('../data/norm_plots/{}_norms_position_scatter.png'.format(test_name))
     plt.clf()
   
     plt.xlim(0,29)
@@ -109,11 +115,11 @@ def get_outputs_and_info(encoder, decoder, enc_zeroes, dec_zeroes, data_generato
     plt.plot(list(sizes_by_pos.values()))
     plt.xlabel('position')
     plt.ylabel('avg embedding norm')
-    plt.title("{}: avg_norms_by_position".format(test_name))
-    plt.savefig('../data/norm_plots/{}_avg_norms_by_position.png'.format(test_name))
+    plt.title("{}: Avg Norms by Position".format(test_name))
+    plt.savefig('../data/norm_plots/{}_avg_norms_position_trend.png'.format(test_name))
     plt.clf()
    
-    filename = 'outputs_{}.txt'.format(test_name)
+    filename = '../data/test_outputs/{}.txt'.format(test_name)
     with open(filename, 'w') as outfile:
         json.dump(outputs, outfile)
    

@@ -5,6 +5,30 @@ import argparse
 def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
+    argparser.add_argument("--loss_func", 
+            type=str,
+            choices=['mse', 'cos'],
+            default='mse',
+            help = "loss function to train on"
+        )    
+    argparser.add_argument("--dec_init", 
+            type=str,
+            choices=['zeroes', 'unit', 'learned'],
+            default='zeroes',
+            help = "how to initialize decoder rnn"
+        )    
+    argparser.add_argument("--enc_init", 
+            type=str,
+            choices=['zeroes', 'unit', 'learned'],
+            default='zeroes',
+            help = "how to initialize encoder rnn"
+        )    
+    argparser.add_argument("--rrn_init", 
+            type=str,
+            choices=['det', 'rand'],
+            default='det',
+            help = "whether rnn embeddings are trained with deterministic or random inits"
+        )    
     argparser.add_argument("--norm_threshold", 
             type=float,
             default=1.0,
@@ -60,22 +84,22 @@ def load_arguments():
             help = "path of checkpoint to reload from, None means random init"
         )
     argparser.add_argument("--dec_size", 
-            default = 200,
+            default = 1500,
             type=int,
             help = "number of units in decoder rnn"
         )
     argparser.add_argument("--enc_size", 
-            default = 200,
+            default = 2000,
             type=int,
             help = "number of units in encoder rnn"
         )
     argparser.add_argument("--enc_layers", 
-            default = 1,
+            default = 2,
             type=int,
             help = "number of layers in encoder rnn"
         )
     argparser.add_argument("--dec_layers", 
-            default = 1,
+            default = 2,
             type=int,
             help = "number of layers in decoder rnn"
         )
@@ -114,39 +138,9 @@ def load_arguments():
             default = False,
             help = "whether to print network info before starting training"
         )
-    argparser.add_argument("--embedding",
-            type = str,
-            default = "",
-            help = "path to pre-trained VGG weights"
-        )
-    argparser.add_argument("--save_model",
-            type = str,
-            default = "",
-            help = "path to save model parameters"
-        )
-    argparser.add_argument("--load_model",
-            type = str,
-            default = "",
-            help = "path to load model"
-        )
-    argparser.add_argument("--train",
-            type = str,
-            default = "",
-            help = "path to training data"
-        )
-    argparser.add_argument("--val",
-            type = str,
-            default = "",
-            help = "path to validation data"
-        )
-    argparser.add_argument("--test",
-            type = str,
-            default = "",
-            help = "path to test data"
-        )
     argparser.add_argument("--max_epochs",
             type = int,
-            default = 100,
+            default = 1000,
             help = "maximum number of epochs"
         )
     argparser.add_argument("--dropout",
@@ -176,7 +170,7 @@ def load_arguments():
         )
     argparser.add_argument("--ind_size",
             type = int,
-            default = 50,
+            default = 10,
             help = "size of the individuals embeddings"
         )
     argparser.add_argument("--teacher_forcing_ratio",
@@ -186,28 +180,18 @@ def load_arguments():
         )
     argparser.add_argument("--lmbda",
             type = float,
-            default = 0.1,
+            default = 1.0,
             help = "scalar multiplying the norm loss"
         )
     argparser.add_argument("--batch_size",
             type = int,
-            default = 64,
+            default = 100,
             help = "number of training examples in each batch"
         )
     argparser.add_argument("--dataset",
             type = str,
             default = '10d-det',
             help = "dataset to train, val and test on"
-        )
-    argparser.add_argument("--h5_val_file_path",
-            type = str,
-            default = '/home/eleonora/video_annotation/data/rdf_video_captions/val_50d.h5',
-            help = "file to read the data from"
-        )
-    argparser.add_argument("--h5_train_file_path",
-            type = str,
-            default = '/home/eleonora/video_annotation/data/rdf_video_captions/train_50d.h5',
-            help = "file to read the data from"
         )
     argparser.add_argument("--shuffle",
             #type = bool,
@@ -217,7 +201,7 @@ def load_arguments():
         )
     argparser.add_argument("--patience",
             type = int,
-            default = 7,
+            default = 15,
             help = "number of epochs to allow without improvement before early-stopping"
         )
     argparser.add_argument("--output_cnn_size",

@@ -46,20 +46,20 @@ class HyperParamSet():
 
 def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=None, best_val_loss=0, checkpoint_path=None, device="cuda"):
 
-    args = HyperParamSet(param_dict)
+    ARGS = HyperParamSet(param_dict)
     if exp_name == None:
         exp_name = utils.get_datetime_stamp()
     if mini:
-        h5_train_generator = load_data_lookup(os.path.join(DATA_DIR, 'rdf_video_captions/50d_overfitting.h5'), video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
-        h5_val_generator = load_data_lookup(os.path.join(DATA_DIR, 'rdf_video_captions/50d_overfitting.h5'), video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_train_generator = load_data_lookup(os.path.join(DATA_DIR, 'rdf_video_captions/50d_overfitting.h5'), video_lookup_table=train_table, batch_size=ARGS.batch_size, shuffle=ARGS.shuffle)
+        h5_val_generator = load_data_lookup(os.path.join(DATA_DIR, 'rdf_video_captions/50d_overfitting.h5'), video_lookup_table=val_table, batch_size=ARGS.batch_size, shuffle=ARGS.shuffle)
     else:
-        h5_train_generator = load_data_lookup(os.path.join(DATA_DIR,'rdf_video_captions/train_50d.h5'), video_lookup_table=train_table, batch_size=args.batch_size, shuffle=args.shuffle)
-        h5_val_generator = load_data_lookup(os.path.join(DATA_DIR, 'rdf_video_captions/val_50d.h5'), video_lookup_table=val_table, batch_size=args.batch_size, shuffle=args.shuffle)
+        h5_train_generator = load_data_lookup(os.path.join(DATA_DIR,'rdf_video_captions/train_50d.h5'), video_lookup_table=train_table, batch_size=ARGS.batch_size, shuffle=ARGS.shuffle)
+        h5_val_generator = load_data_lookup(os.path.join(DATA_DIR, 'rdf_video_captions/val_50d.h5'), video_lookup_table=val_table, batch_size=ARGS.batch_size, shuffle=ARGS.shuffle)
 
     if model == 'seq2seq':
-        encoder = models_train.EncoderRNN(args, device).to(device)
-        decoder = models_train.DecoderRNN(args, device).to(device)
-        val_loss = models_train.train(args, encoder, decoder, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
+        encoder = models_train.EncoderRNN(ARGS, device).to(device)
+        decoder = models_train.DecoderRNN(ARGS, device).to(device)
+        val_loss = models_train.train(ARGS, encoder, decoder, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
     elif model == 'reg':
         if checkpoint_path == None: 
             print("\nPath to the encoder weights checkpoints needed\n")
@@ -69,8 +69,8 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
         print(checkpoint)
         encoder = checkpoint['encoder']
         decoder = checkpoint['decoder']
-        regressor = models_train.NumIndRegressor(args, device).to(device)
-        #val_loss = models_train.train_iters_reg(args, encoder, decoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
+        regressor = models_train.NumIndRegressor(ARGS, device).to(device)
+        #val_loss = models_train.train_iters_reg(ARGS, encoder, decoder, regressor, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
     elif model == 'eos':
         if checkpoint_path == None: 
             print("\nPath to the encoder weights checkpoints needed\n")
@@ -78,8 +78,8 @@ def train_with_hyperparams(model, train_table, val_table, param_dict, exp_name=N
         checkpoint = torch.load(checkpoint_path)
         encoder = checkpoint['encoder']
         decoder = checkpoint['decoder']
-        eos = models_train.NumIndEOS(args, device).to(device)
-        #val_loss = models_train.train_iters_eos(args, encoder, decoder, encoder_optimizer=None, decoder_optimizer=None, eos, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
+        eos = models_train.NumIndEOS(ARGS, device).to(device)
+        #val_loss = models_train.train_iters_eos(ARGS, encoder, decoder, encoder_optimizer=None, decoder_optimizer=None, eos, train_generator=h5_train_generator, val_generator=h5_val_generator, exp_name=exp_name, device=device)
 
     #summary_file_path = os.path.join(DATA_DIR, "logs/{}.txt".format(exp_name))
     summary_file_path = "../data/logs/{}.txt".format(exp_name)
