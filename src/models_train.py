@@ -35,6 +35,7 @@ class EncoderRNN(nn.Module):
         self.output_size = ARGS.ind_size
         self.hidden_init = torch.randn(self.num_layers, 1, self.hidden_size, device=device)
         self.hidden_init.requires_grad = True
+        self.init_type = ARGS.enc_init
 
         if self.cnn_type == "vgg_old":
             self.cnn = models.vgg19(pretrained=True)
@@ -89,13 +90,21 @@ class EncoderRNN(nn.Module):
 
         return outputs, hidden
 
-    def initHidden(self, zeroes=True):
+    def initHidden(self):
         #if zeroes:
         #    return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
         #else:
         #    return torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5)
         #return self.hidden_init
-        return self.hidden_init+torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5)
+        if self.init_type == 'zeroes':
+            return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
+        elif self.init_type == 'unit':
+            return torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5)
+        elif self.init_type == 'learned':
+            return self.hidden_init+torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
+        elif self.init_type == 'unit_learned':
+            return  self.hidden_init+torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/torch.norm(self.hidden_init,2)
+
 
 
 class DecoderRNN(nn.Module):
@@ -115,6 +124,7 @@ class DecoderRNN(nn.Module):
         #self.hidden_init = torch.randn(sizes=(self.num_layers, self.batch_size, self.hidden_size), device=self.device)
         self.hidden_init = torch.randn(self.num_layers, 1, self.hidden_size, device=device)
         self.hidden_init.requires_grad = True
+        self.init_type = ARGS.enc_init
 
         # Resize from GRU size to embedding size
         self.out1 = nn.Linear(self.hidden_size, ARGS.ind_size)
@@ -139,13 +149,20 @@ class DecoderRNN(nn.Module):
 
         return output, hidden
 
-    def initHidden(self, zeroes):
+    def initHidden(self):
         #if zeroes:
         #    return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
         #else:
         #    return torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5)
+        if self.init_type == 'zeroes':
+            return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
+        elif self.init_type == 'unit':
+            return torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5)
+        elif self.init_type == 'learned':
+            return self.hidden_init+torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
+        elif self.init_type == 'unit_learned':
+            return  self.hidden_init+torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/torch.norm(self.hidden_init,2)
 
-        return self.hidden_init+torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5)
         
 
 def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, device):
@@ -155,7 +172,7 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, enco
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
 
-    encoder_hidden = encoder.initHidden(ARGS.enc_zeroes).to(device)
+    encoder_hidden = encoder.initHidden().to(device)
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
     encoder_outputs = encoder_outputs.to(device)
     encoder_hidden = encoder_hidden.to(device)
@@ -168,7 +185,7 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, enco
             decoder_hidden = encoder_hidden#.expand(decoder.num_layers, ARGS.batch_size, ARGS.ind_size)
         else:
             #decoder_hidden = torch.zeros(decoder.num_layers, ARGS.batch_size, decoder.hidden_size).to(device)
-            decoder_hidden = decoder.initHidden(ARGS.dec_zeroes)
+            decoder_hidden = decoder.initHidden()
         
         decoder_inputs = torch.cat((decoder_input, target_tensor[:-1]))
         decoder_outputs, decoder_hidden = decoder(input=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden.contiguous())
@@ -259,8 +276,8 @@ def train(ARGS, encoder, decoder, train_generator, val_generator, exp_name, devi
         cos = nn.CosineEmbeddingLoss()
         def criterion(network_output, ground_truth, batch_size):
             return cos(network_output, ground_truth, target=torch.zeros(batch_size, 1,1, device=ARGS.device))
-    EarlyStop = EarlyStopper(patience=ARGS.patience, verbose=True)
 
+    EarlyStop = EarlyStopper(patience=ARGS.patience, verbose=True)
     
     epoch_train_losses = []
     epoch_train_norm_losses = []
@@ -332,8 +349,13 @@ def train(ARGS, encoder, decoder, train_generator, val_generator, exp_name, devi
         if EarlyStop.early_stop:
             break 
    
+    losses = {  'train': epoch_train_losses,
+                'train_norm': epoch_train_norm_losses,
+                'val': epoch_val_losses,
+                'val_norm': epoch_val_norm_losses}
     EarlyStop.save_to_disk(exp_name)
-    return EarlyStop.early_stop
+    assert EarlyStop.val_loss_min == min(losses['val'])
+    return losses, EarlyStop.early_stop
 
 
 def eval_on_batch(mode, ARGS, input_tensor, target_tensor, target_number_tensor=None, eos_target=None, encoder=None, decoder=None, regressor=None, eos=None, dec_criterion=None, reg_criterion=None, eos_criterion=None, device='cpu'):
@@ -391,7 +413,7 @@ def eval_on_batch(mode, ARGS, input_tensor, target_tensor, target_number_tensor=
 
         print('avg_l2_distance', sum(l2_distances)/len(l2_distances))
         #dec_loss = dec_loss*ARGS.ind_size/torch.sum(target_number_tensor)
-        dec_loss /= ARGS.ind_size/torch.sum(target_number_tensor)
+        dec_loss /= torch.sum(target_number_tensor)
         norm_loss /= torch.sum(target_number_tensor)
         
         return dec_loss.item(), norm_loss.item(), norms

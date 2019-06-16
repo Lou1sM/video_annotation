@@ -13,13 +13,13 @@ def load_arguments():
         )    
     argparser.add_argument("--dec_init", 
             type=str,
-            choices=['zeroes', 'unit', 'learned'],
+            choices=['zeroes', 'unit', 'learned', 'unit_learned'],
             default='zeroes',
             help = "how to initialize decoder rnn"
         )    
     argparser.add_argument("--enc_init", 
             type=str,
-            choices=['zeroes', 'unit', 'learned'],
+            choices=['zeroes', 'unit', 'learned', 'unit_learned'],
             default='zeroes',
             help = "how to initialize encoder rnn"
         )    
