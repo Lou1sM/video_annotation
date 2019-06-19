@@ -10,24 +10,12 @@ from data_loader import load_data_lookup, video_lookup_table_from_range, video_l
 from get_output import write_outputs_get_info
 
 
-def main():
-    #dummy_output = 10
-    exp_name = utils.get_datetime_stamp() if ARGS.exp_name == "" else ARGS.exp_name
-    if os.path.isdir('../experiments/{}'.format(exp_name)):
-        overwrite = input('An experiment with name {} has already been run, do you want to overwrite?'.format(exp_name))
-        if not overwrite:
-            print('Please rerun command with a different experiment name')
-            sys.exit()
-    else: 
-        os.mkdir('../experiments/{}'.format(exp_name))
-
-    if ARGS.enc_dec_hidden_init and (ARGS.enc_size != ARGS.dec_size):
-        print("Not applying enc_dec_hidden_init because the encoder and decoder are different sizes")
-        ARGS.enc_dec_hidden_init = False
-
+def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
+    """Cant' just pass generators as need to re-init with batch_size=1 when testing.""" 
+    
     dataset = '{}d-{}'.format(ARGS.ind_size, ARGS.rrn_init)
+    
     if ARGS.mini:
-        train_table = val_table = test_table = video_lookup_table_from_ids([1218,1337,1571,1443,1833,1874], cnn=ARGS.enc_cnn)
         ARGS.batch_size = 2
         ARGS.enc_size = ARGS.dec_size = 50
         ARGS.enc_layers = ARGS.dec_layers = 1
@@ -35,29 +23,18 @@ def main():
         train_file_path = val_file_path = test_file_path = '../data/rdf_video_captions/50d.6dp.h5'
         print('Using dataset: ../data/rdf_video_captions/50d.6dp')
     else:
-        print('\nLoading lookup tables\n')
-        train_table = video_lookup_table_from_range(1,1201, cnn=ARGS.enc_cnn)
-        val_table = video_lookup_table_from_range(1201,1301, cnn=ARGS.enc_cnn)
-        test_table = video_lookup_table_from_range(1301,1971, cnn=ARGS.enc_cnn)
-    
         train_file_path = os.path.join('../data/rdf_video_captions', 'train_{}.h5'.format(dataset))
         val_file_path = os.path.join('../data/rdf_video_captions', 'val_{}.h5'.format(dataset))
         test_file_path = os.path.join('../data/rdf_video_captions', 'test_{}.h5'.format(dataset))
         print('Using dataset: {}'.format(dataset))
+   
+
 
     train_generator = load_data_lookup(train_file_path, video_lookup_table=train_table, batch_size=ARGS.batch_size, shuffle=ARGS.shuffle)
     val_generator = load_data_lookup(val_file_path, video_lookup_table=val_table, batch_size=ARGS.batch_size, shuffle=ARGS.shuffle)
 
     print(ARGS)
-    
-    if ARGS.verbose:
-        print("\nENCODER")
-        print(encoder)
-        print("\nDECODER")
-        print(decoder)
-        print("\nREGRESSOR")
-        print(regressor)
-
+   
     if ARGS.model == 'seq2seq':
         if ARGS.reload_path:
             print('Reloading model from {}'.format(ARGS.reload_path))
@@ -83,7 +60,6 @@ def main():
         if ARGS.chkpt:
             print("Reloading best network version for outputs")
             checkpoint = torch.load("../checkpoints/{}.pt".format(exp_name))
-            #checkpoint = torch.load(ARGS.reload_path)
             encoder = checkpoint['encoder']
             decoder = checkpoint['decoder']
         else:
@@ -98,7 +74,6 @@ def main():
         val_sizes_by_pos['dset'] = 'val'
         val_output_info['dataset'] = 'val'
         print('\nComputing outputs on test set')
-        #test_sizes_by_pos, test_output_info= write_outputs_get_info(encoder, decoder, enc_zeroes=ARGS.enc_zeroes, dec_zeroes=ARGS.dec_zeroes, teacher_forcing=False, ind_size=ARGS.ind_size, data_generator=test_generator, device=ARGS.device, test_name='{}-test_{}'.format(dataset, exp_name))
         test_sizes_by_pos, test_output_info = write_outputs_get_info(encoder, decoder, ARGS, gt_forcing=False, data_generator=test_generator, exp_name=exp_name, test_name='{}-test_{}'.format(dataset, exp_name))
         test_sizes_by_pos['dset'] = 'test'
         test_output_info['dataset'] = 'test'
@@ -135,8 +110,42 @@ def main():
         encoder = checkpoint['encoder']
         eos = models.NumIndEOS(ARGS, device).to(device)
         models.train_iters_eos(ARGS, encoder, eos, train_generator=train_generator, val_generator=val_generator, exp_name=exp_name, device=device)
-    
+ 
+    accuracy = 0
+    return accuracy, test_output_info
 
+
+def main():
+    #dummy_output = 10
+    exp_name = utils.get_datetime_stamp() if ARGS.exp_name == "" else ARGS.exp_name
+    if os.path.isdir('../experiments/{}'.format(exp_name)):
+        try:
+            overwrite = input('An experiment with name {} has already been run, do you want to overwrite?'.format(exp_name))
+        except OSError:
+            overwrite = ARGS.overwrite
+        if not overwrite:
+            print('Please rerun command with a different experiment name')
+            sys.exit()
+    else: 
+        os.mkdir('../experiments/{}'.format(exp_name))
+
+    if ARGS.enc_dec_hidden_init and (ARGS.enc_size != ARGS.dec_size):
+        print("Not applying enc_dec_hidden_init because the encoder and decoder are different sizes")
+        ARGS.enc_dec_hidden_init = False
+
+    if ARGS.mini:
+        train_table = val_table = test_table = video_lookup_table_from_ids([1218,1337,1571,1443,1833,1874], cnn=ARGS.enc_cnn)
+    else:
+        print('\nLoading lookup tables\n')
+        train_table = video_lookup_table_from_range(1,1201, cnn=ARGS.enc_cnn)
+        val_table = video_lookup_table_from_range(1201,1301, cnn=ARGS.enc_cnn)
+        test_table = video_lookup_table_from_range(1301,1971, cnn=ARGS.enc_cnn)
+    
+    run_experiment( exp_name, 
+                    ARGS,
+                    train_table=train_table,
+                    val_table=val_table,
+                    test_table=test_table)
 
 if __name__=="__main__":
     ARGS = options.load_arguments()
