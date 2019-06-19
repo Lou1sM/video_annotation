@@ -5,6 +5,11 @@ import argparse
 def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
+    argparser.add_argument("--overwrite", 
+            action="store_true",
+            default=False,
+            help = "whether to overwrite existing experiment of same name"
+        )    
     argparser.add_argument("--loss_func", 
             type=str,
             choices=['mse', 'cos'],
@@ -33,16 +38,6 @@ def load_arguments():
             type=float,
             default=1.0,
             help = "value below which the norm is penalized"
-        )    
-    argparser.add_argument("--dec_zeroes", 
-            action="store_true",
-            default=False,
-            help = "whether init decoder hidden to zeroes or of unit length"
-        )    
-    argparser.add_argument("--enc_zeroes", 
-            action="store_true",
-            default=False,
-            help = "whether init encoder hidden to zeroes or of unit length"
         )    
     argparser.add_argument("--device", 
             type=str,
@@ -187,11 +182,6 @@ def load_arguments():
             type = int,
             default = 100,
             help = "number of training examples in each batch"
-        )
-    argparser.add_argument("--dataset",
-            type = str,
-            default = '10d-det',
-            help = "dataset to train, val and test on"
         )
     argparser.add_argument("--shuffle",
             #type = bool,
