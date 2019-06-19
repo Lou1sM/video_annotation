@@ -15,7 +15,7 @@ import numpy as np
 from data_loader import load_data, load_data_lookup, video_lookup_table_from_range, video_lookup_table_from_ids
 
 
-def get_outputs(encoder, decoder, enc_zeroes, dec_zeroes, data_generator, gt_forcing, ind_size, mode='seq2seq', device='cuda'):
+def get_outputs(encoder, decoder, data_generator, gt_forcing, ind_size, mode='seq2seq', device='cuda'):
     encoder.eval()
     decoder.eval()
     encoder.batch_size = 1
@@ -48,7 +48,7 @@ def get_outputs(encoder, decoder, enc_zeroes, dec_zeroes, data_generator, gt_for
         l2_distances = []
         l_loss = 0
         for l in range(target_number.int()):
-            decoder_output, decoder_hidden_new = decoder(input=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden) 
+            decoder_output, decoder_hidden_new = decoder(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden) 
             decoder_hidden = decoder_hidden_new
             dp_output.append(decoder_output.squeeze().detach().cpu().numpy().tolist())
             gt_embeddings.append(target_tensor[l].squeeze().detach().cpu().numpy().tolist())
@@ -99,9 +99,9 @@ def get_outputs(encoder, decoder, enc_zeroes, dec_zeroes, data_generator, gt_for
     return output, norms, positions, sizes_by_pos, test_info
 
 
-def write_outputs_get_info(encoder, decoder, ARGS, data_generator, gt_forcing, exp_name, test_name):
+def write_outputs_get_info(encoder, decoder, ARGS, data_generator, gt_forcing, exp_name="", test_name=""):
 
-    outputs, norms, positions, sizes_by_pos, test_info  = get_outputs(encoder, decoder, enc_zeroes=ARGS.enc_zeroes, dec_zeroes=ARGS.dec_zeroes, gt_forcing=gt_forcing ,data_generator=data_generator, ind_size=ARGS.ind_size, device=ARGS.device)
+    outputs, norms, positions, sizes_by_pos, test_info  = get_outputs(encoder, decoder, gt_forcing=gt_forcing ,data_generator=data_generator, ind_size=ARGS.ind_size, device=ARGS.device)
 
     plt.xlim(0,2)
     bins = np.arange(0,2,.01)
@@ -147,6 +147,9 @@ if __name__=="__main__":
     parser.add_argument("--dec_zeroes", action="store_true")
 
     ARGS = parser.parse_args() 
+    ARGS.ind_size=10
+    #ARGS.device = "cuda" if cuda.is_available() else "cpu"
+    ARGS.device = "cuda" 
     checkpoint_path = ARGS.checkpoint_path
     gtf = ARGS.gt_forcing
     print("Ground Truth Forcing:", gtf)
@@ -161,17 +164,17 @@ if __name__=="__main__":
     print('getting outputs and info for val set')
     val_lookup_table = video_lookup_table_from_range(1201, 1301, cnn="vgg")
     val_data_generator = load_data_lookup('../data/rdf_video_captions/val_10d-det.h5', video_lookup_table=val_lookup_table, batch_size=1, shuffle=False)
-    get_outputs_and_info(encoder=encoder, decoder=decoder, enc_zeroes=ARGS.enc_zeroes, dec_zeroes=ARGS.dec_zeroes, data_generator=val_data_generator, ind_size=10, device='cuda', gt_forcing=gtf, test_name='val_{}'.format(ARGS.test_name))
+    write_outputs_get_info(ARGS=ARGS, encoder=encoder, decoder=decoder, data_generator=val_data_generator, gt_forcing=gtf, test_name='val_{}'.format(ARGS.test_name))
 
 
     print('getting outputs and info for train set')
     train_lookup_table = video_lookup_table_from_range(1, 1201, cnn="vgg")
     train_data_generator = load_data_lookup('../data/rdf_video_captions/train_10d-det.h5', video_lookup_table=train_lookup_table, batch_size=1, shuffle=False)
-    get_outputs_and_info(encoder=encoder, decoder=decoder, enc_zeroes=ARGS.enc_zeroes, dec_zeroes=ARGS.dec_zeroes, data_generator=train_data_generator, ind_size=10, device='cuda', gt_forcing=gtf, test_name='train_{}'.format(ARGS.test_name))
+    write_outputs_get_info(ARGS=ARGS, encoder=encoder, decoder=decoder, data_generator=train_data_generator, gt_forcing=gtf, test_name='train_{}'.format(ARGS.test_name))
 
 
     print('getting outputs and info for test set')
     test_lookup_table = video_lookup_table_from_range(1301, 1971, cnn="vgg")
     test_data_generator = load_data_lookup('../data/rdf_video_captions/test_10d-det.h5', video_lookup_table=test_lookup_table, batch_size=1, shuffle=False)
-    get_outputs_and_info(encoder=encoder, decoder=decoder, enc_zeroes=ARGS.enc_zeroes, dec_zeroes=ARGS.dec_zeroes, data_generator=test_data_generator, ind_size=10, device='cuda', gt_forcing=gtf, test_name='test_{}'.format(ARGS.test_name))
+    write_outputs_get_inf(ARGS=ARGS, encoder=encoder, decoder=decoder, data_generator=test_data_generator, gt_forcing=gtf, test_name='test_{}'.format(ARGS.test_name))
 
