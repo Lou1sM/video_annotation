@@ -76,11 +76,11 @@ class EncoderRNN(nn.Module):
         return x
 
 
-    def forward(self, input, hidden):
+    def forward(self, input_, hidden):
 
         # pass the input through the cnn 
-        cnn_outputs = torch.zeros(self.num_frames, input.shape[1], self.output_cnn_size, device=self.device)
-        for i, inp in enumerate(input):
+        cnn_outputs = torch.zeros(self.num_frames, input_.shape[1], self.output_cnn_size, device=self.device)
+        for i, inp in enumerate(input_):
             embedded = self.cnn_vector(inp)
             cnn_outputs[i] = embedded 
 
@@ -91,11 +91,6 @@ class EncoderRNN(nn.Module):
         return outputs, hidden
 
     def initHidden(self):
-        #if zeroes:
-        #    return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
-        #else:
-        #    return torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5)
-        #return self.hidden_init
         if self.init_type == 'zeroes':
             return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
         elif self.init_type == 'unit':
@@ -129,9 +124,12 @@ class DecoderRNN(nn.Module):
         # Resize from GRU size to embedding size
         self.out1 = nn.Linear(self.hidden_size, ARGS.ind_size)
 
-    def forward(self, input, hidden, input_lengths, encoder_outputs):
+    def forward(self, input_, hidden, input_lengths, encoder_outputs):
         # apply dropout
-        drop_input = self.dropout(input)
+        if self.training:
+            drop_input = self.dropout(input_)
+        else:
+            drop_input = input_
         
         #pack the sequence to avoid useless computations
         packed = torch.nn.utils.rnn.pack_padded_sequence(drop_input, input_lengths.int(), enforce_sorted=False)
@@ -147,13 +145,12 @@ class DecoderRNN(nn.Module):
         output = self.out1(output_perm)
         output, attn = self.attention(output, enc_perm)
 
+        if not self.training:
+            output = self.dropout_p*output
+
         return output, hidden
 
     def initHidden(self):
-        #if zeroes:
-        #    return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
-        #else:
-        #    return torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5)
         if self.init_type == 'zeroes':
             return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
         elif self.init_type == 'unit':
@@ -182,13 +179,12 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, enco
     if use_teacher_forcing:
 
         if ARGS.enc_dec_hidden_init:
-            decoder_hidden = encoder_hidden#.expand(decoder.num_layers, ARGS.batch_size, ARGS.ind_size)
+            decoder_hidden = encoder_hidden
         else:
-            #decoder_hidden = torch.zeros(decoder.num_layers, ARGS.batch_size, decoder.hidden_size).to(device)
             decoder_hidden = decoder.initHidden()
         
         decoder_inputs = torch.cat((decoder_input, target_tensor[:-1]))
-        decoder_outputs, decoder_hidden = decoder(input=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden.contiguous())
+        decoder_outputs, decoder_hidden = decoder(input_=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden.contiguous())
 
         norms = [torch.norm(decoder_outputs[i][j]).item() for i in range(decoder.batch_size) for j in range(int(target_number_tensor[i].item()))]
 
@@ -204,6 +200,8 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, enco
         mask = mask.float().unsqueeze(2)
 
         loss = criterion(decoder_outputs*mask, target_tensor_perm[:,:decoder_outputs.shape[1],:]*mask, ARGS.batch_size)
+        cos = nn.CosineEmbeddingLoss()
+        #print(cos(decoder_outputs*mask, target_tensor_perm[:,:decoder_outputs.shape[1],:]*mask, torch.ones(1, device=decoder.device)))
         #mse_rescale = (ARGS.ind_size*ARGS.batch_size*decoder_outputs.shape[1])/torch.sum(target_number_tensor)
         #loss = loss*mse_rescale
         
@@ -215,18 +213,22 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, enco
         inv_mask = inv_mask.squeeze(2)
         output_norms = output_norms*mask + inv_mask
         mean_norm = output_norms.mean()
-        #norm_loss = F.relu(((ARGS.norm_threshold*torch.ones(ARGS.batch_size, decoder_outputs.shape[1], device=ARGS.device)) - output_norms)*mask).mean()*mse_rescale
         norm_loss = F.relu(((ARGS.norm_threshold*torch.ones(ARGS.batch_size, decoder_outputs.shape[1], device=ARGS.device)) - output_norms)*mask).mean()
-        total_loss = (loss +  norm_loss*ARGS.lmbda) * ARGS.batch_size * decoder_outputs.shape[1]/torch.sum(target_number_tensor) 
+
+        packing_rescale = ARGS.batch_size * decoder_outputs.shape[1]/torch.sum(target_number_tensor) 
+        loss = loss*packing_rescale
+        norm_loss = norm_loss*packing_rescale
+
+        total_loss = (loss +  norm_loss*ARGS.lmbda)
     else:
         loss = 0 
-        decoder_hidden_0 = encoder_hidden#.expand(decoder.num_layers,ARGS.batch_size, ARGS.ind_size)
+        decoder_hidden_0 = encoder_hidden
         for b in range(ARGS.batch_size):
             single_dec_input = decoder_input[:, b].view(1, 1, -1)
             decoder_hidden = decoder_hidden_0[:, b].unsqueeze(1)
             l_loss = 0
             for l in range(target_number_tensor[b].int()):
-                decoder_output, decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs[:, b].unsqueeze(1), hidden=decoder_hidden.contiguous()) 
+                decoder_output, decoder_hidden = decoder(input_=single_dec_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs[:, b].unsqueeze(1), hidden=decoder_hidden.contiguous()) 
                 l_loss += criterion(decoder_output, target_tensor[l, b].unsqueeze(0).unsqueeze(0))
                 single_dec_input = decoder_output
             loss += l_loss/float(l)
@@ -275,7 +277,7 @@ def train(ARGS, encoder, decoder, train_generator, val_generator, exp_name, devi
     elif ARGS.loss_func == 'cos':
         cos = nn.CosineEmbeddingLoss()
         def criterion(network_output, ground_truth, batch_size):
-            return cos(network_output, ground_truth, target=torch.zeros(batch_size, 1,1, device=ARGS.device))
+            return cos(network_output, ground_truth, target=torch.ones(batch_size, 1,1, device=ARGS.device))
 
     EarlyStop = EarlyStopper(patience=ARGS.patience, verbose=True)
     
@@ -336,10 +338,10 @@ def train(ARGS, encoder, decoder, train_generator, val_generator, exp_name, devi
 
         epoch_val_losses.append(new_epoch_val_loss)
         epoch_val_norm_losses.append(new_epoch_val_norm_loss)
-        print(epoch_train_losses)
-        print(epoch_val_losses)
-        print(epoch_train_norm_losses)
-        print(epoch_val_norm_losses)
+        #print(epoch_train_losses)
+        #print(epoch_val_losses)
+        #print(epoch_train_norm_losses)
+        #print(epoch_val_norm_losses)
         save_dict = {'encoder':encoder, 'decoder':decoder, 'encoder_optimizer': encoder_optimizer, 'decoder_optimizer': decoder_optimizer}
         #save = (new_epoch_val_loss < 5.1) and ARGS.chkpt
         save = ARGS.chkpt
@@ -387,11 +389,12 @@ def eval_on_batch(mode, ARGS, input_tensor, target_tensor, target_number_tensor=
             decoder_hidden = decoder_hidden_0[:, b].unsqueeze(1)
             l_loss = 0
             for l in range(target_number_tensor[b].int()):
-                decoder_output, new_decoder_hidden = decoder(input=single_dec_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs[:, b].unsqueeze(1), hidden=decoder_hidden.contiguous()) 
+                decoder_output, new_decoder_hidden = decoder(input_=single_dec_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs[:, b].unsqueeze(1), hidden=decoder_hidden.contiguous()) 
                 new_norm = torch.norm(decoder_output).item()
                 #if new_norm > 0.1:
                 norms.append(new_norm)
                 decoder_hidden = new_decoder_hidden
+                arange = torch.arange(0, l, step=1).expand(1, -1).to(ARGS.device)
                 output_norm = torch.norm(decoder_output, dim=-1)
                 mean_norm = output_norm.mean()
                 norm_loss += F.relu(1-mean_norm)
@@ -422,7 +425,7 @@ def eval_on_batch(mode, ARGS, input_tensor, target_tensor, target_number_tensor=
         eos_input = torch.zeros(1, ARGS.batch_size, ARGS.ind_size, device=eos.device).to(device)
         eos_hidden = encoder_hidden[encoder.num_layers-1:encoder.num_layers]
         eos_inputs = torch.cat((eos_input, target_tensor[:-1]))
-        eos_outputs, hidden = eos(input=eos_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=eos_hidden)
+        eos_outputs, hidden = eos(input_=eos_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=eos_hidden)
         eos_target = eos_target[:eos_outputs.shape[0],:].permute(1,0)
         eos_outputs = eos_outputs.squeeze(2).permute(1,0)
         
