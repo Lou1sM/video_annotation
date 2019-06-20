@@ -28,12 +28,12 @@ def load_arguments():
             default='zeroes',
             help = "how to initialize encoder rnn"
         )    
-    argparser.add_argument("--rrn_init", 
-            type=str,
-            choices=['det', 'rand'],
-            default='det',
-            help = "whether rnn embeddings are trained with deterministic or random inits"
-        )    
+    #argparser.add_argument("--rrn_init", 
+    #        type=str,
+    #        choices=['det', 'rand'],
+    #        default='det',
+    #        help = "whether rnn embeddings are trained with deterministic or random inits"
+    #    )    
     argparser.add_argument("--norm_threshold", 
             type=float,
             default=1.0,

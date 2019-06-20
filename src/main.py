@@ -10,10 +10,12 @@ from data_loader import load_data_lookup, video_lookup_table_from_range, video_l
 from get_output import write_outputs_get_info
 
 
+IMPORTANT_PARAMS = ['lmbda', 'enc_init', 'dec_init', 'norm_thresh', 'exp_name', 'loss_func']
+
 def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
     """Cant' just pass generators as need to re-init with batch_size=1 when testing.""" 
     
-    dataset = '{}d-{}'.format(ARGS.ind_size, ARGS.rrn_init)
+    dataset = '{}d'.format(ARGS.ind_size)
     
     if ARGS.mini:
         ARGS.batch_size = 2
@@ -23,9 +25,9 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
         train_file_path = val_file_path = test_file_path = '../data/rdf_video_captions/50d.6dp.h5'
         print('Using dataset: ../data/rdf_video_captions/50d.6dp')
     else:
-        train_file_path = os.path.join('../data/rdf_video_captions', 'train_{}.h5'.format(dataset))
-        val_file_path = os.path.join('../data/rdf_video_captions', 'val_{}.h5'.format(dataset))
-        test_file_path = os.path.join('../data/rdf_video_captions', 'test_{}.h5'.format(dataset))
+        train_file_path = os.path.join('../data/rdf_video_captions', '{}-train.h5'.format(dataset))
+        val_file_path = os.path.join('../data/rdf_video_captions', '{}-val.h5'.format(dataset))
+        test_file_path = os.path.join('../data/rdf_video_captions', '{}-test.h5'.format(dataset))
         print('Using dataset: {}'.format(dataset))
    
 
@@ -65,16 +67,17 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
         else:
             print("\nUsing final (likely overfit) version of network for outputs because no checkpoints were saved")
         
-        print('\nComputing outputs on train set')
-        train_sizes_by_pos, train_output_info = write_outputs_get_info(encoder, decoder, ARGS, gt_forcing=False, data_generator=train_generator, exp_name=exp_name, test_name='{}-train_{}'.format(dataset, exp_name))
-        train_sizes_by_pos['dset'] = 'train'
-        train_output_info['dataset'] = 'train'
         print('\nComputing outputs on val set')
-        val_sizes_by_pos, val_output_info = write_outputs_get_info(encoder, decoder, ARGS, gt_forcing=False, data_generator=val_generator, exp_name=exp_name, test_name='{}-val_{}'.format(dataset, exp_name))
+        val_sizes_by_pos, val_output_info = write_outputs_get_info(encoder, decoder, ARGS, gt_forcing=False, data_generator=val_generator, exp_name=exp_name, dset_fragment='val')
         val_sizes_by_pos['dset'] = 'val'
         val_output_info['dataset'] = 'val'
+        print('\nComputing outputs on train set')
+        train_sizes_by_pos, train_output_info = write_outputs_get_info(encoder, decoder, ARGS, gt_forcing=False, data_generator=train_generator, exp_name=exp_name, dset_fragment='train')
+        train_sizes_by_pos['dset'] = 'train'
+        train_output_info['dataset'] = 'train'
+        fixed_thresh = (train_output_info['thresh']*1200)+(val_output_info['thresh']*100)/1300
         print('\nComputing outputs on test set')
-        test_sizes_by_pos, test_output_info = write_outputs_get_info(encoder, decoder, ARGS, gt_forcing=False, data_generator=test_generator, exp_name=exp_name, test_name='{}-test_{}'.format(dataset, exp_name))
+        test_sizes_by_pos, test_output_info = write_outputs_get_info(encoder, decoder, ARGS, gt_forcing=False, data_generator=test_generator, exp_name=exp_name, dset_fragment='test', fixed_thresh=fixed_thresh)
         test_sizes_by_pos['dset'] = 'test'
         test_output_info['dataset'] = 'test'
   
@@ -90,7 +93,7 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
             summary_file.write('Experiment name: {}\n'.format(exp_name))
             summary_file.write('\tTrain\tVal\tTest\n')
             #for k in train_output_info:
-            for k in ['dataset', 'l2_distance', 'cos_similarity', 'avg_emb_norm']: 
+            for k in ['dataset', 'l2_distance', 'cos_similarity', 'avg_norm']: 
                 summary_file.write(k+'\t'+str(train_output_info[k])+'\t'+str(val_output_info[k])+'\t'+str(test_output_info[k])+'\n')
             summary_file.write('\nParameters:\n')
             for key in sorted(vars(ARGS).keys()):
@@ -115,12 +118,24 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
     return accuracy, test_output_info
 
 
+def get_user_yesno_answer(question):
+    answer = input(question+'(y/n)')
+    if answer == 'y':
+        return True
+    elif answer == 'n':
+        return False
+    else:
+        print("Please answer 'y' or 'n'")
+        return(get_user_yesno_answer(question))
+    
+
 def main():
     #dummy_output = 10
     exp_name = utils.get_datetime_stamp() if ARGS.exp_name == "" else ARGS.exp_name
     if os.path.isdir('../experiments/{}'.format(exp_name)):
         try:
-            overwrite = input('An experiment with name {} has already been run, do you want to overwrite?'.format(exp_name))
+            #overwrite = input('An experiment with name {} has already been run, do you want to overwrite?'.format(exp_name))
+            overwrite = get_user_yesno_answer('An experiment with name {} has already been run, do you want to overwrite?'.format(exp_name))
         except OSError:
             overwrite = ARGS.overwrite
         if not overwrite:

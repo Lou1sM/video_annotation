@@ -146,7 +146,7 @@ class DecoderRNN(nn.Module):
         output, attn = self.attention(output, enc_perm)
 
         if not self.training:
-            output = self.dropout_p*output
+            output = (1-self.dropout_p)*output
 
         return output, hidden
 
@@ -203,7 +203,6 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, enco
         cos = nn.CosineEmbeddingLoss()
         #print(cos(decoder_outputs*mask, target_tensor_perm[:,:decoder_outputs.shape[1],:]*mask, torch.ones(1, device=decoder.device)))
         #mse_rescale = (ARGS.ind_size*ARGS.batch_size*decoder_outputs.shape[1])/torch.sum(target_number_tensor)
-        #loss = loss*mse_rescale
         
         inv_byte_mask = mask.byte()^1
         inv_mask = inv_byte_mask.float()
@@ -212,6 +211,7 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, enco
         mask = mask.squeeze(2)
         inv_mask = inv_mask.squeeze(2)
         output_norms = output_norms*mask + inv_mask
+        print(output_norms)
         mean_norm = output_norms.mean()
         norm_loss = F.relu(((ARGS.norm_threshold*torch.ones(ARGS.batch_size, decoder_outputs.shape[1], device=ARGS.device)) - output_norms)*mask).mean()
 
@@ -355,7 +355,8 @@ def train(ARGS, encoder, decoder, train_generator, val_generator, exp_name, devi
                 'train_norm': epoch_train_norm_losses,
                 'val': epoch_val_losses,
                 'val_norm': epoch_val_norm_losses}
-    EarlyStop.save_to_disk(exp_name)
+    if not ARGS.mini:
+        EarlyStop.save_to_disk(exp_name)
     assert EarlyStop.val_loss_min == min(losses['val'])
     return losses, EarlyStop.early_stop
 
@@ -390,6 +391,7 @@ def eval_on_batch(mode, ARGS, input_tensor, target_tensor, target_number_tensor=
             l_loss = 0
             for l in range(target_number_tensor[b].int()):
                 decoder_output, new_decoder_hidden = decoder(input_=single_dec_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs[:, b].unsqueeze(1), hidden=decoder_hidden.contiguous()) 
+                print(decoder_output)
                 new_norm = torch.norm(decoder_output).item()
                 #if new_norm > 0.1:
                 norms.append(new_norm)
@@ -397,6 +399,7 @@ def eval_on_batch(mode, ARGS, input_tensor, target_tensor, target_number_tensor=
                 arange = torch.arange(0, l, step=1).expand(1, -1).to(ARGS.device)
                 output_norm = torch.norm(decoder_output, dim=-1)
                 mean_norm = output_norm.mean()
+                print('mean_norm', mean_norm)
                 norm_loss += F.relu(1-mean_norm)
                 
                 #l_loss += dec_criterion(decoder_output, target_tensor[l, b].unsqueeze(0).unsqueeze(0), target=torch.ones(1,1,1, device=ARGS.device))
