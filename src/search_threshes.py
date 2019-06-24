@@ -50,9 +50,14 @@ def find_best_thresh_from_probs(exp_name, dset_fragment):
     f1s = []
     positive_probs = data['probabilities']['pos']
     negative_probs = data['probabilities']['neg']
+    avg_pos_prob = data['avg-probabilities']['pos'] 
+    avg_neg_prob = data['avg-probabilities']['neg'] 
+    assert avg_pos_prob - sum(positive_probs)/len(positive_probs) < 1e-3
+    assert avg_neg_prob - sum(negative_probs)/len(negative_probs) < 1e-3
     best_f1 = 0
     print("\nSearching thresholds")
-    for thresh in np.arange(0,3e-5, 3e-7):
+    #for thresh in np.arange(0,3e-5, 3e-7):
+    for thresh in np.arange(avg_neg_prob-.01, avg_pos_prob+0.1, 3e-5):
         tp, fp, fn, tn, prec, rec, f1 = compute_f1_for_thresh(positive_probs, negative_probs, thresh)
         threshes.append(thresh)
         tps.append(tp)
@@ -70,14 +75,12 @@ def find_best_thresh_from_probs(exp_name, dset_fragment):
 
 
     total_metric_data = {'thresh': threshes, 'tp': tps, 'fp': fps, 'fn': fns, 'tn':tns, 'f1': f1s}
-    print(total_metric_data)
-    best_metric_data = {'thresh': best_thresh, 'tp': best_tp, 'fp': best_fp, 'fn': best_fn, 'tn':best_tn, 'f1': best_f1, 'pat_norm': data['avg-embedding-norm'], 'pat_distance': data['avg-distance']}
+    best_metric_data = {'thresh': best_thresh, 'tp': best_tp, 'fp': best_fp, 'fn': best_fn, 'tn':best_tn, 'f1': best_f1, 'pat_norm': data['avg-embedding-norm'], 'pat_distance': data['avg-distance'], 'avg_pos_prob': avg_pos_prob, 'avg_neg_prob': avg_neg_prob}
 
     with open('../experiments/{}/{}-{}metrics.json'.format(exp_name, dset_fragment, exp_name), 'w') as jsonfile:
         json.dump(total_metric_data, jsonfile)
 
     #return sorted(f1_by_thresh.items(), key=operator.itemgetter(1))[-1]
-    print(best_metric_data)
     return best_metric_data, total_metric_data, positive_probs, negative_probs
 
 if __name__ == "__main__":

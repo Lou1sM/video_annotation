@@ -5,6 +5,31 @@ import argparse
 def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
+    argparser.add_argument("--log_pred", 
+            action="store_true",
+            default=False,
+            help = "whether to include a log in the mlp predictions"
+        )    
+    argparser.add_argument("--sigmoid_mlp", 
+            action="store_true",
+            default=False,
+            help = "whether to include a sigmoid activation function at the end of the mlp"
+        )    
+    argparser.add_argument("--pred_embeddings_assist", 
+            type=float,
+            default=0.0,
+            help = "how much to move the network outputs to gt when predicting"
+        )    
+    argparser.add_argument("--neg_pred_weight", 
+            type=float,
+            default=1.0,
+            help = "weight to apply to negative prediction scores"
+        )    
+    argparser.add_argument("--setting", 
+            choices = ["embeddings", "preds"],
+            default="embeddings",
+            help = "setting to train the NN on"
+        )    
     argparser.add_argument("--overwrite", 
             action="store_true",
             default=False,
@@ -28,12 +53,6 @@ def load_arguments():
             default='zeroes',
             help = "how to initialize encoder rnn"
         )    
-    #argparser.add_argument("--rrn_init", 
-    #        type=str,
-    #        choices=['det', 'rand'],
-    #        default='det',
-    #        help = "whether rnn embeddings are trained with deterministic or random inits"
-    #    )    
     argparser.add_argument("--norm_threshold", 
             type=float,
             default=1.0,
@@ -44,7 +63,7 @@ def load_arguments():
             default = 'cuda',
             help = "whether to train on gpu (cuda) or cpu"
         )    
-    argparser.add_argument("--chkpt", 
+    argparser.add_argument("--no_chkpt", 
             action="store_true",
             default = False,
             help = "whether to write a checkpoint"
@@ -173,7 +192,12 @@ def load_arguments():
             default = 1.0,
             help = "teacher forcing ratio"
         )
-    argparser.add_argument("--lmbda",
+    argparser.add_argument("--lmbda_eos",
+            type = float,
+            default = 1.0,
+            help = "scalar multiplying the norm loss"
+        )
+    argparser.add_argument("--lmbda_norm",
             type = float,
             default = 1.0,
             help = "scalar multiplying the norm loss"
@@ -199,9 +223,6 @@ def load_arguments():
             default = 4096,
             help = "size of the output of the cnn layers"
         )
-
-
-
 
 
     args = argparser.parse_args()

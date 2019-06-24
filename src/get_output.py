@@ -27,6 +27,7 @@ def get_outputs(encoder, decoder, data_generator, gt_forcing, ind_size, mode='se
     positions = []
     total_l2_distances = []
     cos_sims = []
+    eos_results = []
     nums_of_inds = {}
     tup_sizes_by_pos = {}
     test_info = {}
@@ -48,8 +49,15 @@ def get_outputs(encoder, decoder, data_generator, gt_forcing, ind_size, mode='se
         gt_embeddings = []
         l2_distances = []
         l_loss = 0
+        eos_preds = []
+        dec_out_list = []
         for l in range(target_number.int()):
-            decoder_output, decoder_hidden_new = decoder(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden) 
+            try:
+                decoder_output, eos_pred, decoder_hidden_new = decoder(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden) 
+                eos_preds.append(eos_pred.item())
+            except ValueError:
+                decoder_output, decoder_hidden_new = decoder(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden) 
+            dec_out_list.append(decoder_output)
             decoder_hidden = decoder_hidden_new
             dp_output.append(decoder_output.squeeze().detach().cpu().numpy().tolist())
             gt_embeddings.append(target_tensor[l].squeeze().detach().cpu().numpy().tolist())
@@ -78,20 +86,38 @@ def get_outputs(encoder, decoder, data_generator, gt_forcing, ind_size, mode='se
             cos_sim = F.cosine_similarity(decoder_output.squeeze(), target_tensor[l].squeeze(),0).item()
             cos_sims.append(cos_sim)
             positions.append(l+1)
+        try:
+            for l in range(target_number.int(), 29):
+                decoder_output, eos_pred, decoder_hidden_new = decoder(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden) 
+                eos_preds.append(eos_pred.item())
+                decoder_hidden = decoder_hidden_new
+            #eos_guess = int(np.argmax(eos_preds))
+            # Take first element that's greater that 0.5
+            eos_guess = [i>0.5 for i in eos_preds].index(True)
+            eos_gt = target_number.item()-1
+            eos_result = (eos_guess == eos_gt)
+            eos_results.append(eos_result)
+        except ValueError:
+            eos_guess = eos_target = eos_result = -1
+            pass
         assert len(dp_output) == len(gt_embeddings), "Wrong number of embeddings in output"
-        output.append({'videoId':str(video_id), 'embeddings':dp_output, 'gt_embeddings': gt_embeddings, 'l2_distances': l2_distances, 'avg_l2_distance': sum(l2_distances)/len(l2_distances)})
+        #print(eos_preds, eos_guess, target_number.item()-1, eos_result)
+        output.append({'videoId':str(video_id), 'embeddings':dp_output, 'gt_embeddings': gt_embeddings, 'l2_distances': l2_distances, 'avg_l2_distance': sum(l2_distances)/len(l2_distances), 'eos_guess': eos_guess, 'eos_gt': target_number.item(), 'eos_result': eos_result})
     assert sum(list(nums_of_inds.values())) == len(norms)
     avg_l2_distance = round(sum(l2_distances)/len(l2_distances),4)
     avg_cos_sim = round(sum(cos_sims)/len(cos_sims),4)
     avg_norm = round( (sum([t[0] for t in tup_sizes_by_pos.values()])/sum(nums_of_inds.values())),4)
+    eos_accuracy = sum(eos_results)/(len(eos_results)+1e-5)
     test_info['l2_distance'] = avg_l2_distance
     test_info['cos_similarity'] = avg_cos_sim
     test_info['avg_norm'] = avg_norm
+    test_info['eos_accuracy'] = eos_accuracy
     #print('avg_l2_distance', sum(l2_distances)/len(l2_distances))
-    print('avg_l2_distance', avg_l2_distance)
-    print('avg_cos_sim', avg_cos_sim)
-    print('total number of embeddings:', sum(nums_of_inds.values()))
-    print('number of embeddings at each position:')
+    #print('avg_l2_distance', avg_l2_distance)
+    #print('avg_cos_sim', avg_cos_sim)
+    #print('total number of embeddings:', sum(nums_of_inds.values()))
+    #print('eos_accuracy:', eos_accuracy)
+    #print('number of embeddings at each position:')
     for k,v in nums_of_inds.items():
         print(k,v)
     sizes_by_pos = {k: v[0]/v[1] for k,v in tup_sizes_by_pos.items()}
@@ -138,6 +164,7 @@ def write_outputs_get_info(encoder, decoder, ARGS, data_generator, gt_forcing, e
     metric_data, total_metric_data, positive_probs, negative_probs = find_best_thresh_from_probs(exp_name, dset_fragment)
     test_info.update(metric_data)
     legit_thresh = fixed_thresh if dset_fragment == 'test' else metric_data['thresh'] 
+    print(fixed_thresh, metric_data['thresh'])
     test_info['legit_f1'] = compute_f1_for_thresh(positive_probs, negative_probs, legit_thresh)[6]
     
     plt.xlim(0,len(total_metric_data['thresh']))
@@ -151,6 +178,7 @@ def write_outputs_get_info(encoder, decoder, ARGS, data_generator, gt_forcing, e
 
     #assert test_info['pat_norm'] - test_info['avg_norm'] < .04
     #assert test_info['pat_distance'] - test_info['l2_distance'] < .04
+    print(test_info)
     return sizes_by_pos, test_info
  
 if __name__=="__main__":
