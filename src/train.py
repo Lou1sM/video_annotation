@@ -51,6 +51,7 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
             target_tensor = training_triplet[1].float().transpose(0,1).to(device)
             target_number = training_triplet[2].float().to(device)
             eos_target = training_triplet[3].float().permute(1,0).to(device)
+            i3d_vec = training_triplet[5].float().to(device)
             #if torch.cuda.is_available():
             #    input_tensor = input_tensor.cuda()
             #    target_tensor = target_tensor.cuda()
@@ -69,6 +70,7 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
             target_tensor = training_triplet[1].float().transpose(0,1).to(device)
             target_number = training_triplet[2].float().to(device)
             eos_target = training_triplet[3].float().permute(1,0).to(device)
+            i3d_vec = training_triplet[5].float().to(device)
             if torch.cuda.is_available():
                 input_tensor = input_tensor.cuda()
                 target_tensor = target_tensor.cuda()
@@ -91,12 +93,12 @@ def train_iters_eos(args, encoder, eos, train_generator, val_generator, print_ev
             return EarlyStop.val_loss_min
 
 
-def train_on_batch_eos(ARGS, input_tensor, target_tensor, target_number_tensor, eos_target, encoder, eos_decoder, optimizer, criterion):
+def train_on_batch_eos(ARGS, input_tensor, target_tensor, target_number_tensor, i3d_vec, eos_target, encoder, eos_decoder, optimizer, criterion):
     
     encoder_hidden = encoder.initHidden()
     optimizer.zero_grad()
 
-    encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
+    encoder_outputs, encoder_hidden = encoder(input_tensor, i3d_vec, encoder_hidden)
     eos_input = torch.zeros(1, ARGS.batch_size, ARGS.ind_size, device=eos_decoder.device)
     eos_hidden = eos_decoder.initHidden()
     eos_inputs = torch.cat((eos_input, target_tensor[:-1]))
@@ -111,7 +113,7 @@ def train_on_batch_eos(ARGS, input_tensor, target_tensor, target_number_tensor, 
     return loss.item()
 
 
-def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, eos_target, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, eos_criterion, device):
+def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, i3d_vec, eos_target, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, eos_criterion, device):
 
     use_teacher_forcing = True if random.random() < ARGS.teacher_forcing_ratio else False
 
@@ -119,7 +121,7 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, eos_
     decoder_optimizer.zero_grad()
 
     encoder_hidden = encoder.initHidden().to(device)
-    encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
+    encoder_outputs, encoder_hidden = encoder(input_tensor, i3d_vec, encoder_hidden)
 
     decoder_input = torch.zeros(1, ARGS.batch_size, ARGS.ind_size, device=decoder.device).to(device)
 
@@ -195,14 +197,14 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, eos_
     return loss.item(), norm_loss.item()
 
 
-def train_on_batch_pred(ARGS, input_tensor, target_tensor, target_number_tensor, video_ids, encoder, decoder, encoder_optimizer, decoder_optimizer, json_data_dict, mlp_dict, device):
+def train_on_batch_pred(ARGS, input_tensor, target_tensor, target_number_tensor, i3d_vec, video_ids, encoder, decoder, encoder_optimizer, decoder_optimizer, json_data_dict, mlp_dict, device):
 
     use_teacher_forcing = True if random.random() < ARGS.teacher_forcing_ratio else False
 
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
     encoder_hidden = encoder.initHidden().to(device)
-    encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
+    encoder_outputs, encoder_hidden = encoder(input_tensor, i3d_vec, encoder_hidden)
     decoder_input = torch.zeros(1, ARGS.batch_size, ARGS.ind_size, device=decoder.device).to(device)
 
     if use_teacher_forcing:
@@ -337,26 +339,34 @@ def train(ARGS, encoder, decoder, train_generator, val_generator, exp_name, devi
             target_number = training_triplet[2].float().to(device)
             eos_target = training_triplet[3].long().to(device)
             video_ids = training_triplet[4].float().to(device)
+            i3d_vec = training_triplet[5].float().to(device)
+            if ARGS.i3d:
+                assert i3d_vec.shape == torch.Size([ARGS.batch_size, 1024])
+            else:
+                assert i3d_vec.shape == torch.Size([ARGS.batch_size])
+            print('i3d batch vec', i3d_vec.shape)
             if ARGS.setting == 'embeddings':
                 new_train_loss, new_train_norm_loss = train_on_batch(
-                     ARGS, 
-                     input_tensor, 
-                     target_tensor, 
-                     target_number, 
-                     eos_target=target_number.long(), 
-                     encoder=encoder, 
-                     decoder=decoder, 
-                     encoder_optimizer=encoder_optimizer, 
-                     decoder_optimizer=decoder_optimizer, 
-                     criterion=criterion, 
-                     eos_criterion=eos_criterion, 
-                     device=device)
+                    ARGS, 
+                    input_tensor, 
+                    target_tensor, 
+                    target_number, 
+                    i3d_vec, 
+                    eos_target=target_number.long(), 
+                    encoder=encoder, 
+                    decoder=decoder, 
+                    encoder_optimizer=encoder_optimizer, 
+                    decoder_optimizer=decoder_optimizer, 
+                    criterion=criterion, 
+                    eos_criterion=eos_criterion, 
+                    device=device)
             elif ARGS.setting == 'preds':
                 new_train_loss, new_train_norm_loss = train_on_batch_pred(
                     ARGS, 
                     input_tensor, 
                     target_tensor,
                     target_number, 
+                    i3d_vec, 
                     video_ids, 
                     encoder, 
                     decoder, 
@@ -371,6 +381,7 @@ def train(ARGS, encoder, decoder, train_generator, val_generator, exp_name, devi
                     input_tensor, 
                     target_tensor,
                     target_number, 
+                    i3d_vec, 
                     eos_target=target_number.long(), 
                     encoder=encoder, 
                     eos_decoder=decoder, 
@@ -399,7 +410,8 @@ def train(ARGS, encoder, decoder, train_generator, val_generator, exp_name, devi
             target_number = training_triplet[2].float().to(device)
             eos_target = training_triplet[3].float().to(device).transpose(0,1).to(device)
             video_ids = training_triplet[4].float().to(device)
-            new_val_loss, new_val_norm_loss, new_val_eos_loss = eval_on_batch("eval_seq2seq", ARGS, input_tensor, target_tensor, target_number, video_ids=video_ids, eos_target=eos_target, encoder=encoder, decoder=decoder, dec_criterion=criterion, eos_criterion=eos_criterion, mlp_dict=mlp_dict, json_data_dict=json_data_dict, device=device)
+            i3d_vec = training_triplet[5].float().to(device)
+            new_val_loss, new_val_norm_loss, new_val_eos_loss = eval_on_batch("eval_seq2seq", ARGS, input_tensor, target_tensor, target_number, i3d_vec, video_ids=video_ids, eos_target=eos_target, encoder=encoder, decoder=decoder, dec_criterion=criterion, eos_criterion=eos_criterion, mlp_dict=mlp_dict, json_data_dict=json_data_dict, device=device)
             batch_val_losses.append(new_val_loss)
             batch_val_norm_losses.append(new_val_norm_loss)
             batch_val_eos_losses.append(new_val_eos_loss)
@@ -452,11 +464,11 @@ def train(ARGS, encoder, decoder, train_generator, val_generator, exp_name, devi
     return losses, EarlyStop.early_stop
 
 
-def eval_on_batch(mode, ARGS, input_tensor, target_tensor, target_number_tensor=None, video_ids=None, eos_target=None, encoder=None, decoder=None, regressor=None, eos=None, dec_criterion=None, reg_criterion=None, eos_criterion=None, mlp_dict=None, json_data_dict=None, device='cpu'):
+def eval_on_batch(mode, ARGS, input_tensor, target_tensor, target_number_tensor, i3d_vec, video_ids=None, eos_target=None, encoder=None, decoder=None, regressor=None, eos=None, dec_criterion=None, reg_criterion=None, eos_criterion=None, mlp_dict=None, json_data_dict=None, device='cpu'):
     """Possible values for 'mode' arg: {"eval_seq2seq", "eval_reg", "eval_eos", "test"}"""
 
     encoder_hidden = encoder.initHidden().to(device)
-    encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
+    encoder_outputs, encoder_hidden = encoder(input_tensor, i3d_vec, encoder_hidden)
     
     if mode == "eval_reg":
         regressor_output = regressor(encoder_outputs)

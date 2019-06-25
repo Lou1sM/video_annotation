@@ -36,14 +36,8 @@ class EncoderRNN(nn.Module):
         self.hidden_init = torch.randn(self.num_layers, 1, self.hidden_size, device=device)
         self.hidden_init.requires_grad = True
         self.init_type = ARGS.enc_init
-        if ARGS.i3d:
-            from i3dpt import I3D
-            self.i3d = I3D(num_classes=400, modality='rgb')
-            self.i3d.load_state_dict(torch.load('../i3d_weights/model_rgb.pth'))
-        else:
-            self.i3d = None
-            
-
+        self.i3d = ARGS.i3d
+        self.i3d_size = 1024 if self.i3d else 0
 
         if self.cnn_type == "vgg_old":
             self.cnn = models.vgg19(pretrained=True)
@@ -59,9 +53,9 @@ class EncoderRNN(nn.Module):
 
         #Encoder Recurrent layer
         if self.rnn_type == 'gru':
-            self.rnn = nn.GRU(self.output_cnn_size, self.hidden_size, num_layers=self.num_layers)
+            self.rnn = nn.GRU(self.output_cnn_size+self.i3d_size, self.hidden_size, num_layers=self.num_layers)
         elif self.rnn_type == 'lstm':
-            self.rnn = nn.LSTM(self.output_cnn_size, self.hidden_size, num_layers=self.num_layers)
+            self.rnn = nn.LSTM(self.output_cnn_size+self.i3d_size, self.hidden_size, num_layers=self.num_layers)
 
         # Resize outputs to ind_size
         self.resize = nn.Linear(self.hidden_size, ARGS.ind_size)
@@ -84,17 +78,15 @@ class EncoderRNN(nn.Module):
         return x
 
 
-    def forward(self, input_, hidden):
+    def forward(self, input_, i3d_vec, hidden):
         
-        if self.i3d:
-            #self.i3d(input_)
-            #self.i3d(torch.zeros(2,866,224,224,3))
-            pass
+        # pass the input through the cnn
+        cnn_outputs = torch.zeros(self.num_frames, input_.shape[1], self.output_cnn_size+self.i3d_size, device=self.device)
 
-        # pass the input through the cnn 
-        cnn_outputs = torch.zeros(self.num_frames, input_.shape[1], self.output_cnn_size, device=self.device)
         for i, inp in enumerate(input_):
             embedded = self.cnn_vector(inp)
+            if self.i3d:
+                embedded = torch.cat([embedded, i3d_vec], dim=1)
             cnn_outputs[i] = embedded 
 
         # pass the output of the vgg layers through the GRU cell

@@ -16,6 +16,7 @@ import torch
 import torchvision.transforms as transforms
 from torch.utils import data
 import h5py as h5
+import json
 from skimage import img_as_float
 
 
@@ -28,14 +29,20 @@ def load_vid_from_id(vid_id, cnn):
     else:
         print("Unknown value for enc_cnn:", cnn)
 
+def load_i3d_from_id(vid_id):
+    return np.load('../data/i3dvecs/vid{}.npy'.format(vid_id))
 
 def video_lookup_table_from_range(start_idx, end_idx, cnn):
     return {vid_id: load_vid_from_id(vid_id, cnn) for vid_id in range(start_idx, end_idx)}
 
-
 def video_lookup_table_from_ids(video_ids, cnn):
     return {vid_id: load_vid_from_id(vid_id, cnn) for vid_id in video_ids}
 
+def i3d_lookup_table_from_range(start_idx, end_idx):
+    return {vid_id: load_i3d_from_id(vid_id) for vid_id in range(start_idx, end_idx)}
+
+def i3d_lookup_table_from_ids(video_ids):
+    return {vid_id: load_i3d_from_id(vid_id) for vid_id in video_ids}
 
 class VideoDataset(data.Dataset):
     """Dataset object that expects h5 file containing full video tensors, not ids."""
@@ -94,7 +101,7 @@ class LookupDataset(data.Dataset):
       vid_range: range of video ids for building lookup table
     """
 
-    def __init__(self, archive, video_lookup_table, transform=None):
+    def __init__(self, archive, video_lookup_table, i3d_lookup_table, transform=None):
         self.archive = h5.File(archive, 'r')
         self.seq_lens = np.array(self.archive['embedding_len'], dtype=np.int32)
         self.embeddings = self.archive['embeddings']
@@ -102,18 +109,22 @@ class LookupDataset(data.Dataset):
         self.transform = transform
         self.eos_gts = self.archive['eos_gt']
         self.video_lookup_table = video_lookup_table
+        self.i3d_lookup_table = i3d_lookup_table
+        self.with_i3d = not (i3d_lookup_table == None)
         #{vid_id: load_vid_from_id(vid_id+1) for vid_id in range(vid_range[0], vid_range[1])}
 
     def __getitem__(self, index):
+        #print('getting item for index', index)
         embedding_seq = self.embeddings[index]
         seq_len = self.seq_lens[index]
         video_id = self.video_ids[index]
         video = self.video_lookup_table[video_id]
+        i3d = self.i3d_lookup_table[video_id] if self.with_i3d else 0
         eos_gt = self.eos_gts[index]
         video_id = self.video_ids[index].astype(np.int32)
         if self.transform != None:
             video = self.transform(video)
-        return video, embedding_seq, seq_len, eos_gt, video_id
+        return video, embedding_seq, seq_len, eos_gt, video_id, i3d
 
     def __len__(self):
         return len(self.seq_lens)
@@ -123,7 +134,7 @@ class LookupDataset(data.Dataset):
 
 
 
-def load_data_lookup(h5file_path, video_lookup_table, batch_size, shuffle):
+def load_data_lookup(h5file_path, video_lookup_table, batch_size, shuffle, i3d_lookup_table=None):
     """Load data from specified file path and return a Dataset that uses a lookup table for videos.
 
     Each element returned is a 5-tuple of the form
@@ -151,7 +162,7 @@ def load_data_lookup(h5file_path, video_lookup_table, batch_size, shuffle):
         [transforms.ToTensor()],
         )
 
-    new_data = LookupDataset(h5file_path, video_lookup_table=video_lookup_table)
+    new_data = LookupDataset(h5file_path, video_lookup_table=video_lookup_table, i3d_lookup_table=i3d_lookup_table)
     new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle, drop_last=True)
 
     #print("\n NEW DATA LOADED \n")
@@ -182,24 +193,33 @@ if __name__ == "__main__":
 
     #new_data_loaded = load_data_lookup('../data/dummy_data/train_data_dummy.h5', batch_size=2, vid_range=(1,1201), shuffle=True)    
     video_lookup_table = video_lookup_table_from_range(1201,1301, cnn='vgg')
+    #video_lookup_table = video_lookup_table_from_range(1,7, cnn='vgg')
     #video_lookup_table = video_lookup_table_from_range(1, 1201, cnn='vgg')
     print(video_lookup_table.keys())
     #new_data_loaded = load_data_lookup('../data/rdf_video_captions/train_10d-det.h5', batch_size=1, video_lookup_table=video_lookup_table, shuffle=False)    
-    new_data_loaded = load_data_lookup('../data/rdf_video_captions/val_10d-det.h5', batch_size=1, video_lookup_table=video_lookup_table, shuffle=False)    
+    #new_data_loaded = load_data_lookup('../data/rdf_video_captions/10d-6dp.h5', batch_size=1, video_lookup_table=video_lookup_table, shuffle=False)    
+    new_data_loaded = load_data_lookup('../data/rdf_video_captions/10d-val.h5', batch_size=1, video_lookup_table=video_lookup_table, shuffle=False)    
+    with open('/data2/commons/rdf_video_captions/10d-det.json.neg', 'r') as f:
+        j = json.load(f)
     for epoch in range(1):
         print(epoch)
         print("Number of batches:", len(new_data_loaded), "\n")
         print(new_data_loaded)
         for i, data in enumerate(new_data_loaded):
+            vid_id = int(data[4].item())
+            h5_num_inds = int(data[2].item())
+            json_num_inds = len(j[str(vid_id)]['individuals'])
+            print(h5_num_inds, json_num_inds)
             #print(i, type(data))
             #print("Number of elements in each batch:",len(data), "\n")
             #print(data[0].shape)
             #print(data[1].shape)
             #print(data[2].shape)
             #print(data[3].shape)
-            print('video id', data[4].item())
-            for e in range(data[1].shape[1]):
-                print(data[1][0,e,:])
+            #print(data[4])
+            #print('video id', data[4].item())
+            #for e in range(data[1].shape[1]):
+                #print(data[1][0,e,:])
             #print('first inp elem', data[1][0,0,0].item())
             #print('second inp elem', data[1][0,1,0].item())
             #print('first outp elem', data[1][0,0,0].item())
@@ -226,5 +246,5 @@ if __name__ == "__main__":
             #print(data[0][0,0,:,:,:])
             #print("Test output:\n")
             #print(outp[0])
-            break
+            #break
         #break

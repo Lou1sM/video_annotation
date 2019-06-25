@@ -7,12 +7,12 @@ import options
 import models
 import train
 import torch
-from data_loader import load_data_lookup, video_lookup_table_from_range, video_lookup_table_from_ids
+import data_loader 
 from get_output import write_outputs_get_info
 
 
 
-def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
+def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train_table, i3d_val_table, i3d_test_table):
     """Cant' just pass generators as need to re-init with batch_size=1 when testing.""" 
     
     dataset = '{}d'.format(ARGS.ind_size)
@@ -36,8 +36,8 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
    
 
 
-    train_generator = load_data_lookup(train_file_path, video_lookup_table=train_table, batch_size=ARGS.batch_size, shuffle=ARGS.shuffle)
-    val_generator = load_data_lookup(val_file_path, video_lookup_table=val_table, batch_size=ARGS.batch_size, shuffle=ARGS.shuffle)
+    train_generator = data_loader.load_data_lookup(train_file_path, video_lookup_table=train_table, i3d_lookup_table=i3d_train_table, batch_size=ARGS.batch_size, shuffle=ARGS.shuffle)
+    val_generator = data_loader.load_data_lookup(val_file_path, video_lookup_table=val_table, i3d_lookup_table=i3d_val_table, batch_size=ARGS.batch_size, shuffle=ARGS.shuffle)
 
     print(ARGS)
    
@@ -61,9 +61,9 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
         print('\nTraining the model')
         train_info, _ = train.train(ARGS, encoder, decoder, train_generator=train_generator, val_generator=val_generator, exp_name=exp_name, device=ARGS.device, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer)
        
-        train_generator = load_data_lookup(train_file_path, video_lookup_table=train_table, batch_size=1, shuffle=False)
-        val_generator = load_data_lookup(val_file_path, video_lookup_table=val_table, batch_size=1, shuffle=False)
-        test_generator = load_data_lookup(test_file_path, video_lookup_table=test_table, batch_size=1, shuffle=False)
+        train_generator = data_loader.load_data_lookup(train_file_path, video_lookup_table=train_table, i3d_lookup_table=i3d_train_table, batch_size=1, shuffle=False)
+        val_generator = data_loader.load_data_lookup(val_file_path, video_lookup_table=val_table, i3d_lookup_table=i3d_val_table, batch_size=1, shuffle=False)
+        test_generator = data_loader.load_data_lookup(test_file_path, video_lookup_table=test_table, i3d_lookup_table=i3d_test_table, batch_size=1, shuffle=False)
 
       
         if ARGS.no_chkpt:
@@ -162,19 +162,33 @@ def main():
         ARGS.enc_dec_hidden_init = False
 
     if ARGS.mini:
-        #train_table = val_table = test_table = video_lookup_table_from_ids([1218,1337,1571,1443,1833,1874], cnn=ARGS.enc_cnn)
-        train_table = val_table = test_table = video_lookup_table_from_range(1,7, cnn=ARGS.enc_cnn)
+        #train_table = val_table = test_table = data_loader.video_lookup_table_from_ids([1218,1337,1571,1443,1833,1874], cnn=ARGS.enc_cnn)
+        train_table = val_table = test_table = data_loader.video_lookup_table_from_range(1,7, cnn=ARGS.enc_cnn)
+        if ARGS.i3d:
+            i3d_train_table = i3d_val_table = i3d_test_table = data_loader.i3d_lookup_table_from_range(1,7)
+        else:
+            i3d_train_table = i3d_val_table = i3d_test_table = None
     else:
         print('\nLoading lookup tables\n')
-        train_table = video_lookup_table_from_range(1,1201, cnn=ARGS.enc_cnn)
-        val_table = video_lookup_table_from_range(1201,1301, cnn=ARGS.enc_cnn)
-        test_table = video_lookup_table_from_range(1301,1971, cnn=ARGS.enc_cnn)
-    
+        train_table = data_loader.video_lookup_table_from_range(1,1201, cnn=ARGS.enc_cnn)
+        val_table = data_loader.video_lookup_table_from_range(1201,1301, cnn=ARGS.enc_cnn)
+        test_table = data_loader.video_lookup_table_from_range(1301,1971, cnn=ARGS.enc_cnn)
+        
+        if ARGS.i3d:
+            i3d_train_table = data_loader.i3d_lookup_table_from_range(1,1201)
+            i3d_val_table = data_loader.i3d_lookup_table_from_range(1201,1301)
+            i3d_test_table = data_loader.i3d_lookup_table_from_range(1301,1971)
+        else:
+            i3d_train_table = i3d_val_table = i3d_test_table = None
     run_experiment( exp_name, 
                     ARGS,
                     train_table=train_table,
                     val_table=val_table,
-                    test_table=test_table)
+                    test_table=test_table,
+                    i3d_train_table=i3d_train_table,
+                    i3d_val_table=i3d_val_table,
+                    i3d_test_table=i3d_test_table)
+
 
 if __name__=="__main__":
     ARGS = options.load_arguments()

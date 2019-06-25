@@ -22,8 +22,8 @@ def load_arguments():
     argparser.add_argument("--exp_name", type=str, default = "")
     argparser.add_argument("--dec_init", type=str, choices=['zeroes','unit','learned','unit_learned'],default='zeroes')
     
-    argparser.add_argument("--frame_height", type = int, default = 256)
-    argparser.add_argument("--frame_width", type = int, default = 256)
+    #argparser.add_argument("--frame_height", type = int, default = 256)
+    #argparser.add_argument("--frame_width", type = int, default = 256)
     argparser.add_argument("--i3d",action="store_true",help = "use i3d fixed_len vector")
     argparser.add_argument("--ind_size", type = int, default=10, help="dimensionality of embeddings")
     argparser.add_argument("--learning_rate", type = float, default = 1e-3)
