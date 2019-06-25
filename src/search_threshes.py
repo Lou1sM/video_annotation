@@ -13,9 +13,9 @@ def compute_f1_for_thresh(positive_probs, negative_probs, thresh):
     fn = len([p for p in positive_probs if p<thresh])
     tn = len([p for p in negative_probs if p<thresh])
 
-    prec = tp/(tp+fp)
-    rec = tp/(tp+fn)
-    f1 = 2/((1/prec)+(1/rec))
+    prec = tp/(tp+fp+1e-4)
+    rec = tp/(tp+fn+1e-4)
+    f1 = 2/((1/(prec+1e-4))+(1/(rec+1e-4)))
 
     #print('tp', tp)
     #print('fp', fp)

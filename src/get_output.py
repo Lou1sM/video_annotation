@@ -191,9 +191,9 @@ if __name__=="__main__":
     parser.add_argument("--enc_zeroes", action="store_true")
     parser.add_argument("--dec_zeroes", action="store_true")
     parser.add_argument("--quick", "-q", action="store_true")
+    parser.add_argument("--ind_size", type=int, default=10)
 
     ARGS = parser.parse_args() 
-    ARGS.ind_size=10
     ARGS.device = "cuda" if torch.cuda.is_available() else "cpu"
     checkpoint_path = '../checkpoints/{}.pt'.format(ARGS.exp_name)
     gtf = ARGS.gt_forcing
@@ -210,14 +210,14 @@ if __name__=="__main__":
 
     print('getting outputs and info for val set')
     val_lookup_table = video_lookup_table_from_range(1201, 1301, cnn="vgg")
-    val_data_generator = load_data_lookup('../data/rdf_video_captions/10d-val.h5', video_lookup_table=val_lookup_table, batch_size=1, shuffle=False)
+    val_data_generator = load_data_lookup('../data/rdf_video_captions/{}d-val.h5'.format(ARGS.ind_size), video_lookup_table=val_lookup_table, batch_size=1, shuffle=False)
     _, val_info = write_outputs_get_info(ARGS=ARGS, encoder=encoder, decoder=decoder, data_generator=val_data_generator, gt_forcing=gtf, exp_name=ARGS.exp_name, dset_fragment='val')
 
 
     if not ARGS.quick:
         print('getting outputs and info for train set')
         train_lookup_table = video_lookup_table_from_range(1, 1201, cnn="vgg")
-        train_data_generator = load_data_lookup('../data/rdf_video_captions/10d-train.h5', video_lookup_table=train_lookup_table, batch_size=1, shuffle=False)
+        train_data_generator = load_data_lookup('../data/rdf_video_captions/{}d-train.h5'.format(ARGS.ind_size), video_lookup_table=train_lookup_table, batch_size=1, shuffle=False)
         _, train_info = write_outputs_get_info(ARGS=ARGS, encoder=encoder, decoder=decoder, data_generator=train_data_generator, gt_forcing=gtf, exp_name=ARGS.exp_name, dset_fragment='train')
 
 
@@ -225,7 +225,7 @@ if __name__=="__main__":
         fixed_thresh = ((train_info['thresh']*1200)+(val_info['thresh']*100))/1300
         print('outer_fixed_thresh', fixed_thresh)
         test_lookup_table = video_lookup_table_from_range(1301, 1971, cnn="vgg")
-        test_data_generator = load_data_lookup('../data/rdf_video_captions/10d-test.h5', video_lookup_table=test_lookup_table, batch_size=1, shuffle=False)
+        test_data_generator = load_data_lookup('../data/rdf_video_captions/{}d-test.h5'.format(ARGS.ind_size), video_lookup_table=test_lookup_table, batch_size=1, shuffle=False)
         _, test_info = write_outputs_get_info(ARGS=ARGS, encoder=encoder, decoder=decoder, data_generator=test_data_generator, gt_forcing=gtf, exp_name=ARGS.exp_name, dset_fragment='test', fixed_thresh=fixed_thresh)
         print('TEST')
         print(test_info)

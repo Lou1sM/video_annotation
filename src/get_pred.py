@@ -26,6 +26,8 @@ def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, l
             obj_embedding = embeddings[batch_idx,obj_pos]
             sub_obj_concat = torch.cat([sub_embedding, obj_embedding])
             prediction = mlp(sub_obj_concat)
+            if log_pred:
+                prediction = torch.log(prediction+1e-4)
             #print('positive pred', prediction.item())
             #print(prediction.item(), 1)
             #print(-torch.log(prediction+1e-3).item())
@@ -51,6 +53,8 @@ def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, l
             sub_obj_concat = torch.cat([sub_embedding, obj_embedding])
             mlp = mlp_dict[relation].to(device)
             prediction = mlp(sub_obj_concat)
+            if log_pred:
+                prediction = torch.log(prediction+1e-4)
             #print('negative pred', prediction.item())
             #print(prediction.item(), 0)
             #loss -= torch.log(1-prediction+1e-3)
@@ -65,8 +69,6 @@ if __name__ == "__main__":
     with open('/data2/commons/rdf_video_captions/10d.dev.json', 'r') as f:
         json_data_dict = json.load(f)
 
-
-          
     weight_dict = torch.load("mlp-weights.pickle")
     mlp_dict = {}
     for relation, weights in weight_dict.items():
