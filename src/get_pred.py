@@ -5,13 +5,10 @@ import numpy
 
 def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, log_pred, device):
 
-    #print(mlp_dict.keys())
     for batch_idx, video_id in enumerate(video_ids):
-        #dpoint = json_data_dict[str(int(video_id.item()))]
         dpoint = json_data_dict[int(video_id.item())]
         triples = dpoint['caption']
         ntriples = dpoint['negatives']
-        #print(len(triples), len(ntriples))
         loss = torch.tensor([0.], device=device)
         for triple in triples:
             sub, relation, obj = triple.split()
@@ -28,13 +25,7 @@ def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, l
             prediction = mlp(sub_obj_concat)
             if log_pred:
                 prediction = torch.log(prediction+1e-4)
-            #print('positive pred', prediction.item())
-            #print(prediction.item(), 1)
-            #print(-torch.log(prediction+1e-3).item())
-            #return -torch.log(prediction+1e-3)
-            #loss -= torch.log(prediction+1e-3)
             loss -= prediction
-            #positive_predictions.append(prediction)
 
         if neg_weight == 0:
             return loss
@@ -55,11 +46,7 @@ def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, l
             prediction = mlp(sub_obj_concat)
             if log_pred:
                 prediction = torch.log(prediction+1e-4)
-            #print('negative pred', prediction.item())
-            #print(prediction.item(), 0)
-            #loss -= torch.log(1-prediction+1e-3)
             loss += neg_weight*prediction
-            #negative_predictions.append(1-prediction)
 
     return loss
        

@@ -95,7 +95,6 @@ def get_outputs(encoder, decoder, data_generator, gt_forcing, ind_size, mode='se
                 eos_pred_list.append(eos_pred.item())
                 decoder_hidden = decoder_hidden_new
                 decoder_input = decoder_output
-            #eos_guess = int(np.argmax(eos_preds))
             # Take first element that's greater that 0.5
             eos_guess = [i>0.5 for i in eos_pred_list].index(True)
             eos_gt = target_number.item()-1
@@ -117,12 +116,6 @@ def get_outputs(encoder, decoder, data_generator, gt_forcing, ind_size, mode='se
     test_info['cos_similarity'] = avg_cos_sim
     test_info['avg_norm'] = avg_norm
     test_info['eos_accuracy'] = eos_accuracy
-    #print('avg_l2_distance', sum(l2_distances)/len(l2_distances))
-    #print('avg_l2_distance', avg_l2_distance)
-    #print('avg_cos_sim', avg_cos_sim)
-    #print('total number of embeddings:', sum(nums_of_inds.values()))
-    #print('eos_accuracy:', eos_accuracy)
-    #print('number of embeddings at each position:')
     for k,v in nums_of_inds.items():
         print(k,v)
     sizes_by_pos = {k: v[0]/v[1] for k,v in tup_sizes_by_pos.items()}
@@ -181,8 +174,6 @@ def write_outputs_get_info(encoder, decoder, ARGS, data_generator, gt_forcing, e
     plt.savefig('../experiments/{}/{}-{}_F1_scores_by_threshold.png'.format(exp_name, exp_name, dset_fragment))
     plt.clf()
 
-    #assert test_info['pat_norm'] - test_info['avg_norm'] < .04
-    #assert test_info['pat_distance'] - test_info['l2_distance'] < .04
     print(test_info)
     return sizes_by_pos, test_info
  
@@ -190,7 +181,6 @@ if __name__=="__main__":
 
     device='cuda'
     parser = argparse.ArgumentParser()
-    #parser.add_argument("--checkpoint_path", type=str)
     parser.add_argument("--gt_forcing", "-gtf",  action="store_true")
     parser.add_argument("--exp_name", type=str, default="")
     parser.add_argument("--enc_zeroes", action="store_true")
