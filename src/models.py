@@ -36,6 +36,14 @@ class EncoderRNN(nn.Module):
         self.hidden_init = torch.randn(self.num_layers, 1, self.hidden_size, device=device)
         self.hidden_init.requires_grad = True
         self.init_type = ARGS.enc_init
+        if ARGS.i3d:
+            from i3dpt import I3D
+            self.i3d = I3D(num_classes=400, modality='rgb')
+            self.i3d.load_state_dict(torch.load('../i3d_weights/model_rgb.pth'))
+        else:
+            self.i3d = None
+            
+
 
         if self.cnn_type == "vgg_old":
             self.cnn = models.vgg19(pretrained=True)
@@ -77,6 +85,11 @@ class EncoderRNN(nn.Module):
 
 
     def forward(self, input_, hidden):
+        
+        if self.i3d:
+            #self.i3d(input_)
+            #self.i3d(torch.zeros(2,866,224,224,3))
+            pass
 
         # pass the input through the cnn 
         cnn_outputs = torch.zeros(self.num_frames, input_.shape[1], self.output_cnn_size, device=self.device)
@@ -192,7 +205,7 @@ class DecoderRNN_openattn(nn.Module):
         self.eos = nn.Sequential(nn.Linear(2*ARGS.ind_size, 1), nn.Sigmoid())
 
 
-    def forward(self, input_, hidden, input_lengths, encoder_outputs):
+    def get_attention_context_concatenation(self, input_, hidden, input_lengths, encoder_outputs):
         # apply dropout
         if self.training:
             drop_input = self.dropout(input_)
@@ -216,22 +229,73 @@ class DecoderRNN_openattn(nn.Module):
         attn_weights = F.softmax(attn_weights, dim=1)
         weighted_enc_outp = torch.matmul(enc_perm, attn_weights).permute(0,2,1)
         #print('weighted_enc_outp', weighted_enc_outp.shape)
+        #print('outp', output.shape)
         attn_concat_outp = torch.cat([output, weighted_enc_outp], dim=2)
-        #print('attenlogits', attn_concat_outp.shape)
+        #print('cat',attn_concat_outp.shape)
 
-        # apply attention
-        #output, attn = self.attention(output, enc_perm)
+        return attn_concat_outp, hidden
+        
+    #def forward(self, input_, hidden, input_lengths, encoder_outputs):
+    #    # apply dropout
+    #    if self.training:
+    #        drop_input = self.dropout(input_)
+    #    else:
+    #        drop_input = input_
+    #    
+    #    #pack the sequence to avoid useless computations
+    #    packed = torch.nn.utils.rnn.pack_padded_sequence(drop_input, input_lengths.int(), enforce_sorted=False)
+    #    packed, hidden = self.rnn(packed, hidden)
+    #    output, _ = torch.nn.utils.rnn.pad_packed_sequence(packed)
+    #    # permute dimensions to have batch_size in the first
+    #    #enc_perm shape: (batch_size, num_frames, ind_size)
+    #    enc_perm = encoder_outputs.permute(1,2,0)
+    #    output_perm = output.permute(1,0,2)
 
+    #    output = self.out1(output_perm)
+    #    #print('outp', output.shape)
+    #    #print('encperm', enc_perm.shape)
+    #    attn_weights = torch.bmm(output, enc_perm).permute(0,2,1)
+    #    #print('attn_weights', attn_weights.shape)
+    #    attn_weights = F.softmax(attn_weights, dim=1)
+    #    #weighted_enc_outp = torch.matmul(enc_perm, attn_weights).permute(0,2,1)
+    #    weighted_enc_outp = torch.bmm(enc_perm, attn_weights).permute(0,2,1)
+    #    #print('weighted_enc_outp', weighted_enc_outp.shape)
+    #    attn_concat_outp = torch.cat([output, weighted_enc_outp], dim=2)
+    #    #print('attenlogits', attn_concat_outp.shape)
+
+    #    # apply attention
+    #    #output, attn = self.attention(output, enc_perm)
+
+    #    if not self.training:
+    #        output = (1-self.dropout_p)*output
+
+    #    eos_pred = self.eos(attn_concat_outp)
+    #    #output = torch.cat((output, eos_pred), dim=-1)
+    #    #print('eosp', eos_pred.shape)
+    #    #print('outp', output.shape)
+    #    output = self.out2(attn_concat_outp)
+
+    #    #return output, eos_pred, hidden
+    #    return output, hidden
+
+
+    def forward(self, input_, hidden, input_lengths, encoder_outputs):
+        attn_concat_output, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs)
+
+        #print('context_outp', attn_concat_output.shape)
+        output = self.out2(attn_concat_output)
+        #print('outp', output.shape)
         if not self.training:
             output = (1-self.dropout_p)*output
+        return output, hidden
+   
 
-        eos_pred = self.eos(attn_concat_outp)
-        #output = torch.cat((output, eos_pred), dim=-1)
-        #print('eosp', eos_pred.shape)
-        #print('outp', output.shape)
-        output = self.out2(attn_concat_outp)
+    def eos_preds(self, input_, hidden, input_lengths, encoder_outputs):
+        attn_concat_output, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs)
 
-        return output, eos_pred, hidden
+        eos_pred = self.eos(attn_concat_output)
+        return eos_pred, hidden
+   
 
     def initHidden(self):
         if self.init_type == 'zeroes':
