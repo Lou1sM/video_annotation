@@ -11,7 +11,6 @@ from data_loader import load_data_lookup, video_lookup_table_from_range, video_l
 from get_output import write_outputs_get_info
 
 
-IMPORTANT_PARAMS = sorted(['reload_path', 'setting', 'log_pred', 'pred_embeddings_assist', 'neg_pred_weight', 'lmbda_norm', 'lmbda_eos', 'enc_init', 'dec_init', 'norm_threshold', 'exp_name', 'loss_func', 'enc_cnn', 'enc_rnn', 'dec_rnn', 'enc_size', 'dec_size', 'enc_layers', 'dec_layers', 'dropout', 'learning_rate', 'ind_size', 'batch_size'])
 
 def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
     """Cant' just pass generators as need to re-init with batch_size=1 when testing.""" 
@@ -48,12 +47,14 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
             saved_model = torch.load(ARGS.reload_path)
             encoder = saved_model['encoder']
             decoder = saved_model['decoder']
+            encoder.batch_size = ARGS.batch_size
+            decoder.batch_size = ARGS.batch_size
             encoder_optimizer = saved_model['encoder_optimizer']
             decoder_optimizer = saved_model['decoder_optimizer']
         else: 
             encoder = models.EncoderRNN(ARGS, ARGS.device).to(ARGS.device)
-            decoder = models.DecoderRNN(ARGS, ARGS.device).to(ARGS.device)
-            #decoder = models.DecoderRNN_openattn(ARGS).to(ARGS.device)
+            #decoder = models.DecoderRNN(ARGS, ARGS.device).to(ARGS.device)
+            decoder = models.DecoderRNN_openattn(ARGS).to(ARGS.device)
             encoder_optimizer = None
             decoder_optimizer = None
       
@@ -102,8 +103,7 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
             for k in ['dset_fragment', 'l2_distance', 'cos_similarity', 'avg_norm', 'thresh', 'legit_f1', 'eos_accuracy', 'avg_pos_prob', 'avg_neg_prob']: 
                 summary_file.write(k+'\t'+str(train_output_info[k])+'\t'+str(val_output_info[k])+'\t'+str(test_output_info[k])+'\n')
             summary_file.write('\nParameters:\n')
-            #for key in sorted(vars(ARGS).keys()):
-            for key in IMPORTANT_PARAMS:
+            for key in options.IMPORTANT_PARAMS:
                 summary_file.write(str(key) + ": " + str(vars(ARGS)[key]) + "\n")
 
             
