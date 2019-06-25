@@ -37,8 +37,9 @@ def get_outputs(encoder, decoder, data_generator, gt_forcing, ind_size, mode='se
         target_tensor = dp[1].float().transpose(0,1).to(device)
         target_number = dp[2].float().to(device)
         video_id = dp[4].item()
+        i3d = dp[5].float().to(device)
         encoder_hidden = encoder.initHidden()
-        encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
+        encoder_outputs, encoder_hidden = encoder(input_tensor, i3d, encoder_hidden)
 
         decoder_input = torch.zeros(1, 1, ind_size, device=decoder.device).to(device)
         if encoder.num_layers == decoder.num_layers and False:
@@ -49,14 +50,15 @@ def get_outputs(encoder, decoder, data_generator, gt_forcing, ind_size, mode='se
         gt_embeddings = []
         l2_distances = []
         l_loss = 0
-        eos_preds = []
+        eos_pred_list = []
         dec_out_list = []
         for l in range(target_number.int()):
+            decoder_output, decoder_hidden_new = decoder(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden) 
             try:
-                decoder_output, eos_pred, decoder_hidden_new = decoder(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden) 
-                eos_preds.append(eos_pred.item())
-            except ValueError:
-                decoder_output, decoder_hidden_new = decoder(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden) 
+                eos_pred, _hidden  = decoder.eos_preds(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden) 
+                eos_pred_list.append(eos_pred.item())
+            except Exception as e:
+                pass
             dec_out_list.append(decoder_output)
             decoder_hidden = decoder_hidden_new
             dp_output.append(decoder_output.squeeze().detach().cpu().numpy().tolist())
@@ -88,20 +90,23 @@ def get_outputs(encoder, decoder, data_generator, gt_forcing, ind_size, mode='se
             positions.append(l+1)
         try:
             for l in range(target_number.int(), 29):
-                decoder_output, eos_pred, decoder_hidden_new = decoder(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden) 
-                eos_preds.append(eos_pred.item())
+                decoder_output, decoder_hidden_new = decoder(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden) 
+                eos_pred, decoder_hidden_new = decoder.eos_preds(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden) 
+                eos_pred_list.append(eos_pred.item())
                 decoder_hidden = decoder_hidden_new
+                decoder_input = decoder_output
             #eos_guess = int(np.argmax(eos_preds))
             # Take first element that's greater that 0.5
-            eos_guess = [i>0.5 for i in eos_preds].index(True)
+            eos_guess = [i>0.5 for i in eos_pred_list].index(True)
             eos_gt = target_number.item()-1
             eos_result = (eos_guess == eos_gt)
             eos_results.append(eos_result)
-        except ValueError:
+        except ValueError as e:
+            print(e)
             eos_guess = eos_target = eos_result = -1
             pass
         assert len(dp_output) == len(gt_embeddings), "Wrong number of embeddings in output"
-        #print(eos_preds, eos_guess, target_number.item()-1, eos_result)
+        print(eos_pred_list, eos_guess, target_number.item()-1, eos_result)
         output.append({'videoId':str(video_id), 'embeddings':dp_output, 'gt_embeddings': gt_embeddings, 'l2_distances': l2_distances, 'avg_l2_distance': sum(l2_distances)/len(l2_distances), 'eos_guess': eos_guess, 'eos_gt': target_number.item(), 'eos_result': eos_result})
     assert sum(list(nums_of_inds.values())) == len(norms)
     avg_l2_distance = round(sum(l2_distances)/len(l2_distances),4)
