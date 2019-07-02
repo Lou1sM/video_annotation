@@ -1,6 +1,7 @@
 import json
 import torch
 import numpy
+import torch.nn.functional as F
 
 
 def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, log_pred, device):
@@ -25,7 +26,9 @@ def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, l
             prediction = mlp(sub_obj_concat)
             if log_pred:
                 prediction = torch.log(prediction+1e-4)
-            loss -= prediction
+            #prediction = torch.min(prediction, torch.tensor([10], dtype=torch.float32, device=device))
+            #print('pos', prediction.item())
+            loss += F.relu(-prediction+5)
 
         if neg_weight == 0:
             return loss
@@ -46,7 +49,9 @@ def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, l
             prediction = mlp(sub_obj_concat)
             if log_pred:
                 prediction = torch.log(prediction+1e-4)
-            loss += neg_weight*prediction
+            #prediction = torch.max(prediction, torch.tensor([-10], dtype=torch.float32, device=device))
+            loss += neg_weight*F.relu(prediction+5)
+            #print('neg', prediction.item())
 
     return loss
        
