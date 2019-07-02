@@ -15,21 +15,21 @@ def get_datetime_stamp():
     return datetime_stamp
 
 
-def plot_losses(train_losses, val_losses, file_path):
-    # try:
-        axes = plt.axes()
-        axes.set_ylim([0,min(5.5, max(val_losses))])
-        fig = plt.plot(train_losses, label='Train Loss')
-        plt.plot(val_losses, label='Validation Loss')
-        plt.xlabel('Epoch')
-        plt.ylabel('MSE')
-        plt.legend(loc='upper right')
-        plt.xticks(np.arange(0, len(train_losses), math.ceil(len(train_losses)/8)))#, int(.125*len(train_losses))))
-        plt.savefig(file_path)
-        #plt.show()
-        plt.close()
-    # except:
-    #   print("Display not available")
+def plot_losses(train_losses, val_losses, loss_name, file_path):
+    axes = plt.axes()
+    axes.set_ylim([0,min(5.5, max(val_losses))])
+    fig = plt.plot(train_losses, label='Train Loss')
+    plt.plot(val_losses, label='Validation Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel(loss_name)
+    plt.legend(loc='upper right')
+    plt.xticks(np.arange(0, len(train_losses), math.ceil(len(train_losses)/8)))#, int(.125*len(train_losses))))
+    plt.savefig(file_path)
+    try:
+        plt.show()
+    except:
+        print("Display not available")
+    plt.close()
 
 
 def asMinutes(s):
