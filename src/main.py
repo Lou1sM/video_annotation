@@ -8,7 +8,8 @@ import models
 import train
 import torch
 import data_loader 
-from get_output import write_outputs_get_info
+from get_output import write_outputs_get_info, test_reg
+from reg_transformer import RegTransformer
 
 
 
@@ -16,10 +17,11 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
     """Cant' just pass generators as need to re-init with batch_size=1 when testing.""" 
     
     dataset = '{}d'.format(ARGS.ind_size)
-    
+
     if ARGS.mini:
         ARGS.batch_size = min(2, ARGS.batch_size)
-        ARGS.enc_size = ARGS.dec_size = 50
+        ARGS.enc_size = 51
+        ARGS.dec_size = 50
         ARGS.enc_layers = ARGS.dec_layers = 1
         #ARGS.ind_size = 10
         ARGS.no_chkpt = True
@@ -33,18 +35,57 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
         val_file_path = os.path.join('../data/rdf_video_captions', '{}-val.h5'.format(dataset))
         test_file_path = os.path.join('../data/rdf_video_captions', '{}-test.h5'.format(dataset))
         print('Using dataset: {}'.format(dataset))
-   
-
 
     train_generator = data_loader.load_data_lookup(train_file_path, video_lookup_table=train_table, i3d_lookup_table=i3d_train_table, batch_size=ARGS.batch_size, shuffle=ARGS.shuffle)
     val_generator = data_loader.load_data_lookup(val_file_path, video_lookup_table=val_table, i3d_lookup_table=i3d_val_table, batch_size=ARGS.batch_size, shuffle=ARGS.shuffle)
-
+     
     print(ARGS)
+
+    if ARGS.setting== 'reg':
+        if not ARGS.reload:
+            encoder = models.EncoderRNN(ARGS, ARGS.device).to(ARGS.device)
+            regressor = models.NumIndRegressor(ARGS,ARGS.device).to(ARGS.device)
+        else:
+            checkpoint = torch.load('/data2/louis/checkpoints/{}.pt'.format(ARGS.reload))
+            encoder = checkpoint['encoder']
+            regressor = checkpoint['regressor']
+        train.train_reg(ARGS, encoder, regressor, train_generator=train_generator, val_generator=val_generator, device=ARGS.device)
+ 
+        train_generator = data_loader.load_data_lookup(train_file_path, video_lookup_table=train_table, i3d_lookup_table=i3d_train_table, batch_size=ARGS.batch_size, shuffle=False)
+        val_generator = data_loader.load_data_lookup(val_file_path, video_lookup_table=val_table, i3d_lookup_table=i3d_val_table, batch_size=ARGS.batch_size, shuffle=False)
+        test_generator = data_loader.load_data_lookup(test_file_path, video_lookup_table=test_table, i3d_lookup_table=i3d_test_table, batch_size=ARGS.batch_size, shuffle=False)
+
+
+        test_output_info = test_reg(encoder, regressor, train_generator, val_generator, test_generator, i3d=ARGS.i3d, device=ARGS.device)
+     
+        summary_filename = '../experiments/{}/{}_summary.txt'.format(exp_name, exp_name) 
+        with open(summary_filename, 'w') as summary_file:
+            summary_file.write('Experiment name: {}\n'.format(exp_name))
+            summary_file.write('\tTrain\tVal\tTest\n')
+            for k,v in test_output_info.items():
+                print(k+':', v)
+            summary_file.write('\nParameters:\n')
+            for key in options.IMPORTANT_PARAMS:
+                summary_file.write(str(key) + ": " + str(vars(ARGS)[key]) + "\n")
+
+
+        accuracy = 0
+        return accuracy, test_output_info
+
    
-    if ARGS.model == 'seq2seq':
-        if ARGS.reload_path:
-            print('Reloading model from {}'.format(ARGS.reload_path))
-            saved_model = torch.load(ARGS.reload_path)
+    encoder = None
+    encoder_optimizer = None
+    decoder = None
+    decoder_optimizer = None
+    transformer = None
+    transformer_optimizer = None
+    regressor = None
+    regressor_optimizer = None
+
+    if ARGS.setting in ['embeddings', 'preds']:
+        if ARGS.reload:
+            print('Reloading model from /data2/louis/checkpoints/{}.pt'.format(ARGS.reload))
+            saved_model = torch.load('/data2/louis/checkpoints/{}.pt'.format(ARGS.reload))
             encoder = saved_model['encoder']
             decoder = saved_model['decoder']
             encoder.batch_size = ARGS.batch_size
@@ -58,73 +99,56 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
             encoder_optimizer = None
             decoder_optimizer = None
       
-        print('\nTraining the model')
-        train_info, _ = train.train(ARGS, encoder, decoder, train_generator=train_generator, val_generator=val_generator, exp_name=exp_name, device=ARGS.device, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer)
+    elif ARGS.setting == 'transformer':
+            transformer = RegTransformer(4096,10, num_layers=ARGS.transformer_layers, num_heads=ARGS.transformer_heads)
+            transformer = torch.nn.DataParallel(transformer, device_ids=[0,1])
+    print('\nTraining the model')
+    train_info, _ = train.train(ARGS, encoder, decoder, transformer, train_generator=train_generator, val_generator=val_generator, exp_name=exp_name, device=ARGS.device, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer)
        
-        train_generator = data_loader.load_data_lookup(train_file_path, video_lookup_table=train_table, i3d_lookup_table=i3d_train_table, batch_size=1, shuffle=False)
-        val_generator = data_loader.load_data_lookup(val_file_path, video_lookup_table=val_table, i3d_lookup_table=i3d_val_table, batch_size=1, shuffle=False)
-        test_generator = data_loader.load_data_lookup(test_file_path, video_lookup_table=test_table, i3d_lookup_table=i3d_test_table, batch_size=1, shuffle=False)
+    train_generator = data_loader.load_data_lookup(train_file_path, video_lookup_table=train_table, i3d_lookup_table=i3d_train_table, batch_size=1, shuffle=False)
+    val_generator = data_loader.load_data_lookup(val_file_path, video_lookup_table=val_table, i3d_lookup_table=i3d_val_table, batch_size=1, shuffle=False)
+    test_generator = data_loader.load_data_lookup(test_file_path, video_lookup_table=test_table, i3d_lookup_table=i3d_test_table, batch_size=1, shuffle=False)
 
       
-        if ARGS.no_chkpt:
-            print("\nUsing final (likely overfit) version of network for outputs because no checkpoints were saved")
-        else:
-            print("Reloading best network version for outputs")
-            checkpoint = torch.load("../checkpoints/{}.pt".format(exp_name))
-            encoder = checkpoint['encoder']
-            decoder = checkpoint['decoder']
-
-        print('\nComputing outputs on val set')
-        val_sizes_by_pos, val_output_info = write_outputs_get_info(encoder, decoder, ARGS, gt_forcing=False, data_generator=val_generator, exp_name=exp_name, dset_fragment='val')
-        val_sizes_by_pos['dset_fragment'] = 'val'
-        val_output_info['dset_fragment'] = 'val'
-        print('\nComputing outputs on train set')
-        train_sizes_by_pos, train_output_info = write_outputs_get_info(encoder, decoder, ARGS, gt_forcing=False, data_generator=train_generator, exp_name=exp_name, dset_fragment='train')
-        train_sizes_by_pos['dset_fragment'] = 'train'
-        train_output_info['dset_fragment'] = 'train'
-        fixed_thresh = ((train_output_info['thresh']*1200)+(val_output_info['thresh']*100))/1300
-        print('\nComputing outputs on test set')
-        test_sizes_by_pos, test_output_info = write_outputs_get_info(encoder, decoder, ARGS, gt_forcing=False, data_generator=test_generator, exp_name=exp_name, dset_fragment='test', fixed_thresh=fixed_thresh)
-        test_sizes_by_pos['dset_fragment'] = 'test'
-        test_output_info['dset_fragment'] = 'test'
-  
-        pos_norms_csv_filename = '../experiments/{}/{}_avg_norms_position.csv'.format(exp_name, exp_name)
-        with open(pos_norms_csv_filename, 'w') as csv_file:
-            w = csv.DictWriter(csv_file, fieldnames=['dset_fragment']+list(range(len(train_sizes_by_pos))))
-            w.writerow(train_sizes_by_pos)
-            w.writerow(val_sizes_by_pos)
-            w.writerow(test_sizes_by_pos)
-         
-        summary_filename = '../experiments/{}/{}_summary.txt'.format(exp_name, exp_name) 
-        with open(summary_filename, 'w') as summary_file:
-            summary_file.write('Experiment name: {}\n'.format(exp_name))
-            summary_file.write('\tTrain\tVal\tTest\n')
-            #for k in train_output_info:
-            for k in ['dset_fragment', 'l2_distance', 'cos_similarity', 'avg_norm', 'thresh', 'legit_f1', 'eos_accuracy', 'avg_pos_prob', 'avg_neg_prob']: 
-                summary_file.write(k+'\t'+str(train_output_info[k])+'\t'+str(val_output_info[k])+'\t'+str(test_output_info[k])+'\n')
-            summary_file.write('\nParameters:\n')
-            for key in options.IMPORTANT_PARAMS:
-                summary_file.write(str(key) + ": " + str(vars(ARGS)[key]) + "\n")
-
-            
-    elif ARGS.model == 'reg':
-        checkpoint = torch.load("../checkpoints/chkpt05-08_18:16:17.pt")
-        print("\n begin checkpoint")
-        print(checkpoint)
-        print("\n end \n")
+    if ARGS.no_chkpt:
+        print("\nUsing final (likely overfit) version of network for outputs because no checkpoints were saved")
+    else:
+        print("Reloading best network version for outputs")
+        checkpoint = torch.load("/data2/louis/checkpoints/{}.pt".format(exp_name))
         encoder = checkpoint['encoder']
-        regressor = models.NumIndRegressor(ARGS,device).to(device)
-        models.train_iters_reg(ARGS, encoder, regressor, train_generator=train_generator, val_generator=val_generator, exp_name=exp_name, device=device)
-    elif ARGS.model == 'eos':
-        if ARGS.reload_path:
-            encoder = torch.load(ARGS.reload_path)['encoder']
-        else:
-            encoder = models.EncoderRNN(ARGS, ARGS.device).to(ARGS.device)
-        eos = models.NumIndEOS(ARGS).to(ARGS.device)
-        train.train_iters_eos(ARGS, encoder, eos, train_generator=train_generator, val_generator=val_generator, exp_name=exp_name, device=ARGS.device)
- 
-    accuracy = 0
-    return accuracy, test_output_info
+        decoder = checkpoint['decoder']
+
+    print('\nComputing outputs on val set')
+    val_sizes_by_pos, val_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS, gt_forcing=False, data_generator=val_generator, exp_name=exp_name, dset_fragment='val', setting=ARGS.setting)
+    val_sizes_by_pos['dset_fragment'] = 'val'
+    val_output_info['dset_fragment'] = 'val'
+    print('\nComputing outputs on train set')
+    train_sizes_by_pos, train_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS, gt_forcing=False, data_generator=train_generator, exp_name=exp_name, dset_fragment='train', setting=ARGS.setting)
+    train_sizes_by_pos['dset_fragment'] = 'train'
+    train_output_info['dset_fragment'] = 'train'
+    fixed_thresh = ((train_output_info['thresh']*1200)+(val_output_info['thresh']*100))/1300
+    print('\nComputing outputs on test set')
+    test_sizes_by_pos, test_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS, gt_forcing=False, data_generator=test_generator, exp_name=exp_name, dset_fragment='test', fixed_thresh=fixed_thresh, setting=ARGS.setting)
+    test_sizes_by_pos['dset_fragment'] = 'test'
+    test_output_info['dset_fragment'] = 'test'
+
+    pos_norms_csv_filename = '../experiments/{}/{}_avg_norms_position.csv'.format(exp_name, exp_name)
+    with open(pos_norms_csv_filename, 'w') as csv_file:
+        w = csv.DictWriter(csv_file, fieldnames=['dset_fragment']+list(range(len(train_sizes_by_pos))))
+        w.writerow(train_sizes_by_pos)
+        w.writerow(val_sizes_by_pos)
+        w.writerow(test_sizes_by_pos)
+     
+    summary_filename = '../experiments/{}/{}_summary.txt'.format(exp_name, exp_name) 
+    with open(summary_filename, 'w') as summary_file:
+        summary_file.write('Experiment name: {}\n'.format(exp_name))
+        summary_file.write('\tTrain\tVal\tTest\n')
+        #for k in train_output_info:
+        for k in ['dset_fragment', 'l2_distance', 'cos_similarity', 'avg_norm', 'thresh', 'legit_f1', 'eos_accuracy', 'avg_pos_prob', 'avg_neg_prob']: 
+            summary_file.write(k+'\t'+str(train_output_info[k])+'\t'+str(val_output_info[k])+'\t'+str(test_output_info[k])+'\n')
+        summary_file.write('\nParameters:\n')
+        for key in options.IMPORTANT_PARAMS:
+            summary_file.write(str(key) + ": " + str(vars(ARGS)[key]) + "\n")
 
 
 def get_user_yesno_answer(question):

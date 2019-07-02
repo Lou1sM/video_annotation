@@ -36,8 +36,9 @@ class EncoderRNN(nn.Module):
         self.hidden_init = torch.randn(self.num_layers, 1, self.hidden_size, device=device)
         self.hidden_init.requires_grad = True
         self.init_type = ARGS.enc_init
-        self.i3d = ARGS.i3d
+        self.i3d = ARGS.i3d and not ARGS.i3d_after
         self.i3d_size = 1024 if self.i3d else 0
+        self.attn_type = ARGS.attn_type
 
         if self.cnn_type == "vgg_old":
             self.cnn = models.vgg19(pretrained=True)
@@ -57,8 +58,11 @@ class EncoderRNN(nn.Module):
         elif self.rnn_type == 'lstm':
             self.rnn = nn.LSTM(self.output_cnn_size+self.i3d_size, self.hidden_size, num_layers=self.num_layers)
 
-        # Resize outputs to ind_size
-        self.resize = nn.Linear(self.hidden_size, ARGS.ind_size)
+        #self.resize = nn.Linear(self.hidden_size, ARGS.ind_size+1)
+        if self.attn_type == 'ff':
+            self.resize = nn.Linear(self.hidden_size, ARGS.dec_size)
+        elif self.attn_type == 'dot':
+            self.resize = nn.Linear(self.hidden_size, ARGS.ind_size)
         self.cnn_resize = nn.Linear(4032, self.output_cnn_size)
 
 
@@ -153,6 +157,8 @@ class DecoderRNN(nn.Module):
         if not self.training:
             output = (1-self.dropout_p)*output
 
+        output = self.out1(output)
+
         return output, hidden
 
     def initHidden(self):
@@ -177,24 +183,42 @@ class DecoderRNN_openattn(nn.Module):
         self.device = ARGS.device
         self.output_size = ARGS.ind_size
 
-        self.rnn = nn.GRU(ARGS.ind_size, self.hidden_size, num_layers=self.num_layers)
+        self.i3d = ARGS.i3d and ARGS.i3d_after
         self.dropout = nn.Dropout(self.dropout_p)
         self.hidden_init = torch.randn(self.num_layers, 1, self.hidden_size, device=ARGS.device)
         self.hidden_init.requires_grad = True
         self.init_type = ARGS.enc_init
+        self.attn_type = ARGS.attn_type
 
-        # Resize from GRU size to embedding size
-        self.out1 = nn.Linear(self.hidden_size, ARGS.ind_size)
-        self.out2 = nn.Linear(2*ARGS.ind_size, self.output_size)
-        self.eos = nn.Sequential(nn.Linear(2*ARGS.ind_size, 1), nn.Sigmoid())
+        if self.i3d:
+            self.rnn = nn.GRU(ARGS.ind_size+1024, self.hidden_size, num_layers=self.num_layers)
+        else:
+            self.rnn = nn.GRU(ARGS.ind_size, self.hidden_size, num_layers=self.num_layers)
+
+        if self.attn_type == 'dot':
+            self.resize = nn.Linear(self.hidden_size, ARGS.ind_size)
+            self.out = nn.Linear(2*ARGS.ind_size, self.output_size)
+        elif self.attn_type == 'ff':
+            self.attention_layer = nn.Sequential(nn.Linear(2*ARGS.dec_size, 1), nn.Tanh())
+            self.out = nn.Linear(2*self.hidden_size, self.output_size)
+
+        self.eos1 = nn.Sequential(nn.Linear(2*ARGS.ind_size, ARGS.ind_size), nn.ReLU())
+        self.eos2 = nn.Sequential(nn.Linear(ARGS.ind_size, 1), nn.Sigmoid())
 
 
-    def get_attention_context_concatenation(self, input_, hidden, input_lengths, encoder_outputs):
+    def get_attention_context_concatenation(self, input_, hidden, input_lengths, encoder_outputs, i3d):
         # apply dropout
+        max_seq_len = input_.shape[0]
+        if self.i3d:
+            batch_size = input_.shape[1]
+            i3d_expanded = i3d.repeat(1, max_seq_len)
+            i3d_expanded = i3d_expanded.view(batch_size, max_seq_len, 1024)
+            i3d_expanded = i3d_expanded.transpose(0,1)
+            input_ = torch.cat([input_, i3d_expanded], dim=-1)
         if self.training:
             drop_input = self.dropout(input_)
         else:
-            drop_input = input_
+            drop_input = (1-self.dropout_p)*input_
         
         #pack the sequence to avoid useless computations
         packed = torch.nn.utils.rnn.pack_padded_sequence(drop_input, input_lengths.int(), enforce_sorted=False)
@@ -203,29 +227,56 @@ class DecoderRNN_openattn(nn.Module):
         enc_perm = encoder_outputs.permute(1,2,0)
         output_perm = output.permute(1,0,2)
 
-        output = self.out1(output_perm)
-        attn_weights = torch.bmm(output, enc_perm).permute(0,2,1)
-        attn_weights = F.softmax(attn_weights, dim=1)
-        weighted_enc_outp = torch.matmul(enc_perm, attn_weights).permute(0,2,1)
-        attn_concat_outp = torch.cat([output, weighted_enc_outp], dim=2)
+        longest_in_batch = output.shape[0]
+        if self.attn_type == 'ff':
+            ff_attn_weights = torch.zeros(longest_in_batch, 8, encoder_outputs.shape[1], device=self.device)
+            for i in range(longest_in_batch):
+                for j in range(8):
+                    #print(output[i].shape, encoder_outputs[j].shape)
+                    ff_attn_input = torch.cat([output[i], encoder_outputs[j]], dim=1)
+                    #print('ffat', ff_attn_input.shape)
+                    new_weight = self.attention_layer(ff_attn_input)
+                    ff_attn_weights[i,j] = new_weight.squeeze(-1)
+                    #print(ff_attn_weights[i,j])
+            ff_enc_perm = encoder_outputs.transpose(0,1)
+            ff_attn_weights = ff_attn_weights.permute(2,0,1)
+            ff_attn_weights = F.softmax(ff_attn_weights, dim=2)
+            #print('post trans', ff_attn_weights.shape)
+            #print(ff_attn_weights.sum(dim=2))
+            #print(torch.ones(self.batch_size, longest_in_batch, device=self.device))
+            #print(ff_attn_weights.sum(dim=2) == torch.ones(self.batch_size, longest_in_batch, device=self.device))
+            #assert (ff_attn_weights.sum(dim=2) == torch.ones(self.batch_size, longest_in_batch, device=self.device)).all()
+            attn_contexts = torch.bmm(ff_attn_weights, ff_enc_perm)
+            attn_concat_outp = torch.cat([attn_contexts, output_perm], dim=-1)
+        
+        elif self.attn_type == 'dot':
+            output_perm = self.resize(output_perm)
+            attn_weights = torch.bmm(output_perm, enc_perm).permute(0,2,1)
+            attn_weights = F.softmax(attn_weights, dim=1)
+            weighted_enc_outp = torch.matmul(enc_perm, attn_weights).permute(0,2,1)
+            attn_concat_outp = torch.cat([output_perm, weighted_enc_outp], dim=2)
 
+        #print(attn_concat_outp.shape)
         return attn_concat_outp, hidden
         
 
-    def forward(self, input_, hidden, input_lengths, encoder_outputs):
-        attn_concat_output, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs)
+    def forward(self, input_, hidden, input_lengths, encoder_outputs, i3d):
+        attn_concat_outp, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs, i3d)
 
-        output = self.out2(attn_concat_output)
-        if not self.training:
-            output = (1-self.dropout_p)*output
+        #if self.i3d:
+            #attn_concat_outp = torch.cat([attn_concat_outp, i3d], dim=-1)
+        output = self.out(attn_concat_outp)
+        
         return output, hidden
 
     def eos_preds(self, input_, hidden, input_lengths, encoder_outputs):
-        attn_concat_output, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs)
+        attn_concat_outp, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs)
 
-        eos_pred = self.eos(attn_concat_output)
+        eos_pred = self.eos1(attn_concat_outp)
+        eos_pred = self.eos2(eos_pred)
         return eos_pred, hidden
    
+
 
     def initHidden(self):
         if self.init_type == 'zeroes':
@@ -238,11 +289,56 @@ class DecoderRNN_openattn(nn.Module):
             return  self.hidden_init+torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/torch.norm(self.hidden_init,2)
 
        
-class NumIndEOS(DecoderRNN_openattn):
- 
-    def __init__(self, ARGS):
-        super(NumIndEOS, self).__init__(ARGS)
-        self.output_size = 1
-        self.out2 = nn.Linear(2*ARGS.ind_size, self.output_size)
+class NumIndRegressor(nn.Module):
+    
+    def __init__(self, ARGS, device):
+        super(NumIndRegressor, self).__init__()
+        #sizes = [ARGS.enc_size] + ARGS.reg_sizes + [1]
+        #self.linears= nn.ModuleList([nn.Linear(sizes[i], sizes[i+1]) for i in range(len(sizes)-1)])
+        #final_linear = nn.Linear(sizes[-1], 1)
+        #self.linears.append(final_linear)
+        self.dropout_p = ARGS.dropout
+        self.dropout = nn.Dropout(p=self.dropout_p)
+        self.activation = nn.ReLU()
+        #self.single = nn.Linear(50,1)
+        if ARGS.i3d:
+            self.l1 = nn.Linear(ARGS.enc_size + 1024, ARGS.reg_sizes[0])
+        else:
+            self.l1 = nn.Linear(ARGS.enc_size, ARGS.reg_sizes[0])
+
+        self.l2 = nn.Linear(ARGS.reg_sizes[0], ARGS.reg_sizes[1])
+        self.l3 = nn.Linear(ARGS.reg_sizes[1], 1)
+
+    def forward(self, x):
+        #for linear in self.linears:
+        #    print(x[0,0])
+        #    x = linear(x)
+        #    print(x[0,0])
+        #    x = self.activation(x)
+        #    print(x[0,0])
+        #    x = self.dropout(x)
+        #    print(x[0,0])
+        #return x.squeeze()
+        x = self.l1(x)
+        x = self.activation(x)
+        if self.training:
+            x = self.dropout(x)
+        else:
+            x = x*(1-self.dropout_p)
+
+        x = self.l2(x)
+        x = self.activation(x)
+        if self.training:
+            x = self.dropout(x)
+        else:
+            x = x*(1-self.dropout_p)
+
+        x = self.l3(x)
+        x = self.activation(x)
+        return x.squeeze()
+
+
+
+
 
 
