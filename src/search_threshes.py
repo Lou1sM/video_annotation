@@ -5,7 +5,7 @@ import sys
 import json
 
 
-def compute_f1_for_thresh(positive_probs, negative_probs, thresh):
+def compute_scores_for_thresh(positive_probs, negative_probs, thresh):
 
     tp = len([p for p in positive_probs if p>thresh])
     fp = len([p for p in negative_probs if p>thresh])
@@ -15,8 +15,9 @@ def compute_f1_for_thresh(positive_probs, negative_probs, thresh):
     prec = tp/(tp+fp+1e-4)
     rec = tp/(tp+fn+1e-4)
     f1 = 2/((1/(prec+1e-4))+(1/(rec+1e-4)))
+    acc = (tp+tn)/(tp+fp+fn+tn)
 
-    return tp, fp, fn, tn, prec, rec, f1
+    return tp, fp, fn, tn, prec, rec, f1, acc
 
 
 def find_best_thresh_from_probs(exp_name, dset_fragment):
@@ -40,6 +41,7 @@ def find_best_thresh_from_probs(exp_name, dset_fragment):
     fns = []
     tns = []
     f1s = []
+    accs = []
     positive_probs = data['probabilities']['pos']
     negative_probs = data['probabilities']['neg']
     avg_pos_prob = data['avg-probabilities']['pos'] 
@@ -49,14 +51,16 @@ def find_best_thresh_from_probs(exp_name, dset_fragment):
     best_f1 = 0
 
     print("\nSearching thresholds")
+    tphalf, fphalf, fnhalf, tnhalf, prechalf, rechalf, f1half, acchalf = compute_scores_for_thresh(positive_probs, negative_probs, 0.5)
     for thresh in np.arange(avg_neg_prob-.01, avg_pos_prob+0.1, 3e-5):
-        tp, fp, fn, tn, prec, rec, f1 = compute_f1_for_thresh(positive_probs, negative_probs, thresh)
+        tp, fp, fn, tn, prec, rec, f1, acc = compute_scores_for_thresh(positive_probs, negative_probs, thresh)
         threshes.append(thresh)
         tps.append(tp)
         fps.append(fp)
         fns.append(fn)
         tns.append(tn)
         f1s.append(f1)
+        accs.append(acc)
         if f1>best_f1:
             best_thresh = thresh
             best_tp = tp
@@ -64,9 +68,10 @@ def find_best_thresh_from_probs(exp_name, dset_fragment):
             best_fn = fn
             best_tn = tn
             best_f1 = f1
+            best_acc = acc
 
-    total_metric_data = {'thresh': threshes, 'tp': tps, 'fp': fps, 'fn': fns, 'tn':tns, 'f1': f1s}
-    best_metric_data = {'thresh': best_thresh, 'tp': best_tp, 'fp': best_fp, 'fn': best_fn, 'tn':best_tn, 'f1': best_f1, 'pat_norm': data['avg-embedding-norm'], 'pat_distance': data['avg-distance'], 'avg_pos_prob': avg_pos_prob, 'avg_neg_prob': avg_neg_prob}
+    total_metric_data = {'thresh': threshes, 'tp': tps, 'fp': fps, 'fn': fns, 'tn':tns, 'f1': f1s, 'acc': accs}
+    best_metric_data = {'thresh': best_thresh, 'tp': best_tp, 'tphalf': tphalf, 'fp': best_fp, 'fphalf': fphalf, 'fn': best_fn, 'fnhalf': fnhalf, 'tn':best_tn, 'tnhalf': tnhalf, 'f1': best_f1, 'f1half': f1half, 'best_acc': best_acc, 'acchalf': acchalf, 'pat_norm': data['avg-embedding-norm'], 'pat_distance': data['avg-distance'], 'avg_pos_prob': avg_pos_prob, 'avg_neg_prob': avg_neg_prob}
 
     with open('../experiments/{}/{}-{}metrics.json'.format(exp_name, dset_fragment, exp_name), 'w') as jsonfile:
         json.dump(total_metric_data, jsonfile)
@@ -77,4 +82,4 @@ def find_best_thresh_from_probs(exp_name, dset_fragment):
 
 if __name__ == "__main__":
     exp_name = sys.argv[1]
-    find_best_thresh_from_outputs_file(exp_name)
+    print(find_best_thresh_from_outputs_file(exp_name))

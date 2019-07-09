@@ -26,19 +26,20 @@ class EncoderRNN(nn.Module):
         super(EncoderRNN, self).__init__()
         self.num_frames = ARGS.num_frames
         self.output_cnn_size = ARGS.output_cnn_size
-        self.hidden_size = ARGS.enc_size
+        self.hidden_size = int(ARGS.enc_size)
         self.device = device
-        self.batch_size = ARGS.batch_size
-        self.num_layers = ARGS.enc_layers
+        self.batch_size = int(ARGS.batch_size)
+        self.num_layers = int(ARGS.enc_layers)
         self.rnn_type = ARGS.enc_rnn
         self.cnn_type = ARGS.enc_cnn
-        self.output_size = ARGS.ind_size
-        self.hidden_init = torch.randn(self.num_layers, 1, self.hidden_size, device=device)
+        self.output_size = int(ARGS.ind_size)
+        self.hidden_init = torch.randn(self.num_layers, 1, int(self.hidden_size), device=device)
         self.hidden_init.requires_grad = True
         self.init_type = ARGS.enc_init
         self.i3d = ARGS.i3d and not ARGS.i3d_after
         self.i3d_size = 1024 if self.i3d else 0
-        self.attn_type = ARGS.attn_type
+        #self.attn_type = ARGS.attn_type
+        self.attn_type = 'dot'
 
         if self.cnn_type == "vgg_old":
             self.cnn = models.vgg19(pretrained=True)
@@ -81,7 +82,6 @@ class EncoderRNN(nn.Module):
             x = x.view(x.size(0),-1)
         return x
 
-
     def forward(self, input_, i3d_vec, hidden):
         
         # pass the input through the cnn
@@ -103,7 +103,11 @@ class EncoderRNN(nn.Module):
         if self.init_type == 'zeroes':
             return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
         elif self.init_type == 'unit':
-            return torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5)
+            if self.rnn_type == 'gru':
+                return torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5)
+            elif self.rnn_type == 'lstm':
+                return (torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5), torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5))
+                
         elif self.init_type == 'learned':
             return self.hidden_init+torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
         elif self.init_type == 'unit_learned':
@@ -117,14 +121,14 @@ class DecoderRNN(nn.Module):
         super(DecoderRNN, self).__init__()
         self.hidden_size = ARGS.dec_size
         self.num_layers = ARGS.dec_layers
-        self.dropout_p = ARGS.dropout
+        #self.dropout_p = ARGS.dropout
         self.batch_size = ARGS.batch_size
         self.device = device
         self.output_size = ARGS.ind_size+1
 
         self.rnn = nn.GRU(ARGS.ind_size, self.hidden_size, num_layers=self.num_layers)
         self.attention = Attention(ARGS.ind_size)
-        self.dropout = nn.Dropout(self.dropout_p)
+        #self.dropout = nn.Dropout(self.dropout_p)
         self.hidden_init = torch.randn(self.num_layers, 1, self.hidden_size, device=device)
         self.hidden_init.requires_grad = True
         self.init_type = ARGS.enc_init
@@ -136,10 +140,10 @@ class DecoderRNN(nn.Module):
 
     def forward(self, input_, hidden, input_lengths, encoder_outputs):
         
-        if self.training:
-            drop_input = self.dropout(input_)
-        else:
-            drop_input = input_
+        #if self.training:
+        #    drop_input = self.dropout(input_)
+        #else:
+        #    drop_input = input_
         
         packed = torch.nn.utils.rnn.pack_padded_sequence(drop_input, input_lengths.int(), enforce_sorted=False)
         packed, hidden = self.rnn(packed, hidden)
@@ -154,8 +158,8 @@ class DecoderRNN(nn.Module):
         output = self.out1(output_perm)
         output, attn = self.attention(output, enc_perm)
 
-        if not self.training:
-            output = (1-self.dropout_p)*output
+        #if not self.training:
+            #output = (1-self.dropout_p)*output
 
         output = self.out1(output)
 
@@ -176,38 +180,78 @@ class DecoderRNN_openattn(nn.Module):
     
     def __init__(self, ARGS):
         super(DecoderRNN_openattn, self).__init__()
-        self.hidden_size = ARGS.dec_size
-        self.num_layers = ARGS.dec_layers
-        self.dropout_p = ARGS.dropout
-        self.batch_size = ARGS.batch_size
+        self.hidden_size = int(ARGS.dec_size)
+        self.num_layers = int(ARGS.dec_layers)
+        #self.dropout_p = ARGS.dropout
+        self.batch_size = int(ARGS.batch_size)
         self.device = ARGS.device
-        self.output_size = ARGS.ind_size
+        self.output_size = int(ARGS.ind_size)
+        self.rnn_type = ARGS.dec_rnn
 
         self.i3d = ARGS.i3d and ARGS.i3d_after
-        self.dropout = nn.Dropout(self.dropout_p)
-        self.hidden_init = torch.randn(self.num_layers, 1, self.hidden_size, device=ARGS.device)
+        self.i3d_size = 1024 if self.i3d else 0
+        #self.dropout = nn.Dropout(self.dropout_p)
+        self.hidden_init = torch.randn(self.num_layers, 1, int(self.hidden_size), device=ARGS.device)
         self.hidden_init.requires_grad = True
-        self.init_type = ARGS.enc_init
-        self.attn_type = ARGS.attn_type
+        self.init_type = ARGS.dec_init
+        #self.attn_type = ARGS.attn_type
+        self.attn_type = 'dot'
+        #self.num_eos_layers = len(ARGS.eos_sizes)
+        self.num_eos_layers = 0
 
-        if self.i3d:
-            self.rnn = nn.GRU(ARGS.ind_size+1024, self.hidden_size, num_layers=self.num_layers)
-        else:
-            self.rnn = nn.GRU(ARGS.ind_size, self.hidden_size, num_layers=self.num_layers)
 
-        if self.attn_type == 'dot':
-            self.resize = nn.Linear(self.hidden_size, ARGS.ind_size)
-            self.out = nn.Linear(2*ARGS.ind_size, self.output_size)
-        elif self.attn_type == 'ff':
-            self.attention_layer = nn.Sequential(nn.Linear(2*ARGS.dec_size, 1), nn.Tanh())
-            self.out = nn.Linear(2*self.hidden_size, self.output_size)
+        if self.rnn_type == 'gru':
+            self.rnn = nn.GRU(self.output_size+self.i3d_size, self.hidden_size, num_layers=self.num_layers)
+        elif self.rnn_type == 'lstm':
+            self.rnn = nn.LSTM(self.output_size+self.i3d_size, self.hidden_size, num_layers=self.num_layers)
 
-        self.eos1 = nn.Sequential(nn.Linear(2*ARGS.ind_size, ARGS.ind_size), nn.ReLU())
-        self.eos2 = nn.Sequential(nn.Linear(ARGS.ind_size, 1), nn.Sigmoid())
+        #if self.attn_type == 'dot':
+        self.resize = nn.Linear(self.hidden_size, ARGS.ind_size)
+        self.out = nn.Linear(2*ARGS.ind_size, self.output_size)
+        #elif self.attn_type == 'ff':
+        #    self.attention_layer = nn.Sequential(nn.Linear(2*ARGS.dec_size, 1), nn.Tanh())
+        #    self.out = nn.Linear(2*self.hidden_size, self.output_size)
+
+
+        #if len(ARGS.eos_sizes) == 1:
+        #    self.eos= nn.Sequential(
+        #        nn.Linear(2*ARGS.ind_size, ARGS.eos_sizes[0]), 
+        #        nn.ReLU(),
+        #        nn.Linear(ARGS.eos_sizes[0], 1),
+        #        #nn.Sigmoid()    
+        #        )
+        #elif len(ARGS.eos_sizes) == 2:
+        #    self.eos= nn.Sequential(
+        #        nn.Linear(2*ARGS.ind_size, ARGS.eos_sizes[0]), 
+        #        nn.ReLU(),
+        #        nn.Linear(ARGS.eos_sizes[0], ARGS.eos_sizes[1]),
+        #        nn.ReLU(),
+        #        nn.Linear(ARGS.eos_sizes[1], 1),
+        #        #nn.Sigmoid()    
+        #        )
+        #elif len(ARGS.eos_sizes) == 3:
+        #    self.eos= nn.Sequential(
+        #        nn.Linear(2*ARGS.ind_size, ARGS.eos_sizes[0]), 
+        #        nn.ReLU(),
+        #        nn.Linear(ARGS.eos_sizes[0], ARGS.eos_sizes[1]),
+        #        nn.ReLU(),
+        #        nn.Linear(ARGS.eos_sizes[1], ARGS.eos_sizes[2]),
+        #        nn.ReLU(),
+        #        nn.Linear(ARGS.eos_sizes[2], 1),
+        #        #nn.Sigmoid()    
+        #        )
+        #self.eos1 = nn.Sequential(nn.Linear(2*ARGS.ind_size, ARGS.ind_size), nn.ReLU())
+        #self.eos2 = nn.Sequential(nn.Linear(ARGS.ind_size, 1), nn.Sigmoid())
+        #self.eos =  nn.Sequential(
+        #        #nn.Linear(2*ARGS.ind_size,ARGS.ind_size), 
+        #        nn.Linear(2*ARGS.ind_size,100), 
+        #        nn.ReLU(),
+        #        nn.Linear(100, 1), 
+        #        nn.Sigmoid())
 
 
     def get_attention_context_concatenation(self, input_, hidden, input_lengths, encoder_outputs, i3d):
-        # apply dropout
+        
         max_seq_len = input_.shape[0]
         if self.i3d:
             batch_size = input_.shape[1]
@@ -215,13 +259,13 @@ class DecoderRNN_openattn(nn.Module):
             i3d_expanded = i3d_expanded.view(batch_size, max_seq_len, 1024)
             i3d_expanded = i3d_expanded.transpose(0,1)
             input_ = torch.cat([input_, i3d_expanded], dim=-1)
-        if self.training:
-            drop_input = self.dropout(input_)
-        else:
-            drop_input = (1-self.dropout_p)*input_
+        #if self.training:
+        #    drop_input = self.dropout(input_)
+        #else:
+        #    drop_input = (1-self.dropout_p)*input_
         
         #pack the sequence to avoid useless computations
-        packed = torch.nn.utils.rnn.pack_padded_sequence(drop_input, input_lengths.int(), enforce_sorted=False)
+        packed = torch.nn.utils.rnn.pack_padded_sequence(input_, input_lengths.int(), enforce_sorted=False)
         packed, hidden = self.rnn(packed, hidden)
         output, _ = torch.nn.utils.rnn.pad_packed_sequence(packed)
         enc_perm = encoder_outputs.permute(1,2,0)
@@ -269,20 +313,22 @@ class DecoderRNN_openattn(nn.Module):
         
         return output, hidden
 
-    def eos_preds(self, input_, hidden, input_lengths, encoder_outputs):
-        attn_concat_outp, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs)
-
-        eos_pred = self.eos1(attn_concat_outp)
-        eos_pred = self.eos2(eos_pred)
+    def eos_preds(self, input_, hidden, input_lengths, encoder_outputs, i3d):
+        attn_concat_outp, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs, i3d)
+        
+        eos_pred = self.eos(attn_concat_outp)
+        
         return eos_pred, hidden
    
-
 
     def initHidden(self):
         if self.init_type == 'zeroes':
             return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
         elif self.init_type == 'unit':
-            return torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5)
+            if self.rnn_type == 'gru':
+                return torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5)
+            elif self.rnn_type == 'lstm':
+                return (torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5), torch.ones(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/(self.output_size**0.5))
         elif self.init_type == 'learned':
             return self.hidden_init+torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
         elif self.init_type == 'unit_learned':
@@ -299,7 +345,7 @@ class NumIndRegressor(nn.Module):
         #self.linears.append(final_linear)
         self.dropout_p = ARGS.dropout
         self.dropout = nn.Dropout(p=self.dropout_p)
-        self.activation = nn.ReLU()
+        self.activation = nn.LeakyReLU()
         #self.single = nn.Linear(50,1)
         if ARGS.i3d:
             self.l1 = nn.Linear(ARGS.enc_size + 1024, ARGS.reg_sizes[0])
@@ -319,22 +365,31 @@ class NumIndRegressor(nn.Module):
         #    x = self.dropout(x)
         #    print(x[0,0])
         #return x.squeeze()
+        #print(self.l1)
+        #print(x.shape)
         x = self.l1(x)
+        print('l1',x)
         x = self.activation(x)
-        if self.training:
-            x = self.dropout(x)
-        else:
-            x = x*(1-self.dropout_p)
+        print('l1',x)
+        #if self.training:
+        #    x = self.dropout(x)
+        #else:
+        #    x = x*(1-self.dropout_p)
 
         x = self.l2(x)
+        print('l2',x)
         x = self.activation(x)
-        if self.training:
-            x = self.dropout(x)
-        else:
-            x = x*(1-self.dropout_p)
+        print('l2',x)
+        print(x)
+        #if self.training:
+        #    x = self.dropout(x)
+        #else:
+        #    x = x*(1-self.dropout_p)
 
         x = self.l3(x)
+        print('l3',x)
         x = self.activation(x)
+        print('l3',x)
         return x.squeeze()
 
 

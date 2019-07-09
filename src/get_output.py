@@ -15,7 +15,7 @@ import torch
 import numpy as np
 from torchvision import models
 from data_loader import load_data, load_data_lookup, video_lookup_table_from_range, video_lookup_table_from_ids, i3d_lookup_table_from_range
-from search_threshes import find_best_thresh_from_probs, compute_f1_for_thresh
+from search_threshes import find_best_thresh_from_probs, compute_scores_for_thresh
 from sklearn.metrics import confusion_matrix
 
 
@@ -42,13 +42,25 @@ def test_reg(encoder, regressor, train_generator, val_generator, test_generator,
         i3d_vec = val_batch[5].float().to(device)
 
         encoder_hidden = encoder.initHidden().to(device)
-        encoder_outputs, encoder_hidden = encoder(input_, i3d_vec, encoder_hidden)
+        cnn_outputs = torch.zeros(encoder.num_frames, input_.shape[1], encoder.output_cnn_size+encoder.i3d_size, device=encoder.device)
+
+        for i, inp in enumerate(input_):
+            embedded = encoder.cnn_vector(inp)
+            if encoder.i3d:
+                embedded = torch.cat([embedded, i3d_vec], dim=1)
+            cnn_outputs[i] = embedded 
+
+        # pass the output of the vgg layers through the GRU cell
+        encoder_outputs, encoder_hidden = encoder.rnn(cnn_outputs, encoder_hidden)
+        #encoder_outputs, encoder_hidden = encoder(input_, i3d_vec, encoder_hidden)
 
         vid_vec = encoder_outputs.mean(dim=0)
 
         if deci3d:
             vid_vec = torch.cat([vid_vec, i3d_vec], dim=-1)
+        print(vid_vec.shape)
         reg_pred = regressor(vid_vec)
+        print('test', target_number, reg_pred)
 
         y_gt_val += target_number.tolist()
         y_pred_val_float += reg_pred.tolist()
@@ -67,7 +79,23 @@ def test_reg(encoder, regressor, train_generator, val_generator, test_generator,
         i3d_vec = train_batch[5].float().to(device)
 
         encoder_hidden = encoder.initHidden().to(device)
-        encoder_outputs, encoder_hidden = encoder(input_, i3d_vec, encoder_hidden)
+        for i, inp in enumerate(input_):
+            embedded = encoder.cnn_vector(inp)
+            if encoder.i3d:
+                embedded = torch.cat([embedded, i3d_vec], dim=1)
+            cnn_outputs[i] = embedded 
+
+        # pass the output of the vgg layers through the GRU cell
+        encoder_outputs, encoder_hidden = encoder.rnn(cnn_outputs, encoder_hidden)
+        #encoder_outputs, encoder_hidden = encoder(input_, i3d_vec, encoder_hidden)
+
+        vid_vec = encoder_outputs.mean(dim=0)
+        print(encoder.rnn)
+        print(vid_vec.shape)
+        if deci3d:
+            vid_vec = torch.cat([vid_vec, i3d_vec], dim=-1)
+        print(vid_vec.shape)
+        #encoder_outputs, encoder_hidden = encoder(input_, i3d_vec, encoder_hidden)
 
         vid_vec = encoder_outputs.mean(dim=0)
 
@@ -92,7 +120,22 @@ def test_reg(encoder, regressor, train_generator, val_generator, test_generator,
         i3d_vec = test_batch[5].float().to(device)
 
         encoder_hidden = encoder.initHidden().to(device)
-        encoder_outputs, encoder_hidden = encoder(input_, i3d_vec, encoder_hidden)
+        for i, inp in enumerate(input_):
+            embedded = encoder.cnn_vector(inp)
+            if encoder.i3d:
+                embedded = torch.cat([embedded, i3d_vec], dim=1)
+            cnn_outputs[i] = embedded 
+
+        # pass the output of the vgg layers through the GRU cell
+        encoder_outputs, encoder_hidden = encoder.rnn(cnn_outputs, encoder_hidden)
+        #encoder_outputs, encoder_hidden = encoder(input_, i3d_vec, encoder_hidden)
+
+        vid_vec = encoder_outputs.mean(dim=0)
+
+        if deci3d:
+            vid_vec = torch.cat([vid_vec, i3d_vec], dim=-1)
+        print(vid_vec.shape)
+        #encoder_outputs, encoder_hidden = encoder(input_, i3d_vec, encoder_hidden)
 
         vid_vec = encoder_outputs.mean(dim=0)
 
@@ -212,12 +255,12 @@ def get_outputs(encoder, decoder, transformer, data_generator, gt_forcing, ind_s
             dec_out_list = []
             for l in range(target_number):
                 decoder_output, decoder_hidden_new = decoder(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden, i3d=i3d)
-                try:
-                    eos_pred, _hidden  = decoder.eos_preds(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden, i3d=i3d) 
-                    eos_pred_list.append(eos_pred.item())
-                except Exception as e:
-                    print(e)
-                    pass
+                #try:
+                #    eos_pred, _hidden  = decoder.eos_preds(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden, i3d=i3d) 
+                #    eos_pred_list.append(eos_pred.item())
+                #except Exception as e:
+                #    print(e)
+                #    pass
                 dec_out_list.append(decoder_output)
                 decoder_hidden = decoder_hidden_new
                 dp_output.append(decoder_output.squeeze().detach().cpu().numpy().tolist())
@@ -269,56 +312,53 @@ def get_outputs(encoder, decoder, transformer, data_generator, gt_forcing, ind_s
             #except Exception as e:
             #    print(e)
             #    pass
-        try:
-            # Take first element that's greater that 0.5
-            #eos_guess = [i>0.5 for i in eos_pred_list].index(True)
-            #eos_half_guess_list = [i>0 for i in eos_pred_list]
-            #eos_half_guess = eos_half_guess_list.index(True) if True in eos_half_guess_list else len(eos_half_guess_list)
-            eos_cumulative_probs = [0] + [1 / (1 + math.exp(-x)) for x in eos_pred_list]
-            diff_cum_probs = [eos_cumulative_probs[i+1] - eos_cumulative_probs[i] for i in range(len(eos_cumulative_probs)-1)]
-            #eos_diff_guess = np.argmax([eos_cumulative_probs[i+1] - eos_cumulative_probs[i] for i in range(len(eos_cumulative_probs)-1)]) + 1
-            eos_diff_guess = np.argmax(diff_cum_probs) + 1
-            #eos_gt = target_number.item()-1
-            eos_diff_guesses.append(eos_diff_guess)
-            #eos_half_guesses.append(eos_half_guess)
-            eos_gt = target_number.item()
-            eos_gts.append(eos_gt)
-            #eos_half_result = (eos_half_guess == eos_gt)
-            #eos_half_results.append(eos_half_result)
-            eos_diff_result = (eos_diff_guess == eos_gt)
-            eos_diff_results.append(eos_diff_result)
-            if iter_%10 == 0:
-                #print(eos_pred_list, eos_guess, target_number.item()-1, eos_result)
-                print(eos_pred_list)
-                print(eos_cumulative_probs)
-                print(diff_cum_probs)
-                #print( 'gt', eos_gt, 'half', eos_half_guess, eos_half_result, 'diff', eos_diff_guess, eos_diff_result)
-                print( 'gt', eos_gt, 'diff', eos_diff_guess, eos_diff_result)
-        except (ValueError, AttributeError) as e:
-            print(e)
-            print(eos_pred_list)
-            eos_guess = eos_target = eos_result = -1
-            pass
+        #try:
+        #    # Take first element that's greater that 0.5
+        #    #eos_guess = [i>0.5 for i in eos_pred_list].index(True)
+        #    eos_half_guess_list = [i>0 for i in eos_pred_list]
+        #    eos_half_guess = eos_half_guess_list.index(True) + 1 if True in eos_half_guess_list else len(eos_half_guess_list)
+        #    eos_cumulative_probs = [0] + [1 / (1 + math.exp(-x)) for x in eos_pred_list]
+        #    diff_cum_probs = [eos_cumulative_probs[i+1] - eos_cumulative_probs[i] for i in range(len(eos_cumulative_probs)-1)]
+        #    eos_diff_guess = np.argmax([eos_cumulative_probs[i+1] - eos_cumulative_probs[i] for i in range(len(eos_cumulative_probs)-1)]) + 1
+        #    eos_diff_guess = np.argmax(diff_cum_probs) + 1
+        #    eos_diff_guesses.append(eos_diff_guess)
+        #    eos_half_guesses.append(eos_half_guess)
+        #    eos_gt = target_number.item()
+        #    eos_gts.append(eos_gt)
+        #    eos_half_result = (eos_half_guess == eos_gt)
+        #    eos_half_results.append(eos_half_result)
+        #    eos_diff_result = (eos_diff_guess == eos_gt)
+        #    eos_diff_results.append(eos_diff_result)
+        #    if iter_%10 == 0:
+        #        #print(eos_pred_list, eos_guess, target_number.item()-1, eos_result)
+        #        print(eos_pred_list)
+        #        #print(eos_cumulative_probs)
+        #        #print(diff_cum_probs)
+        #        print( 'gt', eos_gt, 'half', eos_half_guess, eos_half_result, 'diff', eos_diff_guess, eos_diff_result)
+        #        #print( 'gt', eos_gt, 'diff', eos_diff_guess, eos_diff_result)
+        #except (ValueError, AttributeError) as e:
+        #    eos_half_guess = eos_diff_guess = eos_target = eos_half_result = eos_diff_result = -1
+        #    pass
         assert len(dp_output) == len(gt_embeddings), "Wrong number of embeddings in output: {} being output but {} in ground truth".format(len(dp_output), len(gt_embeddings))
         #output.append({'videoId':str(video_id), 'embeddings':dp_output, 'gt_embeddings': gt_embeddings, 'l2_distances': l2_distances, 'avg_l2_distance': sum(l2_distances)/len(l2_distances), 'eos_half_guess': str(eos_half_guess), 'eos_diff_guess': str(eos_diff_guess),'eos_gt': str(target_number.item()), 'eos_half_result': str(eos_half_result), 'eos_half_result': str(eos_half_result)})
-        output.append({'videoId':str(video_id), 'embeddings':dp_output, 'gt_embeddings': gt_embeddings, 'l2_distances': l2_distances, 'avg_l2_distance': sum(l2_distances)/len(l2_distances), 'eos_diff_guess': str(eos_diff_guess),'eos_gt': str(target_number.item())})
+        output.append({'videoId':str(video_id), 'embeddings':dp_output, 'gt_embeddings': gt_embeddings, 'l2_distances': l2_distances, 'avg_l2_distance': sum(l2_distances)/len(l2_distances)}) 
   
-    print(len(eos_gts), len(eos_half_guesses), len(eos_diff_guesses))
+    #print(len(eos_gts), len(eos_half_guesses), len(eos_diff_guesses))
 
     #plt.scatter(eos_gts, eos_half_guesses)
     #plt.savefig('eos_half_scatter.png')
-    plt.scatter(eos_gts, eos_diff_guesses)
-    plt.savefig('eos_diff_scatter.png')
+    #plt.scatter(eos_gts, eos_diff_guesses)
+    #plt.savefig('eos_diff_scatter.png')
     assert sum(list(nums_of_inds.values())) == len(norms), "Mismatch in the lengths of nums_of_inds and norms, {} vs {}".format(len(nums_of_inds.values()), len(norms))
     avg_l2_distance = round(sum(l2_distances)/len(l2_distances),4)
     avg_cos_sim = round(sum(cos_sims)/len(cos_sims),4)
     avg_norm = round( (sum([t[0] for t in tup_sizes_by_pos.values()])/sum(nums_of_inds.values())),4)
-    eos_diff_accuracy = sum(eos_diff_results)/(len(eos_diff_results)+1e-5)
+    #eos_diff_accuracy = sum(eos_diff_results)/(len(eos_diff_results)+1e-5)
     #eos_half_accuracy = sum(eos_half_results)/(len(eos_half_results)+1e-5)
     test_info['l2_distance'] = avg_l2_distance
     test_info['cos_similarity'] = avg_cos_sim
     test_info['avg_norm'] = avg_norm
-    test_info['eos_diff_accuracy'] = eos_diff_accuracy
+    #test_info['eos_diff_accuracy'] = eos_diff_accuracy
     #test_info['eos_half_accuracy'] = eos_half_accuracy
     for k,v in nums_of_inds.items():
         print(k,v)
@@ -368,7 +408,7 @@ def write_outputs_get_info(encoder, decoder, transformer, ARGS, data_generator, 
     test_info.update(metric_data)
     legit_thresh = fixed_thresh if dset_fragment == 'test' else metric_data['thresh'] 
     print(fixed_thresh, metric_data['thresh'])
-    test_info['legit_f1'] = compute_f1_for_thresh(positive_probs, negative_probs, legit_thresh)[6]
+    test_info['legit_f1'] = compute_scores_for_thresh(positive_probs, negative_probs, legit_thresh)[6]
     
     plt.xlim(0,len(total_metric_data['thresh']))
     plt.ylim(0.0, max(total_metric_data['f1']) + 0.1)

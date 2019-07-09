@@ -17,6 +17,7 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
     """Cant' just pass generators as need to re-init with batch_size=1 when testing.""" 
     
     dataset = '{}d'.format(ARGS.ind_size)
+    #print(dataset)
 
     if ARGS.mini:
         ARGS.batch_size = min(2, ARGS.batch_size)
@@ -48,7 +49,12 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
         else:
             checkpoint = torch.load('/data2/louis/checkpoints/{}.pt'.format(ARGS.reload))
             encoder = checkpoint['encoder']
-            regressor = checkpoint['regressor']
+            try:
+                regressor = checkpoint['regressor']
+            except KeyError: # This experiment did not train a regressor
+                print("This checkpoint doesn't contain a regressor. Initializing a new one instead.")
+                regressor = models.NumIndRegressor(ARGS,ARGS.device).to(ARGS.device)
+                
         train.train_reg(ARGS, encoder, regressor, train_generator=train_generator, val_generator=val_generator, device=ARGS.device)
  
         train_generator = data_loader.load_data_lookup(train_file_path, video_lookup_table=train_table, i3d_lookup_table=i3d_train_table, batch_size=ARGS.batch_size, shuffle=False)
@@ -56,7 +62,7 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
         test_generator = data_loader.load_data_lookup(test_file_path, video_lookup_table=test_table, i3d_lookup_table=i3d_test_table, batch_size=ARGS.batch_size, shuffle=False)
 
 
-        test_output_info = test_reg(encoder, regressor, train_generator, val_generator, test_generator, i3d=ARGS.i3d, device=ARGS.device)
+        test_output_info = test_reg(encoder, regressor, train_generator, val_generator, test_generator, deci3d=ARGS.i3d, device=ARGS.device)
      
         summary_filename = '../experiments/{}/{}_summary.txt'.format(exp_name, exp_name) 
         with open(summary_filename, 'w') as summary_file:
@@ -82,7 +88,7 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
     regressor = None
     regressor_optimizer = None
 
-    if ARGS.setting in ['embeddings', 'preds']:
+    if ARGS.setting in ['embeddings', 'preds', 'eos']:
         if ARGS.reload:
             print('Reloading model from /data2/louis/checkpoints/{}.pt'.format(ARGS.reload))
             saved_model = torch.load('/data2/louis/checkpoints/{}.pt'.format(ARGS.reload))
@@ -92,6 +98,9 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
             decoder.batch_size = ARGS.batch_size
             encoder_optimizer = saved_model['encoder_optimizer']
             decoder_optimizer = saved_model['decoder_optimizer']
+            if ARGS.setting == 'eos' and not ARGS.eos_reuse_decoder:
+                decoder = models.DecoderRNN_openattn(ARGS).to(ARGS.device)
+                decoder_optimizer = None
         else: 
             encoder = models.EncoderRNN(ARGS, ARGS.device).to(ARGS.device)
             #decoder = models.DecoderRNN(ARGS, ARGS.device).to(ARGS.device)
@@ -118,17 +127,19 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
         encoder = checkpoint['encoder']
         decoder = checkpoint['decoder']
 
+    gt_forcing = (ARGS.setting == 'eos')
+    #gt_forcing = False
     print('\nComputing outputs on val set')
-    val_sizes_by_pos, val_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS, gt_forcing=False, data_generator=val_generator, exp_name=exp_name, dset_fragment='val', setting=ARGS.setting)
+    val_sizes_by_pos, val_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS, gt_forcing=gt_forcing, data_generator=val_generator, exp_name=exp_name, dset_fragment='val', setting=ARGS.setting)
     val_sizes_by_pos['dset_fragment'] = 'val'
     val_output_info['dset_fragment'] = 'val'
     print('\nComputing outputs on train set')
-    train_sizes_by_pos, train_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS, gt_forcing=False, data_generator=train_generator, exp_name=exp_name, dset_fragment='train', setting=ARGS.setting)
+    train_sizes_by_pos, train_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS, gt_forcing=gt_forcing, data_generator=train_generator, exp_name=exp_name, dset_fragment='train', setting=ARGS.setting)
     train_sizes_by_pos['dset_fragment'] = 'train'
     train_output_info['dset_fragment'] = 'train'
     fixed_thresh = ((train_output_info['thresh']*1200)+(val_output_info['thresh']*100))/1300
     print('\nComputing outputs on test set')
-    test_sizes_by_pos, test_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS, gt_forcing=False, data_generator=test_generator, exp_name=exp_name, dset_fragment='test', fixed_thresh=fixed_thresh, setting=ARGS.setting)
+    test_sizes_by_pos, test_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS, gt_forcing=gt_forcing, data_generator=test_generator, exp_name=exp_name, dset_fragment='test', fixed_thresh=fixed_thresh, setting=ARGS.setting)
     test_sizes_by_pos['dset_fragment'] = 'test'
     test_output_info['dset_fragment'] = 'test'
 
@@ -144,11 +155,26 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
         summary_file.write('Experiment name: {}\n'.format(exp_name))
         summary_file.write('\tTrain\tVal\tTest\n')
         #for k in train_output_info:
-        for k in ['dset_fragment', 'l2_distance', 'cos_similarity', 'avg_norm', 'thresh', 'legit_f1', 'eos_accuracy', 'avg_pos_prob', 'avg_neg_prob']: 
+        for k in ['dset_fragment', 'l2_distance', 'cos_similarity', 'avg_norm', 'thresh', 'legit_f1', 'best_acc', 'acchalf', 'f1half', 'avg_pos_prob', 'avg_neg_prob']: 
             summary_file.write(k+'\t'+str(train_output_info[k])+'\t'+str(val_output_info[k])+'\t'+str(test_output_info[k])+'\n')
         summary_file.write('\nParameters:\n')
         for key in options.IMPORTANT_PARAMS:
             summary_file.write(str(key) + ": " + str(vars(ARGS)[key]) + "\n")
+    summary_csvfilename = '../experiments/{}/{}_summary.csv'.format(exp_name, exp_name) 
+    fieldnames = list(sorted(vars(ARGS).keys())) + list(sorted(val_output_info.keys()))
+    with open(summary_csvfilename, 'w') as csvfile:
+        val_output_info.update(vars(ARGS))
+        dictwriter = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        dictwriter.writeheader()
+        dictwriter.writerow(val_output_info)
+
+    with open('all_results.csv', 'a') as csvfile:
+        dictwriter = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        dictwriter.writerow(val_output_info)
+
+
+    print(val_output_info)
+    return val_output_info
 
 
 def get_user_yesno_answer(question):
@@ -168,9 +194,11 @@ def main():
         ARGS.exp_name = 'try'
     
     exp_name = utils.get_datetime_stamp() if ARGS.exp_name == "" else ARGS.exp_name
-    if ARGS.exp_name == 'try':
+    if not os.path.isdir('../experiments/{}'.format(exp_name)):
+        os.mkdir('../experiments/{}'.format(exp_name))
+    elif ARGS.exp_name == 'try' or ARGS.exp_name.startswith('jade'):
         pass
-    elif os.path.isdir('../experiments/{}'.format(exp_name)):
+    else:
         try:
             overwrite = get_user_yesno_answer('An experiment with name {} has already been run, do you want to overwrite?'.format(exp_name))
         except OSError:
@@ -178,8 +206,6 @@ def main():
         if not overwrite:
             print('Please rerun command with a different experiment name')
             sys.exit()
-    else: 
-        os.mkdir('../experiments/{}'.format(exp_name))
 
     if ARGS.enc_dec_hidden_init and (ARGS.enc_size != ARGS.dec_size):
         print("Not applying enc_dec_hidden_init because the encoder and decoder are different sizes")

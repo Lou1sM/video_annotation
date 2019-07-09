@@ -30,6 +30,7 @@ class EarlyStopper:
             print(self.counter)
         else:
             self.counter += 1
+            print('Val loss was {}, no improvement on best of {}'.format(val_loss, self.val_loss_min))
             print('EarlyStopping counter: {} out of {}'.format(self.counter, self.patience))
             if self.counter >= self.patience:
                 self.early_stop = True
