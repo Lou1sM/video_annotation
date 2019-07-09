@@ -41,7 +41,7 @@ def load_arguments():
     argparser.add_argument("--optimizer", choices = ['SGD', 'Adam', 'RMS'], default = 'Adam')
     argparser.add_argument("--output_cnn_size", type = int, default = 4096)
     argparser.add_argument("--overwrite", action="store_true", default=False, help = "whether to overwrite existing experiment of same name")    
-    argparser.add_argument("--patience", type = int, default = 5)
+    argparser.add_argument("--patience", type = int, default = 7)
     argparser.add_argument("--pred_embeddings_assist",type=float,default=0.0,help = "how much to move the network outputs to gt when predicting")    
     argparser.add_argument("--pred_margin",type=float,default=10.0,help = "margin within which to apply pred loss, ie we use relu(-/+pred-margin) for pos a neg respectively")
     argparser.add_argument("--quick_run", "-q", action="store_true", help="exit training loop after 1 batch")

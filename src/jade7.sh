@@ -21,7 +21,7 @@ do
             do
                 for lmbda_norm in 0.5 1 1.5 ; 
                 do
-                    CUDA_VISIBLE_DEVICES=1 python3 main.py --max_epochs 1 --enc_layers ${layers} --dec_layers ${layers} --enc_rnn ${rnn} --dec_rnn ${rnn} --teacher_forcing_ratio ${teacher_forcing_ratio} --learning_rate ${learning_rate} --enc_size $(expr 1.5*${rnn_size} | bc) --dec_size $(expr 1.25*${rnn_size} | bc ) --enc_layers ${lyrs} --dec_layers ${lyrs} --lmbda_norm $(expr 1.0*${lmbda_norm} | bc ) --i3d --exp_name ${name_prefix}-${i}
+                    CUDA_VISIBLE_DEVICES=1 python3 main.py --enc_layers ${layers} --dec_layers ${layers} --enc_rnn ${rnn} --dec_rnn ${rnn} --teacher_forcing_ratio ${teacher_forcing_ratio} --learning_rate ${learning_rate} --enc_size $(expr 1.5*${rnn_size} | bc) --dec_size $(expr 1.25*${rnn_size} | bc ) --enc_layers ${lyrs} --dec_layers ${lyrs} --lmbda_norm $(expr 1.0*${lmbda_norm} | bc ) --i3d --exp_name ${name_prefix}-${i}
                     i=$(expr ${i}+1 | bc)
                 done
             done
