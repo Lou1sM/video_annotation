@@ -9,7 +9,7 @@ import train
 import torch
 import data_loader 
 from get_output import write_outputs_get_info, test_reg
-from reg_transformer import RegTransformer
+#from reg_transformer import RegTransformer
 
 
 
@@ -90,8 +90,12 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
 
     if ARGS.setting in ['embeddings', 'preds', 'eos']:
         if ARGS.reload:
-            print('Reloading model from /data2/louis/checkpoints/{}.pt'.format(ARGS.reload))
-            saved_model = torch.load('/data2/louis/checkpoints/{}.pt'.format(ARGS.reload))
+            if exp_name.startswith('jade'):
+                reload_file_path= '../jade_checkpoints/{}.pt'.format(ARGS.reload)
+            else:
+                reload_file_path = '/data2/louis/checkpoints/{}.pt'.format(ARGS.reload)
+            print('Reloading model from {}'.format(reload_file_path))
+            saved_model = torch.load(reload_file_path)
             encoder = saved_model['encoder']
             decoder = saved_model['decoder']
             encoder.batch_size = ARGS.batch_size
@@ -123,7 +127,12 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
         print("\nUsing final (likely overfit) version of network for outputs because no checkpoints were saved")
     else:
         print("Reloading best network version for outputs")
-        checkpoint = torch.load("/data2/louis/checkpoints/{}.pt".format(exp_name))
+        if exp_name.startswith('jade'):
+            filename = '../jade_checkpoints/{}.pt'.format(exp_name[:-2])
+        else:
+            filename = '/data2/louis/checkpoints/{}.pt'.format(exp_name)
+        print(filename)
+        checkpoint = torch.load(filename)
         encoder = checkpoint['encoder']
         decoder = checkpoint['decoder']
 
@@ -168,9 +177,9 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
         dictwriter.writeheader()
         dictwriter.writerow(val_output_info)
 
-    with open('all_results.csv', 'a') as csvfile:
-        dictwriter = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        dictwriter.writerow(val_output_info)
+    #with open('all_results.csv', 'a') as csvfile:
+        #dictwriter = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        #dictwriter.writerow(val_output_info)
 
 
     print(val_output_info)

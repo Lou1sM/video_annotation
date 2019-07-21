@@ -1,3 +1,4 @@
+import os
 import operator
 import numpy as np
 import subprocess
@@ -20,17 +21,26 @@ def compute_scores_for_thresh(positive_probs, negative_probs, thresh):
     return tp, fp, fn, tn, prec, rec, f1, acc
 
 
-def find_best_thresh_from_probs(exp_name, dset_fragment):
+def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size):
+    
     
     prob_file_name = "../experiments/{}/{}-{}probabilities.json".format(exp_name, exp_name, dset_fragment)
     try:
         with open(prob_file_name, 'r') as prob_file:
             data = json.load(prob_file)
-    except (FileNotFoundError, json.decoder.JSONDecodeError):
-        emb_file_name = "../experiments/{}/{}-{}_outputs.txt".format(exp_name, exp_name, dset_fragment)
-        #emb_file_name = "../experiments/{}/10d-det-{}_{}_outputs.txt".format(exp_name, dset_fragment, exp_name)
-        print("Can't read from probabilites file {}. Computing probabilities from scratch using embeddings at {}".format(prob_file_name, emb_file_name))
-        data = json.loads(subprocess.Popen(["vc-eval", emb_file_name], stdout=subprocess.PIPE).communicate()[0].decode())
+            x
+    #except (FileNotFoundError, json.decoder.JSONDecodeError):
+    except:
+        emb_file_path = "../experiments/{}/{}-{}_outputs.txt".format(exp_name, exp_name, dset_fragment)
+        gt_file_path = "../data/rdf_video_captions/{}d-det.json.neg".format(ind_size)
+        model_file_path = "../rrn-models/model-10d-det.state".format(ind_size)
+        assert os.path.isfile(emb_file_path)
+        assert os.path.isfile(gt_file_path)
+        assert os.path.isfile(model_file_path)
+        print("Can't read from probabilites file {}. Computing probabilities from scratch using embeddings at {}".format(prob_file_name, emb_file_path))
+        #data = json.loads(subprocess.Popen(["vc-eval", emb_file_path], stdout=subprocess.PIPE).communicate()[0].decode())
+        #data = json.loads(subprocess.check_output("./embedding-gen/run-eval.sh %s %s %s" % ('../data/rdf_video_captions/10d-det.json.neg', '../experiments/try/try-val_outputs.txt', '../rrn-models/model-10d-det.state'), shell=True).decode())
+        data = json.loads(subprocess.check_output("./embedding-gen/run-eval.sh %s %s %s" % (gt_file_path, emb_file_path, model_file_path), shell=True))
         with open(prob_file_name, 'w') as prob_file:
             json.dump(data, prob_file)
     f1_by_thresh = {}

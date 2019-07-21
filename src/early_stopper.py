@@ -27,7 +27,6 @@ class EarlyStopper:
             self.val_loss_min = val_loss
             self.best_model = model
             self.counter = 0
-            print(self.counter)
         else:
             self.counter += 1
             print('Val loss was {}, no improvement on best of {}'.format(val_loss, self.val_loss_min))

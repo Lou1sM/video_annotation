@@ -4,7 +4,7 @@ import numpy
 import torch.nn.functional as F
 
 
-def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, log_pred, device):
+def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, device):
 
     for batch_idx, video_id in enumerate(video_ids):
         dpoint = json_data_dict[int(video_id.item())]
@@ -24,8 +24,6 @@ def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, l
             obj_embedding = embeddings[batch_idx,obj_pos]
             sub_obj_concat = torch.cat([sub_embedding, obj_embedding])
             prediction = mlp(sub_obj_concat)
-            if log_pred:
-                prediction = torch.log(prediction+1e-4)
             #prediction = torch.min(prediction, torch.tensor([10], dtype=torch.float32, device=device))
             #print('pos', prediction.item())
             loss += F.relu(-prediction+5)
@@ -47,8 +45,6 @@ def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, l
             sub_obj_concat = torch.cat([sub_embedding, obj_embedding])
             mlp = mlp_dict[relation].to(device)
             prediction = mlp(sub_obj_concat)
-            if log_pred:
-                prediction = torch.log(prediction+1e-4)
             #prediction = torch.max(prediction, torch.tensor([-10], dtype=torch.float32, device=device))
             loss += neg_weight*F.relu(prediction+5)
             #print('neg', prediction.item())

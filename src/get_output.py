@@ -404,7 +404,7 @@ def write_outputs_get_info(encoder, decoder, transformer, ARGS, data_generator, 
     with open(outputs_filename, 'w') as outputs_file:
         json.dump(outputs, outputs_file)
    
-    metric_data, total_metric_data, positive_probs, negative_probs = find_best_thresh_from_probs(exp_name, dset_fragment)
+    metric_data, total_metric_data, positive_probs, negative_probs = find_best_thresh_from_probs(exp_name, dset_fragment, ind_size=ARGS.ind_size)
     test_info.update(metric_data)
     legit_thresh = fixed_thresh if dset_fragment == 'test' else metric_data['thresh'] 
     print(fixed_thresh, metric_data['thresh'])
