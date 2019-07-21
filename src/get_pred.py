@@ -4,7 +4,7 @@ import numpy
 import torch.nn.functional as F
 
 
-def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, device):
+def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, margin, device):
 
     for batch_idx, video_id in enumerate(video_ids):
         dpoint = json_data_dict[int(video_id.item())]
@@ -26,7 +26,7 @@ def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, d
             prediction = mlp(sub_obj_concat)
             #prediction = torch.min(prediction, torch.tensor([10], dtype=torch.float32, device=device))
             #print('pos', prediction.item())
-            loss += F.relu(-prediction+5)
+            loss += F.relu(-prediction+margin)
 
         if neg_weight == 0:
             return loss
@@ -46,7 +46,7 @@ def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, d
             mlp = mlp_dict[relation].to(device)
             prediction = mlp(sub_obj_concat)
             #prediction = torch.max(prediction, torch.tensor([-10], dtype=torch.float32, device=device))
-            loss += neg_weight*F.relu(prediction+5)
+            loss += neg_weight*F.relu(prediction+margin)
             #print('neg', prediction.item())
 
     return loss
