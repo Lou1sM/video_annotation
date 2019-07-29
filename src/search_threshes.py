@@ -28,9 +28,7 @@ def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size):
     try:
         with open(prob_file_name, 'r') as prob_file:
             data = json.load(prob_file)
-            x
-    #except (FileNotFoundError, json.decoder.JSONDecodeError):
-    except:
+    except (FileNotFoundError, json.decoder.JSONDecodeError):
         emb_file_path = "../experiments/{}/{}-{}_outputs.txt".format(exp_name, exp_name, dset_fragment)
         gt_file_path = "../data/rdf_video_captions/{}d-det.json.neg".format(ind_size)
         model_file_path = "../rrn-models/model-{}d-det.state".format(ind_size)
