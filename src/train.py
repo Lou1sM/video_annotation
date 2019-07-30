@@ -319,7 +319,7 @@ def train_on_batch_pred(ARGS, input_tensor, target_tensor, target_number_tensor,
         assisted_embeddings = (decoder_outputs + ARGS.pred_embeddings_assist*target_tensor[:decoder_outputs.shape[1],:,:].permute(1,0,2))/(1+ARGS.pred_embeddings_assist)
         assert (ARGS.pred_embeddings_assist==0) == torch.all(torch.eq(assisted_embeddings, decoder_outputs))
 
-        loss = get_pred_loss(video_ids, assisted_embeddings, json_data_dict, mlp_dict, neg_weight=ARGS.neg_pred_weight, device=device)
+        loss = get_pred_loss(video_ids, assisted_embeddings, json_data_dict, mlp_dict, neg_weight=ARGS.neg_pred_weight, margin=ARGS.pred_margin, device=device)
         inv_byte_mask = mask.byte()^1
         inv_mask = inv_byte_mask.float()
         assert (mask+inv_mask == torch.ones(ARGS.batch_size, decoder_outputs.shape[1], 1, device=ARGS.device)).all()
@@ -661,7 +661,7 @@ def eval_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, i3d_v
             dec_out_tensor = torch.cat(dec_out_list, dim=1).to(device)
             if ARGS.setting == "preds":
                 #dec_loss += get_pred_loss(video_ids[b].unsqueeze(0), dec_out_tensor, json_data_dict, mlp_dict, neg_weight=ARGS.neg_pred_weight, device=device)
-                dec_loss += get_pred_loss(video_ids[b].unsqueeze(0), dec_out_tensor, json_data_dict, mlp_dict, neg_weight=ARGS.neg_pred_weight, device=device)
+                dec_loss += get_pred_loss(video_ids[b].unsqueeze(0), dec_out_tensor, json_data_dict, mlp_dict, neg_weight=ARGS.neg_pred_weight, margin=ARGS.pred_margin, device=device)
             elif ARGS.setting == "embeddings":
                 dec_loss += l_loss*ARGS.ind_size/float(l)
             elif ARGS.setting == "eos":
