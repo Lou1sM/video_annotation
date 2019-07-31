@@ -334,6 +334,7 @@ def train_on_batch_pred(ARGS, input_tensor, target_tensor, target_number_tensor,
 
         packing_rescale = ARGS.batch_size * decoder_outputs.shape[1]/torch.sum(target_number_tensor) 
         norm_loss = norm_loss*packing_rescale
+        loss = loss*packing_rescale
         total_loss = loss + ARGS.lmbda_norm*norm_loss
         
     total_loss.backward()
