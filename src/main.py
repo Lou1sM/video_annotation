@@ -94,6 +94,7 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
                 reload_file_path= '../jade_checkpoints/{}.pt'.format(ARGS.reload)
             else:
                 reload_file_path = '/data2/louis/checkpoints/{}.pt'.format(ARGS.reload)
+            reload_file_path = ARGS.reload
             print('Reloading model from {}'.format(reload_file_path))
             saved_model = torch.load(reload_file_path)
             encoder = saved_model['encoder']

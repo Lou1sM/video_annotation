@@ -39,7 +39,10 @@ class EarlyStopper:
     def save_checkpoint(self, val_loss, model_dict, exp_name):
         '''Saves model when validation loss decrease.'''
         if exp_name.startswith('jade'):
-            filename = '../jade_checkpoints/{}.pt'.format(exp_name[:-2])
+            if exp_name.endswith('d'):
+                filename = '../jade_checkpoints/{}.pt'.format(exp_name)
+            else:
+                filename = '../jade_checkpoints/{}.pt'.format(exp_name[:-2])
         else:
             filename = '/data2/louis/checkpoints/{}.pt'.format(exp_name)
         

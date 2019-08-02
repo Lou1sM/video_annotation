@@ -89,6 +89,7 @@ IMPORTANT_PARAMS = [
     #'norm_loss',
     'norm_threshold', 
     'pred_embeddings_assist', 
+    'pred_margin',
     'reload', 
     #'reweight_eos',
     'setting', 

@@ -440,15 +440,19 @@ if __name__=="__main__":
     ARGS = parser.parse_args() 
     ARGS.device = "cuda" if torch.cuda.is_available() else "cpu"
     checkpoint_path = '/data2/louis/checkpoints/{}.pt'.format(ARGS.exp_name)
-    checkpoint = torch.load(checkpoint_path)
+    checkpoint_path = '../jade_checkpoints/{}.pt'.format(ARGS.exp_name)
         
     gtf = ARGS.gt_forcing
     print("Ground Truth Forcing:", gtf)
     print('enc_zeroes', ARGS.enc_zeroes)
     print('dec_zeroes', ARGS.dec_zeroes)
-    checkpoint = torch.load(checkpoint_path)
+    checkpoint = torch.load(checkpoint_path, map_location=ARGS.device)
     encoder = checkpoint['encoder']
     decoder = checkpoint['decoder']
+    encoder.to(ARGS.device)
+    decoder.to(ARGS.device)
+    encoder.device = ARGS.device
+    decoder.device = ARGS.device
     try:
         transformer = checkpoint['transformer']
     except KeyError:

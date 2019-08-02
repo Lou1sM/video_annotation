@@ -33,7 +33,7 @@ def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size):
     except:
         emb_file_path = "../experiments/{}/{}-{}_outputs.txt".format(exp_name, exp_name, dset_fragment)
         gt_file_path = "../data/rdf_video_captions/{}d-det.json.neg".format(ind_size)
-        model_file_path = "../rrn-models/model-10d-det.state".format(ind_size)
+        model_file_path = "../rrn-models/model-{}d-det.state".format(ind_size)
         assert os.path.isfile(emb_file_path)
         assert os.path.isfile(gt_file_path)
         assert os.path.isfile(model_file_path)
