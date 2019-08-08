@@ -6,12 +6,12 @@ import utils
 import options
 import models
 import train
-import torch
 import data_loader 
 from get_output import write_outputs_get_info, test_reg
 #from reg_transformer import RegTransformer
 
 
+#torch.manual_seed(0)
 
 def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train_table, i3d_val_table, i3d_test_table):
     """Cant' just pass generators as need to re-init with batch_size=1 when testing.""" 
@@ -252,4 +252,14 @@ def main():
 
 if __name__=="__main__":
     ARGS = options.load_arguments()
+
+    import torch
+    torch.manual_seed(ARGS.seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+    import os
+    os.environ['CUDA_VISIBLE_DEVICES'] = ARGS.cuda_visible_devices
+    import numpy as np
+    np.random.seed(ARGS.seed)
     main()

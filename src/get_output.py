@@ -18,6 +18,7 @@ from data_loader import load_data, load_data_lookup, video_lookup_table_from_ran
 from search_threshes import find_best_thresh_from_probs, compute_scores_for_thresh
 from sklearn.metrics import confusion_matrix
 
+#torch.manual_seed(0)
 
 def test_reg(encoder, regressor, train_generator, val_generator, test_generator, deci3d, device):
     encoder.eval()
@@ -261,6 +262,7 @@ def get_outputs(encoder, decoder, transformer, data_generator, gt_forcing, ind_s
                 #except Exception as e:
                 #    print(e)
                 #    pass
+                decoder_output = F.normalize(decoder_output, p=2, dim=-1)
                 dec_out_list.append(decoder_output)
                 decoder_hidden = decoder_hidden_new
                 dp_output.append(decoder_output.squeeze().detach().cpu().numpy().tolist())
@@ -435,12 +437,14 @@ if __name__=="__main__":
     parser.add_argument("--i3d", action="store_true")
     parser.add_argument("--i3d_after", action="store_true")
     parser.add_argument("--setting", type=str, default='embeddings')
+    parser.add_argument("--checkpoint_to_test", type=str)
 
 
     ARGS = parser.parse_args() 
     ARGS.device = "cuda" if torch.cuda.is_available() else "cpu"
-    checkpoint_path = '/data2/louis/checkpoints/{}.pt'.format(ARGS.exp_name)
-    checkpoint_path = '../jade_checkpoints/{}.pt'.format(ARGS.exp_name)
+    #checkpoint_path = '/data2/louis/checkpoints/{}.pt'.format(ARGS.exp_name)
+    #checkpoint_path = '../jade_checkpoints/{}.pt'.format(ARGS.exp_name)
+    checkpoint_path = ARGS.checkpoint_to_test
         
     gtf = ARGS.gt_forcing
     print("Ground Truth Forcing:", gtf)
@@ -461,6 +465,10 @@ if __name__=="__main__":
     train_norms = []
     val_norms = []
     test_norms = []
+
+    exp_dir = '../experiments/{}'.format(ARGS.exp_name)
+    if not os.path.isdir(exp_dir):
+        os.mkdir(exp_dir)
 
     print('getting outputs and info for val set')
     val_lookup_table = video_lookup_table_from_range(1201, 1301, cnn="vgg")

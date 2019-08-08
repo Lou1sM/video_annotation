@@ -22,6 +22,8 @@ from get_pred import get_pred_loss
 import pretrainedmodels
 
 
+#torch.manual_seed(0)
+
 #cnn = pretrainedmodels.__dict__['vgg'](num_classes=1000, pretrained='imagenet')
 def make_mask(target_number_tensor):
     longest_in_batch = int(torch.max(target_number_tensor).item())
@@ -318,6 +320,8 @@ def train_on_batch_pred(ARGS, input_tensor, target_tensor, target_number_tensor,
 
         assisted_embeddings = (decoder_outputs + ARGS.pred_embeddings_assist*target_tensor[:decoder_outputs.shape[1],:,:].permute(1,0,2))/(1+ARGS.pred_embeddings_assist)
         assert (ARGS.pred_embeddings_assist==0) == torch.all(torch.eq(assisted_embeddings, decoder_outputs))
+        if ARGS.pred_normalize:
+            assisted_embeddings = F.normalize(assisted_embeddings, p=2, dim=-1)
 
         loss = get_pred_loss(video_ids, assisted_embeddings, json_data_dict, mlp_dict, neg_weight=ARGS.neg_pred_weight, margin=ARGS.pred_margin, device=device)
         inv_byte_mask = mask.byte()^1
@@ -341,7 +345,8 @@ def train_on_batch_pred(ARGS, input_tensor, target_tensor, target_number_tensor,
     encoder_optimizer.step()
     decoder_optimizer.step()
     
-    return round(loss.item(), 3), round(norm_loss.item(),3)
+    #return round(loss.item(), 3), round(norm_loss.item(),3)
+    return loss.item(), norm_loss.item()
 
 
 def train(ARGS, encoder, decoder, transformer, train_generator, val_generator, exp_name, device, encoder_optimizer=None, decoder_optimizer=None):

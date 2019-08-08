@@ -36,9 +36,9 @@ def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size):
         assert os.path.isfile(gt_file_path)
         assert os.path.isfile(model_file_path)
         print("Can't read from probabilites file {}. Computing probabilities from scratch using embeddings at {}".format(prob_file_name, emb_file_path))
-        #data = json.loads(subprocess.Popen(["vc-eval", emb_file_path], stdout=subprocess.PIPE).communicate()[0].decode())
+        data = json.loads(subprocess.Popen(["vc-eval", emb_file_path], stdout=subprocess.PIPE).communicate()[0].decode())
         #data = json.loads(subprocess.check_output("./embedding-gen/run-eval.sh %s %s %s" % ('../data/rdf_video_captions/10d-det.json.neg', '../experiments/try/try-val_outputs.txt', '../rrn-models/model-10d-det.state'), shell=True).decode())
-        data = json.loads(subprocess.check_output("./embedding-gen/run-eval.sh %s %s %s" % (gt_file_path, emb_file_path, model_file_path), shell=True))
+        #data = json.loads(subprocess.check_output("./embedding-gen/run-eval.sh %s %s %s" % (gt_file_path, emb_file_path, model_file_path), shell=True))
         with open(prob_file_name, 'w') as prob_file:
             json.dump(data, prob_file)
     f1_by_thresh = {}

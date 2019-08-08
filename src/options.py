@@ -8,6 +8,7 @@ def load_arguments():
     #argparser.add_argument("--attn_type", choices = ["dot", "ff"], default = "dot")
     argparser.add_argument("--batch_size", type = int, default = 100)
     #argparser.add_argument("--cnn_layers_to_freeze", type = int, default = 17, help = "how many of the CNN's layers to freeze during training")
+    argparser.add_argument("--cuda_visible_devices", type=str, default='0')
     argparser.add_argument("--dec_layers", default = 2, type=int)
     argparser.add_argument("--dec_rnn", choices = ["gru", "lstm"], default = "gru")
     argparser.add_argument("--device", type=str, default = 'cuda')
@@ -44,10 +45,12 @@ def load_arguments():
     argparser.add_argument("--patience", type = int, default = 7)
     argparser.add_argument("--pred_embeddings_assist",type=float,default=0.0,help = "how much to move the network outputs to gt when predicting")    
     argparser.add_argument("--pred_margin",type=float,default=10.0,help = "margin within which to apply pred loss, ie we use relu(-/+pred-margin) for pos a neg respectively")
+    argparser.add_argument("--pred_normalize", action="store_true", default=False, help = "whether to normlize assisted embeddings before feeding to get_pred")
     argparser.add_argument("--quick_run", "-q", action="store_true", help="exit training loop after 1 batch")
     #argparser.add_argument("--reg_sizes", nargs='+', type=int, default=[100,40])
     argparser.add_argument("--reload", default = None)
     #argparser.add_argument("--reweight_eos",action="store_true",help = "apply ones loss")
+    argparser.add_argument("--seed", type=int, default=0)
     argparser.add_argument("--setting", choices = ["embeddings", "preds", "eos", "transformer", 'reg', 'embeddings_eos'], default="embeddings", help = "setting to train the NN on")    
     argparser.add_argument("--shuffle", action = "store_false", default = True)
     argparser.add_argument("--sigmoid_mlp",action="store_true",help = "sigmoid activation function at end of mlp")    
@@ -66,6 +69,7 @@ def load_arguments():
 IMPORTANT_PARAMS = [
     #'attn_type',
     'batch_size',
+    'cuda_visible_devices',
     'dec_init', 
     'dec_layers', 
     'dec_rnn', 
@@ -88,10 +92,13 @@ IMPORTANT_PARAMS = [
     'neg_pred_weight', 
     #'norm_loss',
     'norm_threshold', 
+    'patience',
     'pred_embeddings_assist', 
     'pred_margin',
+    'pred_normalize',
     'reload', 
     #'reweight_eos',
+    'seed',
     'setting', 
     #'transformer_heads',
     #'transformer_layers',

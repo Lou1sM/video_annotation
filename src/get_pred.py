@@ -1,15 +1,24 @@
 import json
 import torch
-import numpy
+import numpy as np
 import torch.nn.functional as F
 
 
+torch.manual_seed(0)
+
 def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, margin, device):
 
+    #printout = np.random.rand()<0.05
+    printout = np.random.rand()<0.00
     for batch_idx, video_id in enumerate(video_ids):
         dpoint = json_data_dict[int(video_id.item())]
         triples = dpoint['caption']
         ntriples = dpoint['negatives']
+        if neg_weight == -1: 
+            try:
+                neg_weight = float(len(triples))/len(ntriples)
+            except ZeroDivisionError:
+                neg_weight = 0
         loss = torch.tensor([0.], device=device)
         for triple in triples:
             sub, relation, obj = triple.split()
@@ -25,7 +34,10 @@ def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, m
             sub_obj_concat = torch.cat([sub_embedding, obj_embedding])
             prediction = mlp(sub_obj_concat)
             #prediction = torch.min(prediction, torch.tensor([10], dtype=torch.float32, device=device))
-            #print('pos', prediction.item())
+            if printout:
+                print('pos', prediction.item())
+                print(F.relu(-prediction+margin).item())
+            #loss += F.relu(-prediction+margin)**2
             loss += F.relu(-prediction+margin)
 
         if neg_weight == 0:
@@ -46,8 +58,12 @@ def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, m
             mlp = mlp_dict[relation].to(device)
             prediction = mlp(sub_obj_concat)
             #prediction = torch.max(prediction, torch.tensor([-10], dtype=torch.float32, device=device))
+            if printout:
+                print('neg', prediction.item())
+                print(F.relu(prediction+margin).item())
+                print(neg_weight*F.relu(prediction+margin).item())
+            #loss += neg_weight*F.relu(prediction+margin)**2
             loss += neg_weight*F.relu(prediction+margin)
-            #print('neg', prediction.item())
 
     return loss
        
