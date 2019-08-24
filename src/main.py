@@ -16,7 +16,7 @@ from get_output import write_outputs_get_info, test_reg
 def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train_table, i3d_val_table, i3d_test_table):
     """Cant' just pass generators as need to re-init with batch_size=1 when testing.""" 
     
-    dataset = '{}d'.format(ARGS.ind_size)
+    dataset = '{}-{}d'.format(ARGS.dataset, ARGS.ind_size)
     #print(dataset)
 
     if ARGS.mini:
@@ -28,14 +28,16 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
         ARGS.no_chkpt = True
         if ARGS.max_epochs == 1000:
             ARGS.max_epochs = 1
-        train_file_path = val_file_path = test_file_path = '../data/rdf_video_captions/{}d-6dp.h5'.format(ARGS.ind_size)
+        train_file_path = val_file_path = test_file_path = '../data/rdf_video_captions/{}-{}d-6dp.h5'.format(ARGS.dataset, ARGS.ind_size)
         assert os.path.isfile(train_file_path)
-        print('Using dataset: {}'.format(train_file_path))
+        print('Using dataset at: {}'.format(train_file_path))
     else:
         train_file_path = os.path.join('../data/rdf_video_captions', '{}-train.h5'.format(dataset))
         val_file_path = os.path.join('../data/rdf_video_captions', '{}-val.h5'.format(dataset))
         test_file_path = os.path.join('../data/rdf_video_captions', '{}-test.h5'.format(dataset))
-        print('Using dataset: {}'.format(dataset))
+        #train_file_path = val_file_path = test_file_path = os.path.join('../data/rdf_video_captions', '{}-val.h5'.format(dataset))
+        assert os.path.isfile(train_file_path)
+        print('Using dataset at: {}'.format(train_file_path))
 
     train_generator = data_loader.load_data_lookup(train_file_path, video_lookup_table=train_table, i3d_lookup_table=i3d_train_table, batch_size=ARGS.batch_size, shuffle=ARGS.shuffle)
     val_generator = data_loader.load_data_lookup(val_file_path, video_lookup_table=val_table, i3d_lookup_table=i3d_val_table, batch_size=ARGS.batch_size, shuffle=ARGS.shuffle)
@@ -47,7 +49,8 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
             encoder = models.EncoderRNN(ARGS, ARGS.device).to(ARGS.device)
             regressor = models.NumIndRegressor(ARGS,ARGS.device).to(ARGS.device)
         else:
-            checkpoint = torch.load('/data2/louis/checkpoints/{}.pt'.format(ARGS.reload))
+            #checkpoint = torch.load('/data2/louis/checkpoints/{}.pt'.format(ARGS.reload))
+            checkpoint = torch.load('/data1/louis/checkpoints/{}.pt'.format(ARGS.reload))
             encoder = checkpoint['encoder']
             try:
                 regressor = checkpoint['regressor']
@@ -93,7 +96,8 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
             if exp_name.startswith('jade'):
                 reload_file_path= '../jade_checkpoints/{}.pt'.format(ARGS.reload)
             else:
-                reload_file_path = '/data2/louis/checkpoints/{}.pt'.format(ARGS.reload)
+                #reload_file_path = '/data2/louis/checkpoints/{}.pt'.format(ARGS.reload)
+                reload_file_path = '/data1/louis/checkpoints/{}.pt'.format(ARGS.reload)
             reload_file_path = ARGS.reload
             print('Reloading model from {}'.format(reload_file_path))
             saved_model = torch.load(reload_file_path)
@@ -131,7 +135,8 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
         if exp_name.startswith('jade'):
             filename = '../jade_checkpoints/{}.pt'.format(exp_name[:-2])
         else:
-            filename = '/data2/louis/checkpoints/{}.pt'.format(exp_name)
+            #filename = '/data2/louis/checkpoints/{}.pt'.format(exp_name)
+            filename = '/data1/louis/checkpoints/{}.pt'.format(exp_name)
         print(filename)
         checkpoint = torch.load(filename)
         encoder = checkpoint['encoder']
@@ -223,16 +228,27 @@ def main():
 
     if ARGS.mini:
         #train_table = val_table = test_table = data_loader.video_lookup_table_from_ids([1218,1337,1571,1443,1833,1874], cnn=ARGS.enc_cnn)
-        train_table = val_table = test_table = data_loader.video_lookup_table_from_range(1,7, cnn=ARGS.enc_cnn)
+        if ARGS.dataset == 'MSVD':
+            train_table = val_table = test_table = data_loader.video_lookup_table_from_range(1,7, dataset=ARGS.dataset)
+        elif ARGS.dataset == 'MSRVTT':
+            train_table = val_table = test_table = data_loader.video_lookup_table_from_range(0,6, dataset=ARGS.dataset)
+        print(train_table.keys())
         if ARGS.i3d:
             i3d_train_table = i3d_val_table = i3d_test_table = data_loader.i3d_lookup_table_from_range(1,7)
         else:
             i3d_train_table = i3d_val_table = i3d_test_table = None
     else:
         print('\nLoading lookup tables\n')
-        train_table = data_loader.video_lookup_table_from_range(1,1201, cnn=ARGS.enc_cnn)
-        val_table = data_loader.video_lookup_table_from_range(1201,1301, cnn=ARGS.enc_cnn)
-        test_table = data_loader.video_lookup_table_from_range(1301,1971, cnn=ARGS.enc_cnn)
+        if ARGS.dataset == 'MSVD':
+            train_table = data_loader.video_lookup_table_from_range(1,1201, dataset='MSVD')
+            val_table = data_loader.video_lookup_table_from_range(1201,1301, dataset='MSVD')
+            test_table = data_loader.video_lookup_table_from_range(1301,1971, dataset='MSVD')
+        
+        elif ARGS.dataset == 'MSRVTT':
+            train_table = data_loader.video_lookup_table_from_range(0,6513, dataset='MSRVTT')
+            val_table = data_loader.video_lookup_table_from_range(6513,7010, dataset='MSRVTT')
+            test_table = data_loader.video_lookup_table_from_range(7010,10000, dataset='MSRVTT')
+            #train_table=val_table=test_table=data_loader.video_lookup_table_from_range(6513,7010, dataset='MSRVTT')
         
         if ARGS.i3d:
             i3d_train_table = data_loader.i3d_lookup_table_from_range(1,1201)

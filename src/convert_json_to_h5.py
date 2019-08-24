@@ -95,14 +95,19 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
     num_val = 0
     num_train = 0
     for dp in embeddings_and_ids:
-        if dp['videoId'] <= 1200:
+        #if dp['videoId'] <= 1200:
+        if dp['videoId'] <= 6512:
             num_train += 1
-        elif dp['videoId'] <= 1300:
+        elif dp['videoId'] <= 7009:
             num_val += 1
-        elif dp['videoId'] <= 1970:
+        elif dp['videoId'] <= 10000:
             num_test += 1
         else:
             print("Unrecognised video id: {}".format(dp['videoId']))
+    print('train:', num_train)
+    print('val:', num_val)
+    print('test:', num_test)
+    #num_train=6
 
     # Define the 3 data files and the datasets therein
     h5_f_train = h5py.File(out_h5_train_file_path, 'w')
@@ -138,7 +143,10 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
         #x
         #if len(dp['embeddings']) == 36:
         #    print(dp['embeddings'][0][0])
-        if new_vid_id <= 1200:
+        #if dp['videoId'] > 5:
+            #continue
+        #if new_vid_id <= 1200:
+        if new_vid_id <= 6512:
             #print('train')
             id_train_dataset[idx_train] = new_vid_id
             list_of_lists = dp['embeddings']
@@ -147,7 +155,8 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
             emb_seq_train_dataset[idx_train] = padded_emb_seq_from_lists(list_of_lists, embedding_size=embedding_size, max_len=max_len)
             idx_train += 1
         
-        elif new_vid_id <= 1300:
+        #elif new_vid_id <= 1300:
+        elif new_vid_id <= 7009:
             #print('val')
             id_val_dataset[idx_val] = new_vid_id
             list_of_lists = dp['embeddings']
@@ -156,7 +165,8 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
             emb_seq_val_dataset[idx_val] = padded_emb_seq_from_lists(list_of_lists, embedding_size=embedding_size, max_len=max_len)
             idx_val += 1
         
-        elif new_vid_id <= 1970:
+        #elif new_vid_id <= 1970:
+        elif new_vid_id <= 10000:
             #print('test') 
             id_test_dataset[idx_test] = new_vid_id
             list_of_lists = dp['embeddings']
@@ -173,16 +183,33 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
 if __name__ == "__main__":
     
     convert_json_to_h5s(
-         json_file_path='/data2/commons/rdf_video_captions/10d-det.json', 
-         out_h5_train_file_path='../data/rdf_video_captions/train_10d-det.h5',
-         out_h5_val_file_path= '../data/rdf_video_captions/val_10d-det.h5',
-         out_h5_test_file_path= '../data/rdf_video_captions/test_10d-det.h5',
+         json_file_path='../data/rdf_video_captions/MSRVTT-10d-det.json.neg', 
+         out_h5_train_file_path='../data/rdf_video_captions/MSRVTT-10d-train.h5',
+         out_h5_val_file_path= '../data/rdf_video_captions/MSRVTT-10d-val.h5',
+         out_h5_test_file_path= '../data/rdf_video_captions/MSRVTT-10d-test.h5',
          embedding_size=10,
-         max_len=29
+         max_len=58
          )
+ 
+    #convert_json_to_h5s(
+    #     json_file_path='../data/rdf_video_captions/MSRVTT-10d-det.json.neg', 
+    #     out_h5_train_file_path='../data/rdf_video_captions/MSRVTT-10d-6dp.h5',
+    #     out_h5_val_file_path= 'dud',
+    #     out_h5_test_file_path= 'dud1',
+    #     embedding_size=10,
+    #     max_len=58
+    #     )
 
     #convert_json_to_h5s(
-    #    json_file_path='/home/eleonora/video_annotation/data/rdf_video_captions/50d.overfitting.json', 
+    #    json_file_path='/data2/commons/rdf_video_captions/5d-det.json', 
+    #    out_h5_train_file_path='../data/rdf_video_captions/MSVD-5d-train.h5',
+    #    out_h5_val_file_path= '../data/rdf_video_captions/MSVD-5d-val.h5',
+    #    out_h5_test_file_path= '../data/rdf_video_captions/MSVD-5d-test.h5',
+    #    embedding_size=5,
+    #    max_len=29)
+
+    #convert_json_to_h5s(
+    #    json_file_path='/data2/commons/rdf_video_captions/50d.overfitting.json', 
     #    out_h5_train_file_path='../data/rdf_video_captions/50d_overfitting.h5',
     #    out_h5_val_file_path= '../data/rdf_video_captions/over_val.h5',
     #    out_h5_test_file_path= '../data/rdf_video_captions/over_test.h5',

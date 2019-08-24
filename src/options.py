@@ -9,6 +9,7 @@ def load_arguments():
     argparser.add_argument("--batch_size", type = int, default = 100)
     #argparser.add_argument("--cnn_layers_to_freeze", type = int, default = 17, help = "how many of the CNN's layers to freeze during training")
     argparser.add_argument("--cuda_visible_devices", type=str, default='0')
+    argparser.add_argument("--dataset", type=str, default='MSVD', choices=['MSVD', 'MSRVTT'])
     argparser.add_argument("--dec_layers", default = 2, type=int)
     argparser.add_argument("--dec_rnn", choices = ["gru", "lstm"], default = "gru")
     argparser.add_argument("--device", type=str, default = 'cuda')
@@ -70,6 +71,7 @@ IMPORTANT_PARAMS = [
     #'attn_type',
     'batch_size',
     'cuda_visible_devices',
+    'dataset',
     'dec_init', 
     'dec_layers', 
     'dec_rnn', 

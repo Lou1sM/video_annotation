@@ -4,6 +4,7 @@ import numpy as np
 import subprocess
 import sys
 import json
+from compute_probs import compute_probs_for_dataset
 
 
 def compute_scores_for_thresh(positive_probs, negative_probs, thresh):
@@ -21,7 +22,7 @@ def compute_scores_for_thresh(positive_probs, negative_probs, thresh):
     return tp, fp, fn, tn, prec, rec, f1, acc
 
 
-def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size):
+def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size, dataset, mlp_dict, gt_json):
     
     
     prob_file_name = "../experiments/{}/{}-{}probabilities.json".format(exp_name, exp_name, dset_fragment)
@@ -30,17 +31,29 @@ def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size):
             data = json.load(prob_file)
     except (FileNotFoundError, json.decoder.JSONDecodeError):
         emb_file_path = "../experiments/{}/{}-{}_outputs.txt".format(exp_name, exp_name, dset_fragment)
-        gt_file_path = "../data/rdf_video_captions/{}d-det.json.neg".format(ind_size)
-        model_file_path = "../rrn-models/model-{}d-det.state".format(ind_size)
+        gt_file_path = "../data/rdf_video_captions/{}d-det.json.neg".format(dataset, ind_size)
+        """
+        model_file_path = "../rrn-models/model-{}d-det.state".format(dataset, ind_size)
         assert os.path.isfile(emb_file_path)
-        assert os.path.isfile(gt_file_path)
-        assert os.path.isfile(model_file_path)
+        #assert os.path.isfile(gt_file_path)
+        #assert os.path.isfile(model_file_path)
         print("Can't read from probabilites file {}. Computing probabilities from scratch using embeddings at {}".format(prob_file_name, emb_file_path))
-        data = json.loads(subprocess.Popen(["vc-eval", emb_file_path], stdout=subprocess.PIPE).communicate()[0].decode())
+        if dataset == 'MSVD':
+            data = json.loads(subprocess.Popen(["vc-eval", emb_file_path], stdout=subprocess.PIPE).communicate()[0].decode())
+        elif dataset == 'MSRVTT':
+            data = json.loads(subprocess.Popen(["vc-eval", emb_file_path, '0.5', 'msrvtt'], stdout=subprocess.PIPE).communicate()[0].decode())
         #data = json.loads(subprocess.check_output("./embedding-gen/run-eval.sh %s %s %s" % ('../data/rdf_video_captions/10d-det.json.neg', '../experiments/try/try-val_outputs.txt', '../rrn-models/model-10d-det.state'), shell=True).decode())
         #data = json.loads(subprocess.check_output("./embedding-gen/run-eval.sh %s %s %s" % (gt_file_path, emb_file_path, model_file_path), shell=True))
-        with open(prob_file_name, 'w') as prob_file:
-            json.dump(data, prob_file)
+        """
+    emb_file_path = "../experiments/{}/{}-{}_outputs.txt".format(exp_name, exp_name, dset_fragment)
+    with open(emb_file_path, 'r') as emb_file:
+        outputs_json = json.load(emb_file)
+        
+    positive_probs, negative_probs = compute_probs_for_dataset(outputs_json, gt_json, mlp_dict, device='cuda')
+    print(len(positive_probs), len(negative_probs))
+    print(positive_probs[:20], negative_probs[:20])
+    #with open(prob_file_name, 'w') as prob_file:
+        #json.dump(data, prob_file)
     f1_by_thresh = {}
        
     threshes = []
@@ -50,10 +63,12 @@ def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size):
     tns = []
     f1s = []
     accs = []
-    positive_probs = data['probabilities']['pos']
-    negative_probs = data['probabilities']['neg']
-    avg_pos_prob = data['avg-probabilities']['pos'] 
-    avg_neg_prob = data['avg-probabilities']['neg'] 
+    #positive_probs = data['probabilities']['pos']
+    #negative_probs = data['probabilities']['neg']
+    #avg_pos_prob = data['avg-probabilities']['pos'] 
+    #avg_neg_prob = data['avg-probabilities']['neg'] 
+    avg_pos_prob = sum(positive_probs)/len(positive_probs)
+    avg_neg_prob = sum(negative_probs)/len(negative_probs)
     assert avg_pos_prob - (sum(positive_probs)/len(positive_probs)) < 1e-3
     assert avg_neg_prob - (sum(negative_probs)/len(negative_probs)) < 1e-3
     best_f1 = 0
@@ -79,7 +94,7 @@ def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size):
             best_acc = acc
 
     total_metric_data = {'thresh': threshes, 'tp': tps, 'fp': fps, 'fn': fns, 'tn':tns, 'f1': f1s, 'acc': accs}
-    best_metric_data = {'thresh': best_thresh, 'tp': best_tp, 'tphalf': tphalf, 'fp': best_fp, 'fphalf': fphalf, 'fn': best_fn, 'fnhalf': fnhalf, 'tn':best_tn, 'tnhalf': tnhalf, 'f1': best_f1, 'f1half': f1half, 'best_acc': best_acc, 'acchalf': acchalf, 'pat_norm': data['avg-embedding-norm'], 'pat_distance': data['avg-distance'], 'avg_pos_prob': avg_pos_prob, 'avg_neg_prob': avg_neg_prob}
+    best_metric_data = {'thresh': best_thresh, 'tp': best_tp, 'tphalf': tphalf, 'fp': best_fp, 'fphalf': fphalf, 'fn': best_fn, 'fnhalf': fnhalf, 'tn':best_tn, 'tnhalf': tnhalf, 'f1': best_f1, 'f1half': f1half, 'best_acc': best_acc, 'acchalf': acchalf, 'avg_pos_prob': avg_pos_prob, 'avg_neg_prob': avg_neg_prob}
 
     with open('../experiments/{}/{}-{}metrics.json'.format(exp_name, dset_fragment, exp_name), 'w') as jsonfile:
         json.dump(total_metric_data, jsonfile)

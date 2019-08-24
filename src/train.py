@@ -358,9 +358,9 @@ def train(ARGS, encoder, decoder, transformer, train_generator, val_generator, e
     json_data_dict = None
     if ARGS.setting == 'preds':
         if ARGS.exp_name.startswith('jade') or True:
-            gt_file_path = '../data/rdf_video_captions/{}d-det.json.neg'.format(ARGS.ind_size)
+            gt_file_path = '../data/rdf_video_captions/{}-{}d-det.json.neg'.format(ARGS.dataset, ARGS.ind_size)
         else:
-            gt_file_path = '/data2/commons/rdf_video_captions/{}d-det.json.neg'.format(ARGS.ind_size)
+            gt_file_path = '/data2/commons/rdf_video_captions/{}-{}d-det.json.neg'.format(ARGS.dataset, ARGS.ind_size)
 
         with open(gt_file_path, 'r') as f:
             json_data_list = json.load(f)
@@ -625,7 +625,7 @@ def eval_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, i3d_v
         eos_preds_list = []
         l2_distances = []
         total_dist = torch.zeros([ARGS.ind_size], device=device).float()
-        eos_preds_tensor = torch.zeros(29, ARGS.batch_size, device=device).float()
+        eos_preds_tensor = torch.zeros(29, ARGS.batch_size, device=device).float() # Replace 29 with 58 if using msrvtt
         for b in range(ARGS.batch_size):
             dec_out_list = []
             single_dec_input = decoder_input[:, b].view(1, 1, -1)
@@ -676,26 +676,26 @@ def eval_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, i3d_v
                 #dec_loss += eos_criterion(eos_preds_tensor, target_number_tensor[b].unsqueeze(0).long()-1)
                 #dec_loss += eos_criterion(eos_preds_tensor, eos_target)
                 pass
-        eos_loss += eos_criterion(eos_preds_tensor, eos_target)
+        #eos_loss += eos_criterion(eos_preds_tensor, eos_target)
         index_tensor = (target_number_tensor.long()-1).unsqueeze(0).unsqueeze(-1)
         index_tensor = index_tensor.squeeze()
         #print(eos_preds.squeeze().shape)
         #print(index_tensor.shape)
         eos_criterion = nn.BCEWithLogitsLoss(reduce=False)
-        logits_at_ones = eos_preds_tensor.squeeze().transpose(0,1).gather(1,index_tensor.view(-1,1))
+        #logits_at_ones = eos_preds_tensor.squeeze().transpose(0,1).gather(1,index_tensor.view(-1,1))
         #print(logits_at_ones)
-        loss_at_ones = eos_criterion(logits_at_ones.squeeze(), torch.ones(ARGS.batch_size, device=device))
+        #loss_at_ones = eos_criterion(logits_at_ones.squeeze(), torch.ones(ARGS.batch_size, device=device))
         #print(target_number_tensor)
         #print(loss_at_ones)
-        scaled_logits_at_ones = torch.mul(logits_at_ones.squeeze(),target_number_tensor.squeeze()-2)
-        scaled_loss_at_ones = torch.mul(loss_at_ones.squeeze(),target_number_tensor.squeeze()-2)
+        #scaled_logits_at_ones = torch.mul(logits_at_ones.squeeze(),target_number_tensor.squeeze()-2)
+        #scaled_loss_at_ones = torch.mul(loss_at_ones.squeeze(),target_number_tensor.squeeze()-2)
         #print(scaled_loss_at_ones)
-        scaled_logits_at_ones = scaled_logits_at_ones/(target_number_tensor[b].int())
-        scaled_loss_at_ones = scaled_loss_at_ones/(target_number_tensor[b].int())
+        #scaled_logits_at_ones = scaled_logits_at_ones/(target_number_tensor[b].int())
+        #scaled_loss_at_ones = scaled_loss_at_ones/(target_number_tensor[b].int())
         #print(scaled_loss_at_ones)
-        ones_loss = -scaled_logits_at_ones.mean()
-        ones_loss = scaled_loss_at_ones.mean()
-        eos_loss += ones_loss
+        #ones_loss = -scaled_logits_at_ones.mean()
+        #ones_loss = scaled_loss_at_ones.mean()
+        #eos_loss += ones_loss
 
         print('avg_l2_distance', sum(l2_distances)/len(l2_distances))
         if ARGS.setting == 'eos':

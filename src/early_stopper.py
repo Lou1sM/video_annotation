@@ -44,7 +44,9 @@ class EarlyStopper:
             else:
                 filename = '../jade_checkpoints/{}.pt'.format(exp_name[:-2])
         else:
-            filename = '/data2/louis/checkpoints/{}.pt'.format(exp_name)
+            #filename = '/data2/louis/checkpoints/{}.pt'.format(exp_name)
+            filename = '/data1/louis/checkpoints/{}.pt'.format(exp_name)
+            #filename = '../checkpoints/{}.pt'.format(exp_name)
         
         if self.verbose:
             print('Validation loss decreased ({} --> {}).  Saving model to {} ...'.format(self.val_loss_min, val_loss, filename))

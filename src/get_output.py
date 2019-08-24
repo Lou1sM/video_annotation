@@ -405,8 +405,32 @@ def write_outputs_get_info(encoder, decoder, transformer, ARGS, data_generator, 
     print('writing outputs to', outputs_filename)
     with open(outputs_filename, 'w') as outputs_file:
         json.dump(outputs, outputs_file)
+  
+ 
    
-    metric_data, total_metric_data, positive_probs, negative_probs = find_best_thresh_from_probs(exp_name, dset_fragment, ind_size=ARGS.ind_size)
+    gt_file_path = '../data/rdf_video_captions/{}-{}d-det.json.neg'.format(ARGS.dataset, ARGS.ind_size)
+    with open(gt_file_path) as f:
+        gt_json = json.load(f)
+        #gt = {int(g['videoId']): g for g in gt}
+        gt_json = {g['videoId']: g for g in gt_json}
+
+    mlp_dict = {}
+    weight_dict = torch.load("../data/10d-mlps.pickle")
+    for relation, weights in weight_dict.items():
+        hidden_layer = nn.Linear(weights["hidden_weights"].shape[0], weights["hidden_bias"].shape[0])
+        hidden_layer.weight = nn.Parameter(torch.FloatTensor(weights["hidden_weights"]), requires_grad=False)
+        hidden_layer.bias = nn.Parameter(torch.FloatTensor(weights["hidden_bias"]), requires_grad=False)
+        output_layer = nn.Linear(weights["output_weights"].shape[0], weights["output_bias"].shape[0])
+        output_layer.weight = nn.Parameter(torch.FloatTensor(weights["output_weights"]), requires_grad=False)
+        output_layer.bias = nn.Parameter(torch.FloatTensor(weights["output_bias"]), requires_grad=False)
+        mlp_dict[relation] = nn.Sequential(hidden_layer, nn.ReLU(), output_layer, nn.Sigmoid()) 
+
+    gt_file_path = "../data/rdf_video_captions/{}-{}d-det.json.neg".format(ARGS.dataset, ARGS.ind_size)
+
+    with open(gt_file_path, 'r') as gt_file:
+        gt = json.load(gt_file)
+
+    metric_data, total_metric_data, positive_probs, negative_probs = find_best_thresh_from_probs(exp_name, dset_fragment, ind_size=ARGS.ind_size, dataset=ARGS.dataset, mlp_dict=mlp_dict, gt_json=gt_json)
     test_info.update(metric_data)
     legit_thresh = fixed_thresh if dset_fragment == 'test' else metric_data['thresh'] 
     print(fixed_thresh, metric_data['thresh'])
@@ -438,6 +462,7 @@ if __name__=="__main__":
     parser.add_argument("--i3d_after", action="store_true")
     parser.add_argument("--setting", type=str, default='embeddings')
     parser.add_argument("--checkpoint_to_test", type=str)
+    parser.add_argument("--dataset", type=str, required=True)
 
 
     ARGS = parser.parse_args() 
@@ -471,26 +496,37 @@ if __name__=="__main__":
         os.mkdir(exp_dir)
 
     print('getting outputs and info for val set')
-    val_lookup_table = video_lookup_table_from_range(1201, 1301, cnn="vgg")
+    if ARGS.dataset == 'MSVD':
+        val_lookup_table = video_lookup_table_from_range(1201,1301, dataset='MSVD')
+    elif ARGS.dataset == 'MSRVTT':
+        val_lookup_table = video_lookup_table_from_range(6513,7010, dataset='MSRVTT')
     i3d_val_lookup_table = i3d_lookup_table_from_range(1201, 1301) if ARGS.i3d else None
-    val_data_generator = load_data_lookup('../data/rdf_video_captions/{}d-val.h5'.format(ARGS.ind_size), video_lookup_table=val_lookup_table, i3d_lookup_table=i3d_val_lookup_table, batch_size=1, shuffle=False)
+    val_data_generator = load_data_lookup('../data/rdf_video_captions/{}-{}d-val.h5'.format(ARGS.dataset, ARGS.ind_size), video_lookup_table=val_lookup_table, i3d_lookup_table=i3d_val_lookup_table, batch_size=1, shuffle=False)
     _, val_info = write_outputs_get_info(ARGS=ARGS, encoder=encoder, decoder=decoder, transformer=transformer, data_generator=val_data_generator, gt_forcing=gtf, exp_name=ARGS.exp_name, dset_fragment='val', setting=ARGS.setting)
 
 
     if not ARGS.quick:
         print('getting outputs and info for train set')
-        train_lookup_table = video_lookup_table_from_range(1, 1201, cnn="vgg")
+        if ARGS.dataset == 'MSVD':
+            train_lookup_table = video_lookup_table_from_range(1,1201, dataset='MSVD')
+        elif ARGS.dataset == 'MSRVTT':
+            train_lookup_table = video_lookup_table_from_range(0,6513, dataset='MSRVTT')
+        #train_lookup_table = video_lookup_table_from_range(1, 1201, dataset=ARGS.dataset)
         i3d_train_lookup_table = i3d_lookup_table_from_range(1, 1201) if ARGS.i3d else None
-        train_data_generator = load_data_lookup('../data/rdf_video_captions/{}d-train.h5'.format(ARGS.ind_size), video_lookup_table=train_lookup_table, i3d_lookup_table=i3d_train_lookup_table, batch_size=1, shuffle=False)
+        train_data_generator = load_data_lookup('../data/rdf_video_captions/{}-{}d-train.h5'.format(ARGS.dataset, ARGS.ind_size), video_lookup_table=train_lookup_table, i3d_lookup_table=i3d_train_lookup_table, batch_size=1, shuffle=False)
         _, train_info = write_outputs_get_info(ARGS=ARGS, encoder=encoder, decoder=decoder, transformer=transformer, data_generator=train_data_generator, gt_forcing=gtf, exp_name=ARGS.exp_name, dset_fragment='train', setting=ARGS.setting)
 
 
         print('getting outputs and info for test set')
         fixed_thresh = ((train_info['thresh']*1200)+(val_info['thresh']*100))/1300
         print('outer_fixed_thresh', fixed_thresh)
-        test_lookup_table = video_lookup_table_from_range(1301, 1971, cnn="vgg")
+        if ARGS.dataset == 'MSVD':
+            test_lookup_table = video_lookup_table_from_range(1301,1971, dataset='MSVD')
+        elif ARGS.dataset == 'MSRVTT':
+            test_lookup_table = video_lookup_table_from_range(7010,10000, dataset='MSRVTT')
+        #test_lookup_table = video_lookup_table_from_range(1301, 1971, dataset=ARGS.dataset)
         i3d_test_lookup_table = i3d_lookup_table_from_range(1301, 1971) if ARGS.i3d else None
-        test_data_generator = load_data_lookup('../data/rdf_video_captions/{}d-test.h5'.format(ARGS.ind_size), video_lookup_table=test_lookup_table, i3d_lookup_table=i3d_test_lookup_table, batch_size=1, shuffle=False)
+        test_data_generator = load_data_lookup('../data/rdf_video_captions/{}-{}d-test.h5'.format(ARGS.dataset, ARGS.ind_size), video_lookup_table=test_lookup_table, i3d_lookup_table=i3d_test_lookup_table, batch_size=1, shuffle=False)
         _, test_info = write_outputs_get_info(ARGS=ARGS, encoder=encoder, decoder=decoder, transformer=transformer, data_generator=test_data_generator, gt_forcing=gtf, exp_name=ARGS.exp_name, dset_fragment='test', fixed_thresh=fixed_thresh, setting=ARGS.setting)
         print('TEST')
         print(test_info)
