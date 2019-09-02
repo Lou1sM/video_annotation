@@ -22,7 +22,6 @@ from get_pred import get_pred_loss
 import pretrainedmodels
 
 
-#torch.manual_seed(0)
 
 #cnn = pretrainedmodels.__dict__['vgg'](num_classes=1000, pretrained='imagenet')
 def make_mask(target_number_tensor):
@@ -85,9 +84,6 @@ def train_on_batch_transformer(ARGS, input_tensor, target_tensor, target_number_
     inv_mask = inv_mask.squeeze(2)
     output_norms = output_norms*mask + inv_mask
     mean_norm = output_norms.mean()
-    #if ARGS.norm_loss == 'relu':
-    #norm_loss = F.relu(((ARGS.norm_threshold*torch.ones(ARGS.batch_size, longest_in_batch, device=ARGS.device)) - output_norms)*mask).mean()
-    #elif ARGS.norm_loss == 'mse':
     norm_criterion = nn.MSELoss()
     norm_loss = norm_criterion(ARGS.norm_threshold*torch.ones(ARGS.batch_size, longest_in_batch, device=ARGS.device), output_norms)
 
@@ -95,11 +91,6 @@ def train_on_batch_transformer(ARGS, input_tensor, target_tensor, target_number_
     loss = loss*packing_rescale
     norm_loss = norm_loss*packing_rescale
 
-    #total_loss = (loss + ARGS.lmbda_norm*norm_loss + ARGS.lmbda_eos*eos_loss)
-    #bin_criterion = nn.BCEWithLogitsLoss()
-    #eos_preds= transformer_preds[:,:,-1].squeeze()
-    #eos_loss = bin_criterion(eos_preds, eos_target.float())
-    #eos_loss = 0
     total_loss = loss + ARGS.lmbda_norm*norm_loss + reg_loss
     total_loss.backward()
     optimizer.step()
@@ -111,7 +102,6 @@ def train_on_batch_eos(ARGS, input_tensor, target_tensor, target_number_tensor, 
     encoder.train()
     eos_decoder.train()
     encoder_hidden = encoder.initHidden()
-    #optimizer = optim.Adam(eos_decoder.parameters(), lr=ARGS.learning_rate, weight_decay=ARGS.weight_decay)
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
 
@@ -123,41 +113,23 @@ def train_on_batch_eos(ARGS, input_tensor, target_tensor, target_number_tensor, 
     longest_in_batch = eos_preds.shape[1]
     
     mask = make_mask(target_number_tensor)
-    #loss = criterion(outputs.squeeze(2), eos_target[:outputs.shape[0],:])
     loss = criterion((eos_preds*mask).squeeze(2), eos_target[:,:longest_in_batch])
     print((eos_preds*mask)[0], eos_target[0,:longest_in_batch])
     index_tensor = (target_number_tensor.long()-1).unsqueeze(0).unsqueeze(-1)
     index_tensor = index_tensor.squeeze()
-    #print(eos_preds.squeeze().shape)
-    #print(index_tensor.shape)
     if ARGS.reweight_eos:
         logits_at_ones = eos_preds.squeeze().gather(1,index_tensor.view(-1,1))
-        #print(logits_at_ones)
         scaled_logits_at_ones = torch.mul(logits_at_ones.squeeze(),target_number_tensor.squeeze()-2)
-        #print(scaled_logits_at_ones)
-        #print(longest_in_batch)
         scaled_logits_at_ones = scaled_logits_at_ones/(longest_in_batch-1)
-        #print(scaled_logits_at_ones)
         eos_criterion = nn.BCEWithLogitsLoss(reduce=False)
         loss_at_ones = eos_criterion(logits_at_ones.squeeze(), torch.ones(ARGS.batch_size, device=ARGS.device))
-        #print(loss_at_ones)
         scaled_loss_at_ones = torch.mul(loss_at_ones.squeeze(),target_number_tensor.squeeze()-2)
-        #print(scaled_loss_at_ones)
         scaled_loss_at_ones = scaled_loss_at_ones/(longest_in_batch-1)
-        #print(scaled_loss_at_ones)
-        #ones_loss = -scaled_logits_at_ones.mean()
         ones_loss = scaled_loss_at_ones.mean()
-        #print('ones', ones_loss.item(), 'normal', loss.item())
         total_loss = loss+ones_loss
     else:
         total_loss = loss
     total_loss.backward()
-    #print(list(eos_decoder.parameters())[0].grad)
-    for param in eos_decoder.parameters():
-        #print(param.requires_grad)
-        #print(param.data)
-        #print(param.grad)
-        pass
     encoder_optimizer.step()
     decoder_optimizer.step()
 
@@ -174,9 +146,7 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, eos_
     decoder_optimizer.zero_grad()
 
     encoder_hidden = encoder.initHidden()#.to(device)
-    #print('before', encoder_hidden.shape)
     encoder_outputs, encoder_hidden = encoder(input_tensor, i3d_vec, encoder_hidden)
-    #print('after', encoder_hidden.shape)
 
     #concat_target = torch.cat([target_tensor, eos_target.float().transpose(1,0).unsqueeze(-1)], dim=2).permute(1,0,2)
     decoder_input = torch.zeros(1, ARGS.batch_size, ARGS.ind_size, device=decoder.device).to(device)
@@ -188,9 +158,6 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, eos_
     if use_teacher_forcing:
        
         decoder_inputs = torch.cat((decoder_input, target_tensor[:-1]))
-        #if ARGS.i3d and ARGS.i3d_after:
-        #    decoder_outputs, decoder_hidden = decoder(input_=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden.contiguous(), i3d=i3d_vec)
-        #else:
         decoder_outputs, decoder_hidden = decoder(input_=decoder_inputs, input_lengths=target_number_tensor, encoder_outputs=encoder_outputs, hidden=decoder_hidden, i3d=i3d_vec)
 
         # Note: target_tensor is passed to the decoder with shape (length, batch_size, ind_size)
@@ -207,30 +174,11 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, eos_
         assert (mask == make_mask(target_number_tensor)).all()
 
         decoder_outputs_masked = decoder_outputs*mask
-        #emb_preds = decoder_outputs_masked[:,:,:-1]
         emb_preds = decoder_outputs_masked
-        #eos_preds = decoder_outputs_masked[:,:,-1]
 
-        #eos_target = eos_target[:,:longest_in_batch].float()
-        #bin_criterion = nn.BCEWithLogitsLoss()
 
-        #print('mask', mask.shape)
-        #print('embs', emb_preds.shape)
-        #print((mask*emb_preds).shape)
-        #print('ttp', target_tensor_perm.shape)
-        #print((target_tensor_perm*mask).shape)
-        #print('eos', eos_preds.shape)
-        #print('eosf', eos_preds_flat.shape)
-        #print(target_number_tensor)
-        #eos_loss = bin_criterion(eos_preds, eos_target.float())
-        #loss = criterion(decoder_outputs*mask, target_tensor_perm[:,:longest_in_batch,:]*mask, ARGS.batch_size)
         loss = criterion(emb_preds*mask, target_tensor_perm[:,:longest_in_batch,:]*mask, ARGS.batch_size)
-        #cut_eos_target = eos_target[:,:longest_in_batch]
-        #assert (torch.sum(cut_eos_target, dim=1).long() == torch.ones(ARGS.batch_size, device=ARGS.device)).all()
-        #cos = nn.CosineEmbeddingLoss()
-        #print(cos(decoder_outputs*mask, target_tensor_perm[:,:longest_in_batch,:]*mask, torch.ones(1, device=decoder.device)))
-        #mse_rescale = (ARGS.ind_size*ARGS.batch_size*longest_in_batch)/torch.sum(target_number_tensor)
-        
+       
         inv_byte_mask = mask.byte()^1
         inv_mask = inv_byte_mask.float()
         assert (mask+inv_mask == torch.ones(ARGS.batch_size, longest_in_batch, 1, device=ARGS.device)).all()
@@ -239,9 +187,6 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, eos_
         inv_mask = inv_mask.squeeze(2)
         output_norms = output_norms*mask + inv_mask
         mean_norm = output_norms.mean()
-        #if ARGS.norm_loss == 'relu':
-        #    norm_loss = F.relu(((ARGS.norm_threshold*torch.ones(ARGS.batch_size, longest_in_batch, device=ARGS.device)) - output_norms)*mask).mean()
-        #elif ARGS.norm_loss == 'mse':
         norm_criterion = nn.MSELoss()
         norm_loss = norm_criterion(ARGS.norm_threshold*torch.ones(ARGS.batch_size, longest_in_batch, device=ARGS.device), output_norms)
 
@@ -249,8 +194,6 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, eos_
         loss = loss*packing_rescale
         norm_loss = norm_loss*packing_rescale
 
-        #total_loss = (loss + ARGS.lmbda_norm*norm_loss + ARGS.lmbda_eos*eos_loss)
-        #total_loss = eos_loss
     else:
         loss = 0 
         norm_loss = 0
@@ -280,7 +223,6 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, eos_
     encoder_optimizer.step()
     decoder_optimizer.step()
 
-    #return round(loss.item(),3), round(norm_loss.item(),3), round(eos_loss.item(),3)
     return round(loss.item(),3), round(norm_loss.item(),3), -1
 
 
@@ -332,7 +274,6 @@ def train_on_batch_pred(ARGS, input_tensor, target_tensor, target_number_tensor,
         inv_mask = inv_mask.squeeze(2)
         output_norms = output_norms*mask + inv_mask
         mean_norm = output_norms.mean()
-        #norm_loss = F.relu(((ARGS.norm_threshold*torch.ones(ARGS.batch_size, decoder_outputs.shape[1], device=ARGS.device)) - output_norms)*mask).mean()
         norm_criterion = nn.MSELoss()
         norm_loss = norm_criterion(ARGS.norm_threshold*torch.ones(ARGS.batch_size, decoder_outputs.shape[1], device=ARGS.device), output_norms)
 
@@ -382,8 +323,6 @@ def train(ARGS, encoder, decoder, transformer, train_generator, val_generator, e
     if ARGS.setting in ['preds', 'embeddings', 'eos']:
         v = 1
         for param in encoder.cnn.parameters():
-            #if v <= ARGS.cnn_layers_to_freeze*2: # Assuming each layer has two params
-                #param.requires_grad = False
             param.requires_grad = False
             v += 1
         if encoder_optimizer == None:
@@ -394,19 +333,10 @@ def train(ARGS, encoder, decoder, transformer, train_generator, val_generator, e
     elif ARGS.setting == 'transformer':
         transformer_optimizer =optim.Adam(transformer.parameters(), lr=ARGS.learning_rate, weight_decay=ARGS.weight_decay) 
 
-    #if ARGS.loss_func == 'mse':
     mse = nn.MSELoss()
     def criterion(network_output, ground_truth, batch_size):
         return ARGS.ind_size*(mse(network_output, ground_truth))
-    #elif ARGS.loss_func == 'cos':
-    #    cos = nn.CosineEmbeddingLoss()
-    #    def criterion(network_output, ground_truth, batch_size):
-    #        return cos(network_output, ground_truth, target=torch.ones(batch_size, 1,1, device=ARGS.device))
-
-    #eos_criterion = nn.CrossEntropyLoss()
-    #eos_criterion = nn.MSELoss()
-    #eos_criterion = nn.BCEWithLogitsLoss(reduce=False)
-    eos_criterion = nn.BCEWithLogitsLoss()
+        eos_criterion = nn.BCEWithLogitsLoss()
 
     EarlyStop = EarlyStopper(patience=ARGS.patience, verbose=True)
     
@@ -417,7 +347,6 @@ def train(ARGS, encoder, decoder, transformer, train_generator, val_generator, e
     epoch_val_norm_losses = []
     epoch_val_eos_losses = []
     for epoch_num in range(ARGS.max_epochs):
-        #transformer.train()
         batch_train_losses = []
         batch_train_norm_losses = []
         batch_train_eos_losses = []
@@ -493,7 +422,6 @@ def train(ARGS, encoder, decoder, transformer, train_generator, val_generator, e
             else:
                 print('Unrecognized setting: {}'.format(ARGS.setting))
             print('Batch:', iter_, 'dec loss:', new_train_loss, 'norm loss', new_train_norm_loss, 'eos oss:', new_train_eos_loss)
-            #total_norms += norms1
             
             batch_train_losses.append(new_train_loss)
             batch_train_norm_losses.append(new_train_norm_loss)
@@ -558,9 +486,6 @@ def train(ARGS, encoder, decoder, transformer, train_generator, val_generator, e
                 'val': epoch_val_losses,
                 'val_norm': epoch_val_norm_losses,
                 'val_eos': epoch_val_eos_losses}
-    #if not ARGS.mini:
-        #EarlyStop.save_to_disk(exp_name)
-    #assert EarlyStop.val_loss_min == min(losses['val'])
     return losses, EarlyStop.early_stop
 
 
@@ -571,8 +496,6 @@ def eval_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, i3d_v
         cnn = models.vgg19(pretrained=True).cuda()
         v = 1
         for param in cnn.parameters():
-            #if v <= ARGS.cnn_layers_to_freeze*2: # Assuming each layer has two params
-                #param.requires_grad = False
             param.requires_grad = False
             v += 1
  
@@ -590,7 +513,6 @@ def eval_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, i3d_v
         for b in range(ARGS.batch_size):
             growing_output = torch.zeros(1, 1, ARGS.ind_size, device=device)
             next_transformer_preds = growing_output
-            #for l in range(target_number_tensor[b].int()):
             l=0
             while True:
                 l+=1
@@ -644,59 +566,26 @@ def eval_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, i3d_v
                 arange = torch.arange(0, l, step=1).expand(1, -1).to(ARGS.device)
                 output_norm = torch.norm(decoder_output, dim=-1)
                 mean_norm = output_norm.mean()
-                #norm_loss += F.relu(1-mean_norm)
                 norm_loss += (mean_norm.item()-1)**2
-                #print('output_norms val', output_norm.shape)
-
-                #emb_pred = decoder_output[:,:,:-1]
                 emb_pred = decoder_output
-                #eos_pred = decoder_output[:,:,-1]
-                #eos_preds_list.append(eos_pred)
 
                 if ARGS.setting == "embeddings":
                     l_loss += dec_criterion(decoder_output, target_tensor[l, b].unsqueeze(0).unsqueeze(0), batch_size=1)
-                    #l_loss += dec_criterion(emb_pred, target_tensor[l, b].unsqueeze(0).unsqueeze(0), batch_size=1)
                 single_dec_input = target_tensor[l,b].unsqueeze(0).unsqueeze(0)
                 denom += 1
-                #l2 = torch.norm(decoder_output.squeeze()-target_tensor[l,b].squeeze(),2).item()
                 l2 = torch.norm(emb_pred.squeeze()-target_tensor[l,b].squeeze(),2).item()
-                #dist = decoder_output.squeeze()-target_tensor[l,b].squeeze()
                 dist = emb_pred.squeeze()-target_tensor[l,b].squeeze()
                 total_dist += dist
                 l2_distances.append(l2)
             dec_out_tensor = torch.cat(dec_out_list, dim=1).to(device)
             if ARGS.setting == "preds":
-                #dec_loss += get_pred_loss(video_ids[b].unsqueeze(0), dec_out_tensor, json_data_dict, mlp_dict, neg_weight=ARGS.neg_pred_weight, device=device)
                 dec_loss += get_pred_loss(video_ids[b].unsqueeze(0), dec_out_tensor, json_data_dict, mlp_dict, neg_weight=ARGS.neg_pred_weight, margin=ARGS.pred_margin, device=device)
             elif ARGS.setting == "embeddings":
                 dec_loss += l_loss*ARGS.ind_size/float(l)
-            elif ARGS.setting == "eos":
-                #eos_preds_tensor = torch.cat(eos_preds_list, dim=1)
-                #dec_loss += eos_criterion(eos_preds_tensor.squeeze(2), target_number_tensor[b].unsqueeze(0).long()-1)
-                #dec_loss += eos_criterion(eos_preds_tensor, target_number_tensor[b].unsqueeze(0).long()-1)
-                #dec_loss += eos_criterion(eos_preds_tensor, eos_target)
-                pass
-        #eos_loss += eos_criterion(eos_preds_tensor, eos_target)
         index_tensor = (target_number_tensor.long()-1).unsqueeze(0).unsqueeze(-1)
         index_tensor = index_tensor.squeeze()
-        #print(eos_preds.squeeze().shape)
-        #print(index_tensor.shape)
         eos_criterion = nn.BCEWithLogitsLoss(reduce=False)
-        #logits_at_ones = eos_preds_tensor.squeeze().transpose(0,1).gather(1,index_tensor.view(-1,1))
-        #print(logits_at_ones)
-        #loss_at_ones = eos_criterion(logits_at_ones.squeeze(), torch.ones(ARGS.batch_size, device=device))
-        #print(target_number_tensor)
-        #print(loss_at_ones)
-        #scaled_logits_at_ones = torch.mul(logits_at_ones.squeeze(),target_number_tensor.squeeze()-2)
-        #scaled_loss_at_ones = torch.mul(loss_at_ones.squeeze(),target_number_tensor.squeeze()-2)
-        #print(scaled_loss_at_ones)
-        #scaled_logits_at_ones = scaled_logits_at_ones/(target_number_tensor[b].int())
-        #scaled_loss_at_ones = scaled_loss_at_ones/(target_number_tensor[b].int())
-        #print(scaled_loss_at_ones)
-        #ones_loss = -scaled_logits_at_ones.mean()
-        #ones_loss = scaled_loss_at_ones.mean()
-        #eos_loss += ones_loss
-
+        
         print('avg_l2_distance', sum(l2_distances)/len(l2_distances))
         if ARGS.setting == 'eos':
             dec_loss /= ARGS.batch_size
@@ -714,8 +603,6 @@ def train_reg(ARGS, encoder, regressor, train_generator, val_generator, device):
 
     v = 1
     for param in encoder.cnn.parameters():
-        #if v <= ARGS.cnn_layers_to_freeze*2: # Assuming each layer has two params
-            #param.requires_grad = False
         param.requires_grad = False
         v += 1
     
@@ -751,11 +638,6 @@ def train_reg(ARGS, encoder, regressor, train_generator, val_generator, device):
 
             # pass the output of the vgg layers through the GRU cell
             encoder_outputs, encoder_hidden = encoder.rnn(cnn_outputs, encoder_hidden)
-            #print('prernn', cnn_outputs.shape)
-            #print(encoder.rnn)
-            #print('postrnn', encoder_outputs.shape)
-            #encoder_outputs, encoder_hidden = encoder(input_, i3d_vec, encoder_hidden)
-
             vid_vec = encoder_outputs.mean(dim=0)
             print(vid_vec.shape, i3d_vec.shape)
             if ARGS.i3d:
@@ -764,11 +646,8 @@ def train_reg(ARGS, encoder, regressor, train_generator, val_generator, device):
             print('train', target_number, reg_pred)
            
             train_loss = criterion(reg_pred, target_number)
-            #print(reg_pred)
-            #print(target_number)
             train_loss.backward()
             for param in regressor.parameters():
-                #print(param.grad)
                 pass
             enc_optimizer.step()
             reg_optimizer.step()
@@ -799,7 +678,6 @@ def train_reg(ARGS, encoder, regressor, train_generator, val_generator, device):
 
             # pass the output of the vgg layers through the GRU cell
             encoder_outputs, encoder_hidden = encoder.rnn(cnn_outputs, encoder_hidden)
-            #encoder_outputs, encoder_hidden = encoder(input_, i3d_vec, encoder_hidden)
 
             vid_vec = encoder_outputs.mean(dim=0)
             if ARGS.i3d:
@@ -812,8 +690,6 @@ def train_reg(ARGS, encoder, regressor, train_generator, val_generator, device):
             print(iter_, val_loss.item())
         new_epoch_val_loss = sum(batch_val_losses)/len(batch_val_losses)
         epoch_val_losses.append(new_epoch_val_loss)
-        #print(epoch_train_losses)
-        #print(epoch_val_losses)
 
         save_dict = {'encoder': encoder, 'encoder_optimizer': enc_optimizer, 'regressor':regressor, 'regressor_optimizer':reg_optimizer}
         save = not ARGS.no_chkpt

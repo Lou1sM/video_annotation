@@ -17,7 +17,6 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
     """Cant' just pass generators as need to re-init with batch_size=1 when testing.""" 
     
     dataset = '{}-{}d'.format(ARGS.dataset, ARGS.ind_size)
-    #print(dataset)
 
     if ARGS.mini:
         ARGS.batch_size = min(2, ARGS.batch_size)
@@ -35,7 +34,6 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
         train_file_path = os.path.join('../data/rdf_video_captions', '{}-train.h5'.format(dataset))
         val_file_path = os.path.join('../data/rdf_video_captions', '{}-val.h5'.format(dataset))
         test_file_path = os.path.join('../data/rdf_video_captions', '{}-test.h5'.format(dataset))
-        #train_file_path = val_file_path = test_file_path = os.path.join('../data/rdf_video_captions', '{}-val.h5'.format(dataset))
         assert os.path.isfile(train_file_path)
         print('Using dataset at: {}'.format(train_file_path))
 
@@ -183,10 +181,6 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
         dictwriter.writeheader()
         dictwriter.writerow(val_output_info)
 
-    #with open('all_results.csv', 'a') as csvfile:
-        #dictwriter = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        #dictwriter.writerow(val_output_info)
-
 
     print(val_output_info)
     return val_output_info
@@ -204,7 +198,6 @@ def get_user_yesno_answer(question):
     
 
 def main():
-    #dummy_output = 10
     if ARGS.mini:
         ARGS.exp_name = 'try'
     

@@ -255,12 +255,6 @@ def get_outputs(encoder, decoder, transformer, data_generator, gt_forcing, ind_s
             dec_out_list = []
             for l in range(target_number):
                 decoder_output, decoder_hidden_new = decoder(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden, i3d=i3d)
-                #try:
-                #    eos_pred, _hidden  = decoder.eos_preds(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden, i3d=i3d) 
-                #    eos_pred_list.append(eos_pred.item())
-                #except Exception as e:
-                #    print(e)
-                #    pass
                 decoder_output = F.normalize(decoder_output, p=2, dim=-1)
                 dec_out_list.append(decoder_output)
                 decoder_hidden = decoder_hidden_new
@@ -269,10 +263,7 @@ def get_outputs(encoder, decoder, transformer, data_generator, gt_forcing, ind_s
                 new_norm = torch.norm(decoder_output).item()
                 norms.append(new_norm)
 
-                #emb_pred = decoder_output[:,:,:-1]
                 emb_pred = decoder_output
-                #eos_pred = decoder_output[:,:,-1]
-                #eos_pred_list.append(eos_pred.item())
 
                 try:
                     nums_of_inds[l] += 1
@@ -290,10 +281,8 @@ def get_outputs(encoder, decoder, transformer, data_generator, gt_forcing, ind_s
                 else:
                     #decoder_input = decoder_output
                     decoder_input = emb_pred
-                #loss = criterion(decoder_output.squeeze(), target_tensor[l].squeeze())
                 loss = criterion(emb_pred.squeeze(), target_tensor[l].squeeze())
                 l_loss += loss
-                #l2 = torch.norm(decoder_output.squeeze() - target_tensor[l].squeeze(), 2).item()
                 l2 = torch.norm(emb_pred.squeeze() - target_tensor[l].squeeze(), 2).item()
                 assert abs(torch.norm(emb_pred.squeeze(), 2).item() - 1) < 1e-3, "{} should be 1".format(torch.norm(emb_pred.squeeze(), 2).item() )
                 #print(torch.norm(emb_pred.squeeze(), 2))
@@ -304,70 +293,18 @@ def get_outputs(encoder, decoder, transformer, data_generator, gt_forcing, ind_s
                 cos_sim = F.cosine_similarity(emb_pred.squeeze(), target_tensor[l].squeeze(),0).item()
                 total_cos_sims.append(cos_sim)
                 positions.append(l+1)
-            #try:
-            #    for l in range(target_number, 29):
-            #        decoder_output, decoder_hidden_new = decoder(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden, i3d=i3d) 
-            #        #emb_pred = decoder_output[:,:,:-1]
-            #        #eos_pred = decoder_output[:,:,-1]
-            #        eos_pred, decoder_hidden_new = decoder.eos_preds(input_=decoder_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs, hidden=decoder_hidden, i3d=i3d) 
-            #        eos_pred_list.append(eos_pred.item())
-            #        decoder_hidden = decoder_hidden_new
-            #        #decoder_input = decoder_output
-            #        #decoder_input = emb_pred
-            #except Exception as e:
-            #    print(e)
-            #    pass
-        #try:
-        #    # Take first element that's greater that 0.5
-        #    #eos_guess = [i>0.5 for i in eos_pred_list].index(True)
-        #    eos_half_guess_list = [i>0 for i in eos_pred_list]
-        #    eos_half_guess = eos_half_guess_list.index(True) + 1 if True in eos_half_guess_list else len(eos_half_guess_list)
-        #    eos_cumulative_probs = [0] + [1 / (1 + math.exp(-x)) for x in eos_pred_list]
-        #    diff_cum_probs = [eos_cumulative_probs[i+1] - eos_cumulative_probs[i] for i in range(len(eos_cumulative_probs)-1)]
-        #    eos_diff_guess = np.argmax([eos_cumulative_probs[i+1] - eos_cumulative_probs[i] for i in range(len(eos_cumulative_probs)-1)]) + 1
-        #    eos_diff_guess = np.argmax(diff_cum_probs) + 1
-        #    eos_diff_guesses.append(eos_diff_guess)
-        #    eos_half_guesses.append(eos_half_guess)
-        #    eos_gt = target_number.item()
-        #    eos_gts.append(eos_gt)
-        #    eos_half_result = (eos_half_guess == eos_gt)
-        #    eos_half_results.append(eos_half_result)
-        #    eos_diff_result = (eos_diff_guess == eos_gt)
-        #    eos_diff_results.append(eos_diff_result)
-        #    if iter_%10 == 0:
-        #        #print(eos_pred_list, eos_guess, target_number.item()-1, eos_result)
-        #        print(eos_pred_list)
-        #        #print(eos_cumulative_probs)
-        #        #print(diff_cum_probs)
-        #        print( 'gt', eos_gt, 'half', eos_half_guess, eos_half_result, 'diff', eos_diff_guess, eos_diff_result)
-        #        #print( 'gt', eos_gt, 'diff', eos_diff_guess, eos_diff_result)
-        #except (ValueError, AttributeError) as e:
-        #    eos_half_guess = eos_diff_guess = eos_target = eos_half_result = eos_diff_result = -1
-        #    pass
         assert len(dp_output) == len(gt_embeddings), "Wrong number of embeddings in output: {} being output but {} in ground truth".format(len(dp_output), len(gt_embeddings))
-        #output.append({'videoId':str(video_id), 'embeddings':dp_output, 'gt_embeddings': gt_embeddings, 'total_l2_distances': total_l2_distances, 'avg_l2_distance': sum(total_l2_distances)/len(total_l2_distances), 'eos_half_guess': str(eos_half_guess), 'eos_diff_guess': str(eos_diff_guess),'eos_gt': str(target_number.item()), 'eos_half_result': str(eos_half_result), 'eos_half_result': str(eos_half_result)})
-        #output.append({'videoId':str(video_id), 'embeddings':dp_output, 'gt_embeddings': gt_embeddings, 'l2_distances': total_l2_distances, 'avg_l2_distance': sum(total_l2_distances)/len(total_l2_distances)}) 
         output.append({'videoId':str(video_id), 'embeddings':dp_output, 'gt_embeddings': gt_embeddings, 'avg_l2_distance': sum(total_l2_distances)/len(total_l2_distances)}) 
   
-    #print(len(eos_gts), len(eos_half_guesses), len(eos_diff_guesses))
 
-    #plt.scatter(eos_gts, eos_half_guesses)
-    #plt.savefig('eos_half_scatter.png')
-    #plt.scatter(eos_gts, eos_diff_guesses)
-    #plt.savefig('eos_diff_scatter.png')
     assert sum(list(nums_of_inds.values())) == len(norms), "Mismatch in the lengths of nums_of_inds and norms, {} vs {}".format(len(nums_of_inds.values()), len(norms))
     avg_l2_distance = round(sum(total_l2_distances)/len(total_l2_distances),4)
     avg_cos_sim = round(sum(total_cos_sims)/len(total_cos_sims),4)
     avg_norm = round( (sum([t[0] for t in tup_sizes_by_pos.values()])/sum(nums_of_inds.values())),4)
-    #eos_diff_accuracy = sum(eos_diff_results)/(len(eos_diff_results)+1e-5)
-    #eos_half_accuracy = sum(eos_half_results)/(len(eos_half_results)+1e-5)
-    #assert len(total_l2_distances) == len(total_cos_sims)
     assert len(total_l2_distances) == len(total_cos_sims), "l2: {}, cos_sim: {}".format(len(total_l2_distances), len(total_cos_sims))
     test_info['l2_distance'] = avg_l2_distance
     test_info['cos_similarity'] = avg_cos_sim
     test_info['avg_norm'] = avg_norm
-    #test_info['eos_diff_accuracy'] = eos_diff_accuracy
-    #test_info['eos_half_accuracy'] = eos_half_accuracy
     for k,v in nums_of_inds.items():
         print(k,v)
     sizes_by_pos = {k: v[0]/v[1] for k,v in tup_sizes_by_pos.items()}
