@@ -174,7 +174,7 @@ def get_outputs(encoder, decoder, transformer, data_generator, gt_forcing, ind_s
     output = []
     positions = []
     total_l2_distances = []
-    cos_sims = []
+    total_cos_sims = []
     eos_half_results = []
     eos_diff_results = []
     eos_diff_guesses = []
@@ -250,7 +250,6 @@ def get_outputs(encoder, decoder, transformer, data_generator, gt_forcing, ind_s
                 decoder_hidden = decoder.initHidden()
             dp_output = []
             gt_embeddings = []
-            l2_distances = []
             l_loss = 0
             eos_pred_list = []
             dec_out_list = []
@@ -296,10 +295,14 @@ def get_outputs(encoder, decoder, transformer, data_generator, gt_forcing, ind_s
                 l_loss += loss
                 #l2 = torch.norm(decoder_output.squeeze() - target_tensor[l].squeeze(), 2).item()
                 l2 = torch.norm(emb_pred.squeeze() - target_tensor[l].squeeze(), 2).item()
-                l2_distances.append(l2)
+                assert abs(torch.norm(emb_pred.squeeze(), 2).item() - 1) < 1e-3, "{} should be 1".format(torch.norm(emb_pred.squeeze(), 2).item() )
+                #print(torch.norm(emb_pred.squeeze(), 2))
+                assert abs(torch.norm(target_tensor[l].squeeze(), 2).item()) - 1 < 1e-3, "{} should be 1".format(torch.norm(target_tensor[l].squeeze(), 2).item() )
+                #print(torch.norm(target_tensor[l].squeeze(), 2))
+                total_l2_distances.append(l2)
                 #cos_sim = F.cosine_similarity(decoder_output.squeeze(), target_tensor[l].squeeze(),0).item()
                 cos_sim = F.cosine_similarity(emb_pred.squeeze(), target_tensor[l].squeeze(),0).item()
-                cos_sims.append(cos_sim)
+                total_cos_sims.append(cos_sim)
                 positions.append(l+1)
             #try:
             #    for l in range(target_number, 29):
@@ -342,8 +345,9 @@ def get_outputs(encoder, decoder, transformer, data_generator, gt_forcing, ind_s
         #    eos_half_guess = eos_diff_guess = eos_target = eos_half_result = eos_diff_result = -1
         #    pass
         assert len(dp_output) == len(gt_embeddings), "Wrong number of embeddings in output: {} being output but {} in ground truth".format(len(dp_output), len(gt_embeddings))
-        #output.append({'videoId':str(video_id), 'embeddings':dp_output, 'gt_embeddings': gt_embeddings, 'l2_distances': l2_distances, 'avg_l2_distance': sum(l2_distances)/len(l2_distances), 'eos_half_guess': str(eos_half_guess), 'eos_diff_guess': str(eos_diff_guess),'eos_gt': str(target_number.item()), 'eos_half_result': str(eos_half_result), 'eos_half_result': str(eos_half_result)})
-        output.append({'videoId':str(video_id), 'embeddings':dp_output, 'gt_embeddings': gt_embeddings, 'l2_distances': l2_distances, 'avg_l2_distance': sum(l2_distances)/len(l2_distances)}) 
+        #output.append({'videoId':str(video_id), 'embeddings':dp_output, 'gt_embeddings': gt_embeddings, 'total_l2_distances': total_l2_distances, 'avg_l2_distance': sum(total_l2_distances)/len(total_l2_distances), 'eos_half_guess': str(eos_half_guess), 'eos_diff_guess': str(eos_diff_guess),'eos_gt': str(target_number.item()), 'eos_half_result': str(eos_half_result), 'eos_half_result': str(eos_half_result)})
+        #output.append({'videoId':str(video_id), 'embeddings':dp_output, 'gt_embeddings': gt_embeddings, 'l2_distances': total_l2_distances, 'avg_l2_distance': sum(total_l2_distances)/len(total_l2_distances)}) 
+        output.append({'videoId':str(video_id), 'embeddings':dp_output, 'gt_embeddings': gt_embeddings, 'avg_l2_distance': sum(total_l2_distances)/len(total_l2_distances)}) 
   
     #print(len(eos_gts), len(eos_half_guesses), len(eos_diff_guesses))
 
@@ -352,11 +356,13 @@ def get_outputs(encoder, decoder, transformer, data_generator, gt_forcing, ind_s
     #plt.scatter(eos_gts, eos_diff_guesses)
     #plt.savefig('eos_diff_scatter.png')
     assert sum(list(nums_of_inds.values())) == len(norms), "Mismatch in the lengths of nums_of_inds and norms, {} vs {}".format(len(nums_of_inds.values()), len(norms))
-    avg_l2_distance = round(sum(l2_distances)/len(l2_distances),4)
-    avg_cos_sim = round(sum(cos_sims)/len(cos_sims),4)
+    avg_l2_distance = round(sum(total_l2_distances)/len(total_l2_distances),4)
+    avg_cos_sim = round(sum(total_cos_sims)/len(total_cos_sims),4)
     avg_norm = round( (sum([t[0] for t in tup_sizes_by_pos.values()])/sum(nums_of_inds.values())),4)
     #eos_diff_accuracy = sum(eos_diff_results)/(len(eos_diff_results)+1e-5)
     #eos_half_accuracy = sum(eos_half_results)/(len(eos_half_results)+1e-5)
+    #assert len(total_l2_distances) == len(total_cos_sims)
+    assert len(total_l2_distances) == len(total_cos_sims), "l2: {}, cos_sim: {}".format(len(total_l2_distances), len(total_cos_sims))
     test_info['l2_distance'] = avg_l2_distance
     test_info['cos_similarity'] = avg_cos_sim
     test_info['avg_norm'] = avg_norm
@@ -367,6 +373,7 @@ def get_outputs(encoder, decoder, transformer, data_generator, gt_forcing, ind_s
     sizes_by_pos = {k: v[0]/v[1] for k,v in tup_sizes_by_pos.items()}
     for k,v in sizes_by_pos.items():
         print(k,v)
+    print(test_info)
     return output, norms, positions, sizes_by_pos, test_info
 
 
@@ -415,7 +422,7 @@ def write_outputs_get_info(encoder, decoder, transformer, ARGS, data_generator, 
         gt_json = {g['videoId']: g for g in gt_json}
 
     mlp_dict = {}
-    weight_dict = torch.load("../data/10d-mlps.pickle")
+    weight_dict = torch.load("../data/{}d-mlps.pickle".format(ARGS.ind_size))
     for relation, weights in weight_dict.items():
         hidden_layer = nn.Linear(weights["hidden_weights"].shape[0], weights["hidden_bias"].shape[0])
         hidden_layer.weight = nn.Parameter(torch.FloatTensor(weights["hidden_weights"]), requires_grad=False)
@@ -430,11 +437,14 @@ def write_outputs_get_info(encoder, decoder, transformer, ARGS, data_generator, 
     with open(gt_file_path, 'r') as gt_file:
         gt = json.load(gt_file)
 
-    metric_data, total_metric_data, positive_probs, negative_probs = find_best_thresh_from_probs(exp_name, dset_fragment, ind_size=ARGS.ind_size, dataset=ARGS.dataset, mlp_dict=mlp_dict, gt_json=gt_json)
+    metric_data, total_metric_data, positive_probs, negative_probs, error_dict = find_best_thresh_from_probs(exp_name, dset_fragment, ind_size=ARGS.ind_size, dataset=ARGS.dataset, mlp_dict=mlp_dict, gt_json=gt_json)
     test_info.update(metric_data)
     legit_thresh = fixed_thresh if dset_fragment == 'test' else metric_data['thresh'] 
     print(fixed_thresh, metric_data['thresh'])
     test_info['legit_f1'] = compute_scores_for_thresh(positive_probs, negative_probs, legit_thresh)[6]
+    
+    with open('../experiments/{}/{}-{}errors.json'.format(exp_name, exp_name, dset_fragment), 'w') as error_file:
+        json.dump(error_dict, error_file)
     
     plt.xlim(0,len(total_metric_data['thresh']))
     plt.ylim(0.0, max(total_metric_data['f1']) + 0.1)

@@ -183,11 +183,11 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
 if __name__ == "__main__":
     
     convert_json_to_h5s(
-         json_file_path='../data/rdf_video_captions/MSRVTT-10d-det.json.neg', 
-         out_h5_train_file_path='../data/rdf_video_captions/MSRVTT-10d-train.h5',
-         out_h5_val_file_path= '../data/rdf_video_captions/MSRVTT-10d-val.h5',
-         out_h5_test_file_path= '../data/rdf_video_captions/MSRVTT-10d-test.h5',
-         embedding_size=10,
+         json_file_path='../data/rdf_video_captions/MSRVTT-5d-det.json.neg', 
+         out_h5_train_file_path='../data/rdf_video_captions/MSRVTT-5d-train.h5',
+         out_h5_val_file_path= '../data/rdf_video_captions/MSRVTT-5d-val.h5',
+         out_h5_test_file_path= '../data/rdf_video_captions/MSRVTT-5d-test.h5',
+         embedding_size=5,
          max_len=58
          )
  

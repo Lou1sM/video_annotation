@@ -49,7 +49,7 @@ def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size, dataset, mlp_
     with open(emb_file_path, 'r') as emb_file:
         outputs_json = json.load(emb_file)
         
-    positive_probs, negative_probs = compute_probs_for_dataset(outputs_json, gt_json, mlp_dict, device='cuda')
+    positive_probs, negative_probs, error_dict = compute_probs_for_dataset(outputs_json, gt_json, mlp_dict, device='cuda')
     print(len(positive_probs), len(negative_probs))
     print(positive_probs[:20], negative_probs[:20])
     #with open(prob_file_name, 'w') as prob_file:
@@ -75,7 +75,7 @@ def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size, dataset, mlp_
 
     print("\nSearching thresholds")
     tphalf, fphalf, fnhalf, tnhalf, prechalf, rechalf, f1half, acchalf = compute_scores_for_thresh(positive_probs, negative_probs, 0.5)
-    for thresh in np.arange(avg_neg_prob-.01, avg_pos_prob+0.1, 3e-5):
+    for thresh in np.arange(avg_neg_prob-.01, avg_pos_prob+0.1, 1e-4):
         tp, fp, fn, tn, prec, rec, f1, acc = compute_scores_for_thresh(positive_probs, negative_probs, thresh)
         threshes.append(thresh)
         tps.append(tp)
@@ -99,7 +99,7 @@ def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size, dataset, mlp_
     with open('../experiments/{}/{}-{}metrics.json'.format(exp_name, dset_fragment, exp_name), 'w') as jsonfile:
         json.dump(total_metric_data, jsonfile)
 
-    return best_metric_data, total_metric_data, positive_probs, negative_probs
+    return best_metric_data, total_metric_data, positive_probs, negative_probs, error_dict
 
 
 
