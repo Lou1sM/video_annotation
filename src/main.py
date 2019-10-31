@@ -7,7 +7,7 @@ import options
 import models
 import train
 import data_loader 
-from get_output import write_outputs_get_info, test_reg
+from get_output import write_outputs_get_info
 #from reg_transformer import RegTransformer
 
 
@@ -27,13 +27,13 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
         ARGS.no_chkpt = True
         if ARGS.max_epochs == 1000:
             ARGS.max_epochs = 1
-        train_file_path = val_file_path = test_file_path = '../data/rdf_video_captions/{}-{}d-6dp.h5'.format(ARGS.dataset, ARGS.ind_size)
-        assert os.path.isfile(train_file_path)
+        train_file_path = val_file_path = test_file_path = '/data1/louis/data/rdf_video_captions/{}-{}d-6dp.h5'.format(ARGS.dataset, ARGS.ind_size)
+        assert os.path.isfile(train_file_path), f"No train file found at {train_file_path}"
         print('Using dataset at: {}'.format(train_file_path))
     else:
-        train_file_path = os.path.join('../data/rdf_video_captions', '{}-train.h5'.format(dataset))
-        val_file_path = os.path.join('../data/rdf_video_captions', '{}-val.h5'.format(dataset))
-        test_file_path = os.path.join('../data/rdf_video_captions', '{}-test.h5'.format(dataset))
+        train_file_path = os.path.join('/data1/louis/data/rdf_video_captions', '{}-train.h5'.format(dataset))
+        val_file_path = os.path.join('/data1/louis/data/rdf_video_captions', '{}-val.h5'.format(dataset))
+        test_file_path = os.path.join('/data1/louis/data/rdf_video_captions', '{}-test.h5'.format(dataset))
         assert os.path.isfile(train_file_path)
         print('Using dataset at: {}'.format(train_file_path))
 
@@ -41,44 +41,6 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
     val_generator = data_loader.load_data_lookup(val_file_path, video_lookup_table=val_table, i3d_lookup_table=i3d_val_table, batch_size=ARGS.batch_size, shuffle=ARGS.shuffle)
      
     print(ARGS)
-
-    if ARGS.setting== 'reg':
-        if not ARGS.reload:
-            encoder = models.EncoderRNN(ARGS, ARGS.device).to(ARGS.device)
-            regressor = models.NumIndRegressor(ARGS,ARGS.device).to(ARGS.device)
-        else:
-            #checkpoint = torch.load('/data2/louis/checkpoints/{}.pt'.format(ARGS.reload))
-            checkpoint = torch.load('/data1/louis/checkpoints/{}.pt'.format(ARGS.reload))
-            encoder = checkpoint['encoder']
-            try:
-                regressor = checkpoint['regressor']
-            except KeyError: # This experiment did not train a regressor
-                print("This checkpoint doesn't contain a regressor. Initializing a new one instead.")
-                regressor = models.NumIndRegressor(ARGS,ARGS.device).to(ARGS.device)
-                
-        train.train_reg(ARGS, encoder, regressor, train_generator=train_generator, val_generator=val_generator, device=ARGS.device)
- 
-        train_generator = data_loader.load_data_lookup(train_file_path, video_lookup_table=train_table, i3d_lookup_table=i3d_train_table, batch_size=ARGS.batch_size, shuffle=False)
-        val_generator = data_loader.load_data_lookup(val_file_path, video_lookup_table=val_table, i3d_lookup_table=i3d_val_table, batch_size=ARGS.batch_size, shuffle=False)
-        test_generator = data_loader.load_data_lookup(test_file_path, video_lookup_table=test_table, i3d_lookup_table=i3d_test_table, batch_size=ARGS.batch_size, shuffle=False)
-
-
-        test_output_info = test_reg(encoder, regressor, train_generator, val_generator, test_generator, deci3d=ARGS.i3d, device=ARGS.device)
-     
-        summary_filename = '../experiments/{}/{}_summary.txt'.format(exp_name, exp_name) 
-        with open(summary_filename, 'w') as summary_file:
-            summary_file.write('Experiment name: {}\n'.format(exp_name))
-            summary_file.write('\tTrain\tVal\tTest\n')
-            for k,v in test_output_info.items():
-                print(k+':', v)
-            summary_file.write('\nParameters:\n')
-            for key in options.IMPORTANT_PARAMS:
-                summary_file.write(str(key) + ": " + str(vars(ARGS)[key]) + "\n")
-
-
-        accuracy = 0
-        return accuracy, test_output_info
-
    
     encoder = None
     encoder_optimizer = None
@@ -143,32 +105,22 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
     gt_forcing = (ARGS.setting == 'eos')
     #gt_forcing = False
     print('\nComputing outputs on val set')
-    val_sizes_by_pos, val_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS, gt_forcing=gt_forcing, data_generator=val_generator, exp_name=exp_name, dset_fragment='val', setting=ARGS.setting)
-    val_sizes_by_pos['dset_fragment'] = 'val'
+    val_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS, gt_forcing=gt_forcing, data_generator=val_generator, exp_name=exp_name, dset_fragment='val', setting=ARGS.setting)
     val_output_info['dset_fragment'] = 'val'
     print('\nComputing outputs on train set')
-    train_sizes_by_pos, train_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS, gt_forcing=gt_forcing, data_generator=train_generator, exp_name=exp_name, dset_fragment='train', setting=ARGS.setting)
-    train_sizes_by_pos['dset_fragment'] = 'train'
+    train_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS, gt_forcing=gt_forcing, data_generator=train_generator, exp_name=exp_name, dset_fragment='train', setting=ARGS.setting)
     train_output_info['dset_fragment'] = 'train'
     fixed_thresh = ((train_output_info['thresh']*1200)+(val_output_info['thresh']*100))/1300
     print('\nComputing outputs on test set')
-    test_sizes_by_pos, test_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS, gt_forcing=gt_forcing, data_generator=test_generator, exp_name=exp_name, dset_fragment='test', fixed_thresh=fixed_thresh, setting=ARGS.setting)
-    test_sizes_by_pos['dset_fragment'] = 'test'
+    test_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS, gt_forcing=gt_forcing, data_generator=test_generator, exp_name=exp_name, dset_fragment='test', fixed_thresh=fixed_thresh, setting=ARGS.setting)
     test_output_info['dset_fragment'] = 'test'
 
-    pos_norms_csv_filename = '../experiments/{}/{}_avg_norms_position.csv'.format(exp_name, exp_name)
-    with open(pos_norms_csv_filename, 'w') as csv_file:
-        w = csv.DictWriter(csv_file, fieldnames=['dset_fragment']+list(range(len(train_sizes_by_pos))))
-        w.writerow(train_sizes_by_pos)
-        w.writerow(val_sizes_by_pos)
-        w.writerow(test_sizes_by_pos)
-     
     summary_filename = '../experiments/{}/{}_summary.txt'.format(exp_name, exp_name) 
     with open(summary_filename, 'w') as summary_file:
         summary_file.write('Experiment name: {}\n'.format(exp_name))
         summary_file.write('\tTrain\tVal\tTest\n')
         #for k in train_output_info:
-        for k in ['dset_fragment', 'l2_distance', 'cos_similarity', 'avg_norm', 'thresh', 'legit_f1', 'best_acc', 'acchalf', 'f1half', 'avg_pos_prob', 'avg_neg_prob']: 
+        for k in ['dset_fragment', 'l2_distance', 'cos_similarity', 'thresh', 'legit_f1', 'best_acc', 'acchalf', 'f1half', 'avg_pos_prob', 'avg_neg_prob']: 
             summary_file.write(k+'\t'+str(train_output_info[k])+'\t'+str(val_output_info[k])+'\t'+str(test_output_info[k])+'\n')
         summary_file.write('\nParameters:\n')
         for key in options.IMPORTANT_PARAMS:

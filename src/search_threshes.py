@@ -24,37 +24,19 @@ def compute_scores_for_thresh(positive_probs, negative_probs, thresh):
 
 def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size, dataset, mlp_dict, gt_json):
     
-    
     prob_file_name = "../experiments/{}/{}-{}probabilities.json".format(exp_name, exp_name, dset_fragment)
     try:
         with open(prob_file_name, 'r') as prob_file:
             data = json.load(prob_file)
     except (FileNotFoundError, json.decoder.JSONDecodeError):
         emb_file_path = "../experiments/{}/{}-{}_outputs.txt".format(exp_name, exp_name, dset_fragment)
-        gt_file_path = "../data/rdf_video_captions/{}d-det.json.neg".format(dataset, ind_size)
-        """
-        model_file_path = "../rrn-models/model-{}d-det.state".format(dataset, ind_size)
-        assert os.path.isfile(emb_file_path)
-        #assert os.path.isfile(gt_file_path)
-        #assert os.path.isfile(model_file_path)
-        print("Can't read from probabilites file {}. Computing probabilities from scratch using embeddings at {}".format(prob_file_name, emb_file_path))
-        if dataset == 'MSVD':
-            data = json.loads(subprocess.Popen(["vc-eval", emb_file_path], stdout=subprocess.PIPE).communicate()[0].decode())
-        elif dataset == 'MSRVTT':
-            data = json.loads(subprocess.Popen(["vc-eval", emb_file_path, '0.5', 'msrvtt'], stdout=subprocess.PIPE).communicate()[0].decode())
-        #data = json.loads(subprocess.check_output("./embedding-gen/run-eval.sh %s %s %s" % ('../data/rdf_video_captions/10d-det.json.neg', '../experiments/try/try-val_outputs.txt', '../rrn-models/model-10d-det.state'), shell=True).decode())
-        #data = json.loads(subprocess.check_output("./embedding-gen/run-eval.sh %s %s %s" % (gt_file_path, emb_file_path, model_file_path), shell=True))
-        """
+        gt_file_path = "/data1/louis/data/rdf_video_captions/{}d-det.json.neg".format(dataset, ind_size)
     emb_file_path = "../experiments/{}/{}-{}_outputs.txt".format(exp_name, exp_name, dset_fragment)
     with open(emb_file_path, 'r') as emb_file:
         outputs_json = json.load(emb_file)
         
     positive_probs, negative_probs, error_dict = compute_probs_for_dataset(outputs_json, gt_json, mlp_dict, device='cuda')
     print(len(positive_probs), len(negative_probs))
-    print(positive_probs[:20], negative_probs[:20])
-    #with open(prob_file_name, 'w') as prob_file:
-        #json.dump(data, prob_file)
-    f1_by_thresh = {}
        
     threshes = []
     tps = []
@@ -63,14 +45,8 @@ def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size, dataset, mlp_
     tns = []
     f1s = []
     accs = []
-    #positive_probs = data['probabilities']['pos']
-    #negative_probs = data['probabilities']['neg']
-    #avg_pos_prob = data['avg-probabilities']['pos'] 
-    #avg_neg_prob = data['avg-probabilities']['neg'] 
     avg_pos_prob = sum(positive_probs)/len(positive_probs)
     avg_neg_prob = sum(negative_probs)/len(negative_probs)
-    assert avg_pos_prob - (sum(positive_probs)/len(positive_probs)) < 1e-3
-    assert avg_neg_prob - (sum(negative_probs)/len(negative_probs)) < 1e-3
     best_f1 = 0
 
     print("\nSearching thresholds")
