@@ -21,17 +21,7 @@ from skimage import img_as_float
 
 
 def load_vid_from_id(vid_id, dataset):
-    #return np.load('../data/frames/vid{}_resized.npz'.format(vid_id))['arr_0']
-    #if cnn in ["vgg", "vgg_old"]:
-    #    return np.load('../data/frames/vid{}.npz'.format(vid_id))['arr_0']
-    #elif cnn == "nasnet":
-    #    return np.load('../data/frames_331_nasnet/vid{}.npz'.format(vid_id))['arr_0']
-    #else:
-    #    print("Unknown value for enc_cnn:", cnn)
-    #if dataset == 'MSRVTT':
-        #print('Loading video', vid_id)
     return np.load('/data1/louis/frames-resized/{}/vid{}.npz'.format(dataset, vid_id))['arr_0']
-    #return np.load('../data/frames/vid{}.npz'.format(vid_id))['arr_0']
 
 def load_i3d_from_id(vid_id):
     return np.load('../data/i3dvecs/vid{}.npy'.format(vid_id))

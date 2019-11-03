@@ -8,7 +8,6 @@ import models
 import train
 import data_loader 
 from get_output import write_outputs_get_info
-#from reg_transformer import RegTransformer
 
 
 #torch.manual_seed(0)
@@ -23,7 +22,6 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
         ARGS.enc_size = 51
         ARGS.dec_size = 50
         ARGS.enc_layers = ARGS.dec_layers = 1
-        #ARGS.ind_size = 10
         ARGS.no_chkpt = True
         if ARGS.max_epochs == 1000:
             ARGS.max_epochs = 1
@@ -95,7 +93,6 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
         if exp_name.startswith('jade'):
             filename = '../jade_checkpoints/{}.pt'.format(exp_name[:-2])
         else:
-            #filename = '/data2/louis/checkpoints/{}.pt'.format(exp_name)
             filename = '/data1/louis/checkpoints/{}.pt'.format(exp_name)
         print(filename)
         checkpoint = torch.load(filename)
@@ -119,7 +116,6 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table, i3d_train
     with open(summary_filename, 'w') as summary_file:
         summary_file.write('Experiment name: {}\n'.format(exp_name))
         summary_file.write('\tTrain\tVal\tTest\n')
-        #for k in train_output_info:
         for k in ['dset_fragment', 'l2_distance', 'cos_similarity', 'thresh', 'legit_f1', 'best_acc', 'acchalf', 'f1half', 'avg_pos_prob', 'avg_neg_prob']: 
             summary_file.write(k+'\t'+str(train_output_info[k])+'\t'+str(val_output_info[k])+'\t'+str(test_output_info[k])+'\n')
         summary_file.write('\nParameters:\n')

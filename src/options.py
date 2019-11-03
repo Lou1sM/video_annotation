@@ -22,15 +22,12 @@ def load_arguments():
     argparser.add_argument("--enc_layers", default = 2, type=int)
     argparser.add_argument("--enc_rnn", choices = ["gru", "lstm"], default = "gru")
     argparser.add_argument("--enc_size", default = 2000, type=float)
-    #argparser.add_argument("--eos_reuse_decoder",action="store_true")
-    #argparser.add_argument("--eos_sizes", default = [100,40], nargs='+', type=int)
     argparser.add_argument("--exp_name", type=str, default = "")
     argparser.add_argument("--dec_init", type=str, choices=['zeroes','unit','learned','unit_learned'],default='unit')
     argparser.add_argument("--i3d",action="store_true",help = "use i3d vector (before enc rnn)")
     argparser.add_argument("--i3d_after",action="store_true",help = "put i3d after enc rnn")
     argparser.add_argument("--ind_size", type = int, default=10, help="dimensionality of embeddings")
     argparser.add_argument("--learning_rate", type = float, default = 1e-3)
-    #argparser.add_argument("--lmbda_eos", type = float, default = 0.0, help = "weight of eos loss")
     argparser.add_argument("--lmbda_norm", type = float, default = 1.0, help = "weight of norm loss")
     #argparser.add_argument("--loss_func", type=str, choices=['mse', 'cos'], default='mse')
     argparser.add_argument("--max_epochs", type = int, default = 1000)
@@ -48,16 +45,12 @@ def load_arguments():
     argparser.add_argument("--pred_margin",type=float,default=10.0,help = "margin within which to apply pred loss, ie we use relu(-/+pred-margin) for pos a neg respectively")
     argparser.add_argument("--pred_normalize", action="store_true", default=False, help = "whether to normlize assisted embeddings before feeding to get_pred")
     argparser.add_argument("--quick_run", "-q", action="store_true", help="exit training loop after 1 batch")
-    #argparser.add_argument("--reg_sizes", nargs='+', type=int, default=[100,40])
     argparser.add_argument("--reload", default = None)
-    #argparser.add_argument("--reweight_eos",action="store_true",help = "apply ones loss")
     argparser.add_argument("--seed", type=int, default=0)
     argparser.add_argument("--setting", choices = ["embeddings", "preds", "eos", "transformer", 'reg', 'embeddings_eos'], default="embeddings", help = "setting to train the NN on")    
     argparser.add_argument("--shuffle", action = "store_false", default = True)
     argparser.add_argument("--sigmoid_mlp",action="store_true",help = "sigmoid activation function at end of mlp")    
     argparser.add_argument("--teacher_forcing_ratio", type = float, default = 1.0)
-    #argparser.add_argument("--transformer_heads", type = int, default = 6)
-    #argparser.add_argument("--transformer_layers", type = int, default = 1)
     argparser.add_argument("--verbose", action = "store_true", help="print network info before training")
     argparser.add_argument("--weight_decay", type=float, default = 0.0)
         
@@ -81,13 +74,10 @@ IMPORTANT_PARAMS = [
     'enc_init', 
     'enc_layers', 
     'enc_size', 
-    #'eos_reuse_decoder',
-    #'eos_sizes',
     'exp_name', 
     'i3d',
     'ind_size', 
     'learning_rate', 
-    #'lmbda_eos', 
     'lmbda_norm', 
     #'log_pred', 
     #'loss_func', 
@@ -99,11 +89,8 @@ IMPORTANT_PARAMS = [
     'pred_margin',
     'pred_normalize',
     'reload', 
-    #'reweight_eos',
     'seed',
     'setting', 
-    #'transformer_heads',
-    #'transformer_layers',
     'weight_decay',
     ]
 
