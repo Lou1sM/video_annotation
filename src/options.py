@@ -10,6 +10,7 @@ def load_arguments():
     #argparser.add_argument("--cnn_layers_to_freeze", type = int, default = 17, help = "how many of the CNN's layers to freeze during training")
     argparser.add_argument("--cuda_visible_devices", type=str, default='0')
     argparser.add_argument("--dataset", type=str, default='MSVD', choices=['MSVD', 'MSRVTT'])
+    argparser.add_argument("--ontology", type=str, default='', choices=['', 'wordnet'])
     argparser.add_argument("--dec_layers", default = 2, type=int)
     argparser.add_argument("--dec_rnn", choices = ["gru", "lstm"], default = "gru")
     argparser.add_argument("--device", type=str, default = 'cuda')
@@ -24,8 +25,6 @@ def load_arguments():
     argparser.add_argument("--enc_size", default = 2000, type=float)
     argparser.add_argument("--exp_name", type=str, default = "")
     argparser.add_argument("--dec_init", type=str, choices=['zeroes','unit','learned','unit_learned'],default='unit')
-    argparser.add_argument("--i3d",action="store_true",help = "use i3d vector (before enc rnn)")
-    argparser.add_argument("--i3d_after",action="store_true",help = "put i3d after enc rnn")
     argparser.add_argument("--ind_size", type = int, default=10, help="dimensionality of embeddings")
     argparser.add_argument("--learning_rate", type = float, default = 1e-3)
     argparser.add_argument("--lmbda_norm", type = float, default = 1.0, help = "weight of norm loss")
@@ -47,7 +46,7 @@ def load_arguments():
     argparser.add_argument("--quick_run", "-q", action="store_true", help="exit training loop after 1 batch")
     argparser.add_argument("--reload", default = None)
     argparser.add_argument("--seed", type=int, default=0)
-    argparser.add_argument("--setting", choices = ["embeddings", "preds", "eos", "transformer", 'reg', 'embeddings_eos'], default="embeddings", help = "setting to train the NN on")    
+    argparser.add_argument("--setting", choices = ["embeddings", "preds", "transformer", 'reg'], default="embeddings", help = "setting to train the NN on")    
     argparser.add_argument("--shuffle", action = "store_false", default = True)
     argparser.add_argument("--sigmoid_mlp",action="store_true",help = "sigmoid activation function at end of mlp")    
     argparser.add_argument("--teacher_forcing_ratio", type = float, default = 1.0)
@@ -61,7 +60,6 @@ def load_arguments():
 
 
 IMPORTANT_PARAMS = [
-    #'attn_type',
     'batch_size',
     'cuda_visible_devices',
     'dataset',
@@ -69,21 +67,17 @@ IMPORTANT_PARAMS = [
     'dec_layers', 
     'dec_rnn', 
     'dec_size', 
-    #'dropout', 
     'enc_cnn', 
     'enc_init', 
     'enc_layers', 
     'enc_size', 
     'exp_name', 
-    'i3d',
     'ind_size', 
     'learning_rate', 
     'lmbda_norm', 
-    #'log_pred', 
-    #'loss_func', 
     'neg_pred_weight', 
-    #'norm_loss',
     'norm_threshold', 
+    'ontology',
     'patience',
     'pred_embeddings_assist', 
     'pred_margin',

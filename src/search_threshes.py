@@ -29,29 +29,22 @@ def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size, dataset, mlp_
         with open(prob_file_name, 'r') as prob_file:
             data = json.load(prob_file)
     except (FileNotFoundError, json.decoder.JSONDecodeError):
-        emb_file_path = "../experiments/{}/{}-{}_outputs.txt".format(exp_name, exp_name, dset_fragment)
-        gt_file_path = "/data1/louis/data/rdf_video_captions/{}d-det.json.neg".format(dataset, ind_size)
-    emb_file_path = "../experiments/{}/{}-{}_outputs.txt".format(exp_name, exp_name, dset_fragment)
+        emb_file_path = f"../experiments/{exp_name}/{exp_name}-{dset_fragment}_outputs.txt"
+        gt_file_path = f"/data1/louis/data/rdf_video_captions/{dataset}.json"
+    emb_file_path = f"../experiments/{exp_name}/{exp_name}-{dset_fragment}_outputs.txt"
     with open(emb_file_path, 'r') as emb_file:
         outputs_json = json.load(emb_file)
         
     positive_probs, negative_probs, error_dict = compute_probs_for_dataset(outputs_json, gt_json, mlp_dict, device='cuda')
-    print(len(positive_probs), len(negative_probs))
        
-    threshes = []
-    tps = []
-    fps = []
-    fns = []
-    tns = []
-    f1s = []
-    accs = []
+    threshes,tps,fps,fns,tns,f1s,accs = [[]]*7
     avg_pos_prob = sum(positive_probs)/len(positive_probs)
     avg_neg_prob = sum(negative_probs)/len(negative_probs)
-    best_f1 = 0
+    best_f1 = -1
 
     print("\nSearching thresholds")
     tphalf, fphalf, fnhalf, tnhalf, prechalf, rechalf, f1half, acchalf = compute_scores_for_thresh(positive_probs, negative_probs, 0.5)
-    for thresh in np.arange(avg_neg_prob-.01, avg_pos_prob+0.1, 1e-4):
+    for thresh in np.concatenate([np.array([0.]),np.arange(avg_neg_prob-.01, avg_pos_prob+0.1, 1e-3)]):
         tp, fp, fn, tn, prec, rec, f1, acc = compute_scores_for_thresh(positive_probs, negative_probs, thresh)
         threshes.append(thresh)
         tps.append(tp)

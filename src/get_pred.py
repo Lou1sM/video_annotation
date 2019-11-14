@@ -2,68 +2,45 @@ import json
 import torch
 import numpy as np
 import torch.nn.functional as F
-
+from pdb import set_trace
+import re
+from utils import make_prediction
 
 torch.manual_seed(0)
 
-def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, neg_weight, margin, device):
-
-    #printout = np.random.rand()<0.05
+def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, margin, device):
     printout = np.random.rand()<0.00
+    num_atoms = 0
     for batch_idx, video_id in enumerate(video_ids):
         dpoint = json_data_dict[int(video_id.item())]
-        triples = dpoint['caption']
-        ntriples = dpoint['negatives']
-        if neg_weight == -1: 
-            try:
-                neg_weight = float(len(triples))/len(ntriples)
-            except ZeroDivisionError:
-                neg_weight = 0
+        atoms,inferences,lcwa = dpoint['facts'], dpoint['inferences'], dpoint['lcwa']
+        try: neg_weight = float(len(atoms))/len(lcwa)
+        except ZeroDivisionError: pass # Don't define neg_weight because it shouldn't be needed
         loss = torch.tensor([0.], device=device)
-        for triple in triples:
-            sub, relation, obj = triple.split()
-            try:
-                mlp = mlp_dict[relation].to(device)
-            except KeyError:
-                #print("Can't find mlp for relation {}".format(relation))
-                continue
-            sub_pos = dpoint['individuals'].index(sub)
-            obj_pos = dpoint['individuals'].index(obj)
-            sub_embedding = embeddings[batch_idx,sub_pos]
-            obj_embedding = embeddings[batch_idx,obj_pos]
-            sub_obj_concat = torch.cat([sub_embedding, obj_embedding])
-            prediction = mlp(sub_obj_concat)
-            #prediction = torch.min(prediction, torch.tensor([10], dtype=torch.float32, device=device))
-            if printout:
-                print('pos', prediction.item())
-                print(F.relu(-prediction+margin).item())
-            #loss += F.relu(-prediction+margin)**2
-            loss += F.relu(-prediction+margin)
-
-        if neg_weight == 0:
-            return loss
-
-        for ntriple in ntriples:
-            sub, relation, obj = ntriple.split()
-            try:
-                mlp = mlp_dict[relation].to(device)
-            except KeyError:
-                #print("Can't find mlp for relation {}".format(relation))
-                continue
-            sub_pos = dpoint['individuals'].index(sub)
-            obj_pos = dpoint['individuals'].index(obj)
-            sub_embedding = embeddings[batch_idx, sub_pos]
-            obj_embedding = embeddings[batch_idx, obj_pos]
-            sub_obj_concat = torch.cat([sub_embedding, obj_embedding])
-            mlp = mlp_dict[relation].to(device)
-            prediction = mlp(sub_obj_concat)
-            #prediction = torch.max(prediction, torch.tensor([-10], dtype=torch.float32, device=device))
-            if printout:
-                print('neg', prediction.item())
-                print(F.relu(prediction+margin).item())
-                print(neg_weight*F.relu(prediction+margin).item())
-            #loss += neg_weight*F.relu(prediction+margin)**2
-            loss += neg_weight*F.relu(prediction+margin)
+        truth_values = [True]*len(atoms) + [False]*len(lcwa)
+        num_atoms += len(truth_values)
+        for atomstr,truth_value in zip(atoms,truth_values):
+            assert atomstr.startswith('~') != truth_value
+            if not truth_value: atomstr = atomstr[1:]
+            items = re.split('\(|\)|,',atomstr)[:-1]
+            if len(items) == 2:
+                predname,subname = items
+                assert predname.startswith('c') #Should be unary
+            elif len(items) == 3:
+                predname,subname,objname = items
+                try: assert predname.startswith('r')
+                except: set_trace()
+            else: set_trace()
+            sub_pos = dpoint['individuals'].index(subname)
+            embedding = embeddings[batch_idx,sub_pos]
+            if len(items) == 3:
+                obj_pos = dpoint['individuals'].index(objname)
+                obj_embedding = embeddings[batch_idx,obj_pos]
+                embedding = torch.cat([embedding, obj_embedding])
+            prediction = make_prediction(embedding,predname,len(items)==2,mlp_dict,device)
+            if printout: print(truth_value, prediction.item())
+            if truth_value: loss += F.relu(-prediction+margin)
+            else: loss += neg_pred_weight*F.relu(-prediction+margin)
 
     return loss
        

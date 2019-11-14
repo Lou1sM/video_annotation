@@ -5,13 +5,13 @@ file to read from, and three paths to write the train, test and validation
 h5 files to respectively.
 """
 
-
 import json
 import numpy as np
 import h5py
+from pdb import set_trace
 
 
-def padded_emb_seq_from_lists(list_of_lists, already_sorted=True, embedding_size=50, max_len=10):
+def padded_emb_seq_from_lists(list_of_lists, embedding_size=50, max_len=10):
     """Convert a list of lists to a sorted, padded np array.
 
     Json files can't store np arrays, so the agreed-upon json format stores
@@ -29,18 +29,14 @@ def padded_emb_seq_from_lists(list_of_lists, already_sorted=True, embedding_size
     """
 
     unsorted_unpadded_array = np.array(list_of_lists)
-    if already_sorted:
-        sorted_unpadded_array = np.squeeze(unsorted_unpadded_array)
-    else:
-        #print(np.argsort(unsorted_unpadded_array[:,0,0]))
-        #print(unsorted_unpadded_array.shape)
-        sorted_unpadded_array = np.squeeze(unsorted_unpadded_array[np.argsort(unsorted_unpadded_array[:,0])])
+    if ALREADY_SORTED: sorted_unpadded_array = np.squeeze(unsorted_unpadded_array)
+    else: sorted_unpadded_array = np.squeeze(unsorted_unpadded_array[np.argsort(unsorted_unpadded_array[:,0])])
+    if len(sorted_unpadded_array.shape) == 1:
+        assert len(list_of_lists) == 1
+        sorted_unpadded_array = np.expand_dims(sorted_unpadded_array, 0)
     padding = np.zeros(shape=(max_len-sorted_unpadded_array.shape[0], embedding_size))
-    # print(sorted_unpadded_array.shape)
-    # print(sorted_unpadded_array[0])
-    # print(padding.shape)
-    # print(padding[0])
-    sorted_padded_array = np.concatenate([sorted_unpadded_array, padding], axis=0)
+    try: sorted_padded_array = np.concatenate([sorted_unpadded_array, padding], axis=0)
+    except: set_trace()
     return sorted_padded_array
 
 
@@ -57,25 +53,24 @@ def make_eos_gt(num_embeddings, max_len=10):
       max_len: an int equal to the maximum number of embeddings, ie what each seq-
               uence is padded up to
     """
-    #print("num_embeddings:", num_embeddings)
     tmp = np.zeros(max_len)
     tmp[num_embeddings-1] = 1
     return tmp
 
 
-def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_path, out_h5_test_file_path, embedding_size=50, max_len=10):
+def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_path, out_h5_test_file_path, train_max,val_max,test_max, embedding_size=50, max_len=10):
     """Convert json in agreed-upon format to train, test and val h5 in format expected by the Dataset.
 
-    The json contains a list of datapoint, each having keys 'videoId', 'embed-
+    The json contains a list of datapoint, each having keys 'video_id', 'embed-
     dings', 'individuals' and 'captions'. Only the first two are passed to the
-    h5 file. The videoIds are ints in the json file and are passed as is to the
+    h5 file. The video_ids are ints in the json file and are passed as is to the
     h5 file. The embeddings are unpadded, unsorted lists of lists in the json
     file. They are converted to np arrays, padded and sorted (by first element)
     before being passed to the h5 file. Their unpadded length is measured and
     passed to the h5 file as 'embedding_len', and this length is also used to
     compute the eos ground truth.
 
-    Each h5 file thus contains 4 datasets: videoId (ints), embeddings (np arrays)
+    Each h5 file thus contains 4 datasets: video_id (ints), embeddings (np arrays)
     and embedding_lens (ints), eos_gt (np arrays).
 
     Args:
@@ -95,36 +90,35 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
     num_val = 0
     num_train = 0
     for dp in embeddings_and_ids:
-        #if dp['videoId'] <= 1200:
-        if dp['videoId'] <= 6512:
+        if dp['video_id'] <= train_max:
             num_train += 1
-        elif dp['videoId'] <= 7009:
+        elif dp['video_id'] <= val_max:
             num_val += 1
-        elif dp['videoId'] <= 10000:
+        elif dp['video_id'] <= test_max:
             num_test += 1
         else:
-            print("Unrecognised video id: {}".format(dp['videoId']))
+            print("Unrecognised video id: {}".format(dp['video_id']))
     print('train:', num_train)
     print('val:', num_val)
     print('test:', num_test)
-    #num_train=6
+    #num_train=5
 
     # Define the 3 data files and the datasets therein
     h5_f_train = h5py.File(out_h5_train_file_path, 'w')
-    id_train_dataset = h5_f_train.create_dataset('videoId', (num_train,), dtype='uint32')
-    emb_seq_train_dataset = h5_f_train.create_dataset('embeddings', (num_train,max_len,embedding_size), dtype=np.float64)
+    id_train_dataset = h5_f_train.create_dataset('video_id', (num_train,), dtype='uint32')
+    emb_seq_train_dataset = h5_f_train.create_dataset('gt_embeddings', (num_train,max_len,embedding_size), dtype=np.float64)
     seq_len_train_dataset = h5_f_train.create_dataset('embedding_len', (num_train,), dtype='uint8')
     eos_gt_train_dataset = h5_f_train.create_dataset('eos_gt', (num_train,max_len), dtype='uint8')
    
     h5_f_val = h5py.File(out_h5_val_file_path, 'w')
-    id_val_dataset = h5_f_val .create_dataset('videoId', (num_val,), dtype='uint32')
-    emb_seq_val_dataset = h5_f_val.create_dataset('embeddings', (num_val,max_len,embedding_size), dtype=np.float64)
+    id_val_dataset = h5_f_val .create_dataset('video_id', (num_val,), dtype='uint32')
+    emb_seq_val_dataset = h5_f_val.create_dataset('gt_embeddings', (num_val,max_len,embedding_size), dtype=np.float64)
     seq_len_val_dataset = h5_f_val.create_dataset('embedding_len', (num_val,), dtype='uint8')
     eos_gt_val_dataset = h5_f_val.create_dataset('eos_gt', (num_val,max_len), dtype='uint8')
     
     h5_f_test = h5py.File(out_h5_test_file_path, 'w')
-    id_test_dataset = h5_f_test.create_dataset('videoId', (num_test,), dtype='uint32')
-    emb_seq_test_dataset = h5_f_test.create_dataset('embeddings', (num_test,max_len,embedding_size), dtype=np.float64)
+    id_test_dataset = h5_f_test.create_dataset('video_id', (num_test,), dtype='uint32')
+    emb_seq_test_dataset = h5_f_test.create_dataset('gt_embeddings', (num_test,max_len,embedding_size), dtype=np.float64)
     seq_len_test_dataset = h5_f_test.create_dataset('embedding_len', (num_test,), dtype='uint8')
     eos_gt_test_dataset = h5_f_test.create_dataset('eos_gt', (num_test,max_len), dtype='uint8')
 
@@ -135,41 +129,31 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
     idx_val = 0
     idx_test = 0
     print('Making h5...')
-    print(list(set([len(dp['embeddings']) for dp in embeddings_and_ids])))
+    print(list(set([len(dp['gt_embeddings']) for dp in embeddings_and_ids])))
     for idx, dp in enumerate(embeddings_and_ids):
-        new_vid_id = dp['videoId']
-        #print(new_vid_id)
-        #print(dp['embeddings'][0])
-        #x
-        #if len(dp['embeddings']) == 36:
-        #    print(dp['embeddings'][0][0])
-        #if dp['videoId'] > 5:
-            #continue
-        #if new_vid_id <= 1200:
-        if new_vid_id <= 6512:
+        new_vid_id = dp['video_id']
+        if new_vid_id <= train_max:
             #print('train')
             id_train_dataset[idx_train] = new_vid_id
-            list_of_lists = dp['embeddings']
+            list_of_lists = dp['gt_embeddings']
             seq_len_train_dataset[idx_train] = len(list_of_lists)
             eos_gt_train_dataset[idx_train] = make_eos_gt(len(list_of_lists), max_len=max_len)
             emb_seq_train_dataset[idx_train] = padded_emb_seq_from_lists(list_of_lists, embedding_size=embedding_size, max_len=max_len)
             idx_train += 1
         
-        #elif new_vid_id <= 1300:
-        elif new_vid_id <= 7009:
+        elif new_vid_id <= val_max:
             #print('val')
             id_val_dataset[idx_val] = new_vid_id
-            list_of_lists = dp['embeddings']
+            list_of_lists = dp['gt_embeddings']
             seq_len_val_dataset[idx_val] = len(list_of_lists)
             eos_gt_val_dataset[idx_val] = make_eos_gt(len(list_of_lists), max_len=max_len)
             emb_seq_val_dataset[idx_val] = padded_emb_seq_from_lists(list_of_lists, embedding_size=embedding_size, max_len=max_len)
             idx_val += 1
         
-        #elif new_vid_id <= 1970:
-        elif new_vid_id <= 10000:
+        elif new_vid_id <= test_max:
             #print('test') 
             id_test_dataset[idx_test] = new_vid_id
-            list_of_lists = dp['embeddings']
+            list_of_lists = dp['gt_embeddings']
             seq_len_test_dataset[idx_test] = len(list_of_lists)
             eos_gt_test_dataset[idx_test] = make_eos_gt(len(list_of_lists), max_len=max_len)
             emb_seq_test_dataset[idx_test] = padded_emb_seq_from_lists(list_of_lists, embedding_size=embedding_size, max_len=max_len)
@@ -182,53 +166,14 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
 
 if __name__ == "__main__":
     
+    ALREADY_SORTED = False
     convert_json_to_h5s(
-         json_file_path='../data/rdf_video_captions/MSRVTT-5d-det.json.neg', 
-         out_h5_train_file_path='../data/rdf_video_captions/MSRVTT-5d-train.h5',
-         out_h5_val_file_path= '../data/rdf_video_captions/MSRVTT-5d-val.h5',
-         out_h5_test_file_path= '../data/rdf_video_captions/MSRVTT-5d-test.h5',
-         embedding_size=5,
-         max_len=58
+         json_file_path='/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d.json', 
+         out_h5_train_file_path='/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d-train.h5',
+         out_h5_val_file_path= '/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d-val.h5',
+         out_h5_test_file_path= '/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d-test.h5',
+         train_max=1200,val_max=1300,test_max=1970,
+         embedding_size=25,
+         max_len=25
          )
- 
-    #convert_json_to_h5s(
-    #     json_file_path='../data/rdf_video_captions/MSRVTT-10d-det.json.neg', 
-    #     out_h5_train_file_path='../data/rdf_video_captions/MSRVTT-10d-6dp.h5',
-    #     out_h5_val_file_path= 'dud',
-    #     out_h5_test_file_path= 'dud1',
-    #     embedding_size=10,
-    #     max_len=58
-    #     )
-
-    #convert_json_to_h5s(
-    #    json_file_path='/data2/commons/rdf_video_captions/5d-det.json', 
-    #    out_h5_train_file_path='../data/rdf_video_captions/MSVD-5d-train.h5',
-    #    out_h5_val_file_path= '../data/rdf_video_captions/MSVD-5d-val.h5',
-    #    out_h5_test_file_path= '../data/rdf_video_captions/MSVD-5d-test.h5',
-    #    embedding_size=5,
-    #    max_len=29)
-
-    #convert_json_to_h5s(
-    #    json_file_path='/data2/commons/rdf_video_captions/50d.overfitting.json', 
-    #    out_h5_train_file_path='../data/rdf_video_captions/50d_overfitting.h5',
-    #    out_h5_val_file_path= '../data/rdf_video_captions/over_val.h5',
-    #    out_h5_test_file_path= '../data/rdf_video_captions/over_test.h5',
-    #    embedding_size=50,
-    #    max_len=29)
-
-    """
-    from make_dummies import get_dummy_json_dpoint
-    
-    dummy = get_dummy_json_dpoint()
-    dummy = [[7.,.6,2.,9.],[9.,6.,3.,2.,],[8.,5.,6.,3.]]
-    print(dummy)
-    #out = make_eos_gt(len(dummy), 10)
-    out = padded_emb_seq_from_lists(dummy, embedding_size=4)
-    print(out)
-    print(make_eos_gt(len(dummy), 10))
-    """
-
-
-
-
 
