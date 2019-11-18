@@ -1,3 +1,4 @@
+from pdb import set_trace
 import math
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
@@ -106,7 +107,7 @@ def write_outputs_get_info(encoder, decoder, ARGS, dataset, data_generator, exp_
     test_info.update(metric_data)
     legit_thresh = fixed_thresh if dset_fragment == 'test' else metric_data['thresh'] 
     print(fixed_thresh, metric_data['thresh'])
-    test_info['legit_f1'] = compute_scores_for_thresh(positive_probs, negative_probs, inference_probs, legit_thresh)[6]
+    test_info['legit_f1'] = compute_scores_for_thresh(positive_probs, negative_probs, inference_probs, legit_thresh)[4]
     
     with open('../experiments/{}/{}-{}errors.json'.format(exp_name, exp_name, dset_fragment), 'w') as error_file:
         json.dump(error_dict, error_file)

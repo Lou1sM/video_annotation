@@ -48,9 +48,10 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, enco
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
 
-    #encoder_hidden = encoder.initHidden()#.to(device)
-    #encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
-    encoder_outputs, encoder_hidden = None,None
+    if ARGS.final_bottleneck > 0: encoder_outputs, encoder_hidden = None,None
+    else:
+        encoder_hidden = encoder.initHidden()
+        encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
 
     decoder_input = torch.zeros(1, ARGS.batch_size, ARGS.ind_size, device=decoder.device).to(device)
     if ARGS.enc_dec_hidden_init:

@@ -177,7 +177,7 @@ class DecoderRNN_openattn(nn.Module):
         super(DecoderRNN_openattn, self).__init__()
         self.hidden_size = int(ARGS.dec_size)
         self.num_layers = int(ARGS.dec_layers)
-        #self.dropout_p = ARGS.dropout
+        self.final_bottleneck = ARGS.final_bottleneck > 0
         self.batch_size = int(ARGS.batch_size)
         self.device = ARGS.device
         self.output_size = int(ARGS.ind_size)
@@ -196,7 +196,7 @@ class DecoderRNN_openattn(nn.Module):
 
         self.resize = nn.Linear(self.hidden_size, ARGS.ind_size)
         self.out = nn.Linear(2*self.hidden_size, self.output_size)
-        self.dummy_out =nn.Linear(1,self.output_size)
+        if ARGS.final_bottleneck: self.dummy_out =nn.Linear(ARGS.final_bottleneck,self.output_size)
 
 
     def get_attention_context_concatenation(self, input_, hidden, input_lengths, encoder_outputs):
@@ -233,13 +233,13 @@ class DecoderRNN_openattn(nn.Module):
         
 
     def forward(self, input_, hidden, input_lengths, encoder_outputs):
-        #attn_concat_outp, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs)
-        hidden = torch.randn(1,self.batch_size,self.hidden_size).cuda()
-
-        #output = self.out(attn_concat_outp)
-        largest_in_batch = int(torch.max(input_lengths).item())
-        #dummy_inp = torch.randn([self.batch_size,largest_in_batch,1])
-        output = self.dummy_out(torch.randn([self.batch_size,largest_in_batch,1]).cuda())
+        if self.final_bottleneck: 
+            hidden = torch.randn(1,self.batch_size,self.hidden_size).cuda()
+            largest_in_batch = int(torch.max(input_lengths).item())
+            output = self.dummy_out(torch.randn([self.batch_size,largest_in_batch,1]).cuda())
+        else:
+            attn_concat_outp, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs)
+            output = self.out(attn_concat_outp)
         
         return output, hidden
 
