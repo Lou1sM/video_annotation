@@ -1,4 +1,4 @@
-import pdb
+from pdb import set_trace
 import math
 import numpy as np
 import random
@@ -195,8 +195,8 @@ class DecoderRNN_openattn(nn.Module):
             self.rnn = nn.LSTM(self.output_size, self.hidden_size, num_layers=self.num_layers)
 
         self.resize = nn.Linear(self.hidden_size, ARGS.ind_size)
-        #self.out = nn.Linear(2*ARGS.ind_size, self.output_size)
         self.out = nn.Linear(2*self.hidden_size, self.output_size)
+        self.dummy_out =nn.Linear(1,self.output_size)
 
 
     def get_attention_context_concatenation(self, input_, hidden, input_lengths, encoder_outputs):
@@ -233,9 +233,13 @@ class DecoderRNN_openattn(nn.Module):
         
 
     def forward(self, input_, hidden, input_lengths, encoder_outputs):
-        attn_concat_outp, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs)
+        #attn_concat_outp, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs)
+        hidden = torch.randn(1,self.batch_size,self.hidden_size).cuda()
 
-        output = self.out(attn_concat_outp)
+        #output = self.out(attn_concat_outp)
+        largest_in_batch = int(torch.max(input_lengths).item())
+        #dummy_inp = torch.randn([self.batch_size,largest_in_batch,1])
+        output = self.dummy_out(torch.randn([self.batch_size,largest_in_batch,1]).cuda())
         
         return output, hidden
 

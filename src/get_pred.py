@@ -41,7 +41,6 @@ def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, margin, devic
             if printout: print(truth_value, prediction.item())
             if truth_value: loss += F.relu(-prediction+margin)
             else: loss += neg_pred_weight*F.relu(-prediction+margin)
-
     return loss
        
 

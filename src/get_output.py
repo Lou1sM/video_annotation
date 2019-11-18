@@ -12,7 +12,7 @@ from data_loader import load_data, load_data_lookup, video_lookup_table_from_ran
 from search_threshes import find_best_thresh_from_probs, compute_scores_for_thresh
 
 
-def get_outputs(encoder, decoder, transformer, data_generator, ind_size, setting='embeddings', device='cuda'):
+def get_outputs(encoder, decoder, data_generator, ind_size, setting='embeddings', device='cuda'):
     encoder.eval()
     decoder.eval()
     encoder.batch_size = 1
@@ -72,9 +72,9 @@ def get_outputs(encoder, decoder, transformer, data_generator, ind_size, setting
     return output, positions, test_info
 
 
-def write_outputs_get_info(encoder, decoder, transformer, ARGS, dataset, data_generator, exp_name, dset_fragment, fixed_thresh=None, setting='embeddings'):
+def write_outputs_get_info(encoder, decoder, ARGS, dataset, data_generator, exp_name, dset_fragment, fixed_thresh=None, setting='embeddings'):
 
-    outputs, positions, test_info  = get_outputs(encoder, decoder, transformer, data_generator=data_generator, ind_size=ARGS.ind_size, device=ARGS.device, setting=setting)
+    outputs, positions, test_info  = get_outputs(encoder, decoder, data_generator=data_generator, ind_size=ARGS.ind_size, device=ARGS.device, setting=setting)
 
     outputs_filename = '../experiments/{}/{}-{}_outputs.txt'.format(exp_name, exp_name, dset_fragment)
     print('writing outputs to', outputs_filename)
@@ -102,11 +102,11 @@ def write_outputs_get_info(encoder, decoder, transformer, ARGS, dataset, data_ge
     with open(gt_file_path, 'r') as gt_file:
         gt = json.load(gt_file)
 
-    metric_data, total_metric_data, positive_probs, negative_probs, error_dict = find_best_thresh_from_probs(exp_name, dset_fragment, ind_size=ARGS.ind_size, dataset=dataset, mlp_dict=mlp_dict, gt_json=gt_json)
+    metric_data, total_metric_data, positive_probs, negative_probs, inference_probs, error_dict = find_best_thresh_from_probs(exp_name, dset_fragment, ind_size=ARGS.ind_size, mlp_dict=mlp_dict, gt_json=gt_json)
     test_info.update(metric_data)
     legit_thresh = fixed_thresh if dset_fragment == 'test' else metric_data['thresh'] 
     print(fixed_thresh, metric_data['thresh'])
-    test_info['legit_f1'] = compute_scores_for_thresh(positive_probs, negative_probs, legit_thresh)[6]
+    test_info['legit_f1'] = compute_scores_for_thresh(positive_probs, negative_probs, inference_probs, legit_thresh)[6]
     
     with open('../experiments/{}/{}-{}errors.json'.format(exp_name, exp_name, dset_fragment), 'w') as error_file:
         json.dump(error_dict, error_file)
@@ -152,10 +152,6 @@ if __name__=="__main__":
     decoder.to(ARGS.device)
     encoder.device = ARGS.device
     decoder.device = ARGS.device
-    try:
-        transformer = checkpoint['transformer']
-    except KeyError:
-        transformer = None
 
     exp_dir = '../experiments/{}'.format(ARGS.exp_name)
     if not os.path.isdir(exp_dir):
@@ -165,20 +161,20 @@ if __name__=="__main__":
     dataset = f'{ARGS.dataset}-{ARGS.ontology}-{ARGS.ind_size}d'
     val_lookup_table = video_lookup_table_from_range(1201,1301, dataset='MSVD') if ARGS.dataset == 'MSVD' else video_lookup_table_from_range(6513,7010, dataset='MSRVTT')
     val_data_generator = load_data_lookup(f'/data1/louis/data/rdf_video_captions/{dataset}-val.h5', video_lookup_table=val_lookup_table, batch_size=1, shuffle=False)
-    _, val_info = write_outputs_get_info(ARGS=ARGS, dataset=dataset, encoder=encoder, decoder=decoder, transformer=transformer, data_generator=val_data_generator, exp_name=ARGS.exp_name, dset_fragment='val', setting=ARGS.setting)
+    _, val_info = write_outputs_get_info(ARGS=ARGS, dataset=dataset, encoder=encoder, decoder=decoder, data_generator=val_data_generator, exp_name=ARGS.exp_name, dset_fragment='val', setting=ARGS.setting)
 
     if not ARGS.quick:
         print('getting outputs and info for train set')
         train_lookup_table = video_lookup_table_from_range(1,1201, dataset='MSVD')if ARGS.dataset == 'MSVD' else video_lookup_table_from_range(0,6513, dataset='MSRVTT')
         train_data_generator = load_data_lookup(f'/data1/louis/data/rdf_video_captions/{dataset}-train.h5', video_lookup_table=train_lookup_table, batch_size=1, shuffle=False)
-        _, train_info = write_outputs_get_info(ARGS=ARGS, dataset=dataset, encoder=encoder, decoder=decoder, transformer=transformer, data_generator=train_data_generator, exp_name=ARGS.exp_name, dset_fragment='train', setting=ARGS.setting)
+        _, train_info = write_outputs_get_info(ARGS=ARGS, dataset=dataset, encoder=encoder, decoder=decoder, data_generator=train_data_generator, exp_name=ARGS.exp_name, dset_fragment='train', setting=ARGS.setting)
 
         print('getting outputs and info for test set')
         fixed_thresh = ((train_info['thresh']*1200)+(val_info['thresh']*100))/1300
         print('outer_fixed_thresh', fixed_thresh)
         test_lookup_table = video_lookup_table_from_range(1301,1971, dataset='MSVD') if ARGS.dataset == 'MSVD' else video_lookup_table_from_range(7010,10000, dataset='MSRVTT')
         test_data_generator = load_data_lookup(f'/data1/louis/data/rdf_video_captions/{dataset}-test.h5')
-        _, test_info = write_outputs_get_info(ARGS=ARGS, dataset=dataset, encoder=encoder, decoder=decoder, transformer=transformer, data_generator=test_data_generator, exp_name=ARGS.exp_name, dset_fragment='test', fixed_thresh=fixed_thresh, setting=ARGS.setting)
+        _, test_info = write_outputs_get_info(ARGS=ARGS, dataset=dataset, encoder=encoder, decoder=decoder, data_generator=test_data_generator, exp_name=ARGS.exp_name, dset_fragment='test', fixed_thresh=fixed_thresh, setting=ARGS.setting)
         print('TEST')
         print(test_info)
 

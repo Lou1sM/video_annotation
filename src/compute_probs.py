@@ -18,14 +18,14 @@ def update_row(error_row):
 
 
 def compute_probs_for_dataset(outputs_json, gt_json, mlp_dict, device):
-    pos_predictions, neg_predictions, errors_by_object  = [], [], {}
+    pos_predictions, neg_predictions, inf_predictions, errors_by_object  = [], [], [], {}
 
     for dpoint in outputs_json:
         video_id = dpoint['video_id']
-        gt = gt_json[int(video_id)]
+        try: gt = gt_json[int(video_id)]
+        except: set_trace()
         atoms,inferences,lcwa = gt['facts'], gt['inferences'], gt['lcwa']
         for atom in atoms:
-            total_count += 1
             embedding,predname,subname,objname  = get_pred_sub_obj(atom,gt,dpoint)
             isclass = predname.startswith('c')
             assert predname.startswith('c') or predname.startswith('r')
@@ -50,7 +50,6 @@ def compute_probs_for_dataset(outputs_json, gt_json, mlp_dict, device):
                     errors_by_object[objname]['total_errors'] += 1
 
         for negatom in lcwa:
-            total_count += 1
             embedding,predname,subname,objname = get_pred_sub_obj(negatom,gt,dpoint)
             predname = predname[1:]
             isclass = predname.startswith('c')
@@ -75,9 +74,16 @@ def compute_probs_for_dataset(outputs_json, gt_json, mlp_dict, device):
                     errors_by_object[objname]['total_errors_neg'] += 1
                     errors_by_object[objname]['total_errors'] += 1
 
+        for inference in inferences:
+            embedding,predname,subname,objname  = get_pred_sub_obj(inference,gt,dpoint)
+            isclass = predname.startswith('c')
+            try: assert predname.startswith('c') or predname.startswith('r')
+            except: set_trace()
+            assert predname.startswith('r') != isclass
+            new_inf_prediction = make_prediction(embedding.to(device),predname,isclass,mlp_dict,device).item()
+            inf_predictions.append(new_inf_prediction)
     errors_by_object = {k: update_row(v) for k,v in errors_by_object.items()}
-    return pos_predictions, neg_predictions, errors_by_object
-
+    return pos_predictions, neg_predictions, inf_predictions, errors_by_object
 
 
 if __name__ == "__main__":

@@ -41,14 +41,16 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, enco
     encoder.train()
     decoder.train()
     encoder.batch_size = ARGS.batch_size
+    decoder.batch_size = ARGS.batch_size
 
     use_teacher_forcing = True if random.random() < ARGS.teacher_forcing_ratio else False
 
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
 
-    encoder_hidden = encoder.initHidden()#.to(device)
-    encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
+    #encoder_hidden = encoder.initHidden()#.to(device)
+    #encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
+    encoder_outputs, encoder_hidden = None,None
 
     decoder_input = torch.zeros(1, ARGS.batch_size, ARGS.ind_size, device=decoder.device).to(device)
     if ARGS.enc_dec_hidden_init:
@@ -208,7 +210,7 @@ def make_mlp_dict_from_pickle(fname,grad=False):
 
 def train(ARGS, encoder, decoder, transformer, dataset, train_generator, val_generator, exp_name, device, encoder_optimizer=None, decoder_optimizer=None):
     
-    json_data_dict = None
+    json_data_dict, mlp_dict = None,None
     if ARGS.setting == 'preds':
         gt_file_path = f'/data1/louis/data/rdf_video_captions/{dataset}.json'
         mlp_weights_file_path = f'/data1/louis/data/{dataset}-mlps.pickle'
@@ -383,6 +385,7 @@ def eval_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, video
         denom = torch.tensor([0]).float().to(device)
         l2_distances = []
         total_dist = torch.zeros([ARGS.ind_size], device=device).float()
+        decoder.batch_size=1
         for b in range(ARGS.eval_batch_size-1):
             dec_out_list = []
             single_dec_input = decoder_input[:, b].view(1, 1, -1)
@@ -410,7 +413,7 @@ def eval_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, video
                     total_dist += dist
                     l2_distances.append(l2)
             except: 
-                pdb.set_trace()
+                set_trace()
             dec_out_tensor = torch.cat(dec_out_list, dim=1).to(device)
             if ARGS.setting == "preds":
                 dec_loss += get_pred_loss(video_ids[b].unsqueeze(0), dec_out_tensor, json_data_dict, mlp_dict, margin=ARGS.pred_margin, device=device)

@@ -2,7 +2,8 @@ import csv
 import sys
 import os
 import json
-import utils
+from utils import get_datetime_stamp, asMinutes
+from time import time
 import options
 import models
 import train
@@ -13,7 +14,6 @@ from pdb import set_trace
 
 def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
     """Cant' just pass generators as need to re-init with batch_size=1 when testing.""" 
-    
     dataset = f'{ARGS.dataset}-{ARGS.ontology}-{ARGS.ind_size}d'
 
     if ARGS.mini:
@@ -46,31 +46,28 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
     regressor = None
     regressor_optimizer = None
 
-    if ARGS.setting in ['embeddings', 'preds']:
-        if ARGS.reload:
-            if exp_name.startswith('jade'):
-                reload_file_path= '../jade_checkpoints/{}.pt'.format(ARGS.reload)
-            else:
-                reload_file_path = '/data1/louis/checkpoints/{}.pt'.format(ARGS.reload)
-            reload_file_path = ARGS.reload
-            print('Reloading model from {}'.format(reload_file_path))
-            saved_model = torch.load(reload_file_path)
-            encoder = saved_model['encoder']
-            decoder = saved_model['decoder']
-            encoder.batch_size = ARGS.batch_size
-            decoder.batch_size = ARGS.batch_size
-            encoder_optimizer = saved_model['encoder_optimizer']
-            decoder_optimizer = saved_model['decoder_optimizer']
-        else: 
-            encoder = models.EncoderRNN(ARGS, ARGS.device).to(ARGS.device)
-            #decoder = models.DecoderRNN(ARGS, ARGS.device).to(ARGS.device)
-            decoder = models.DecoderRNN_openattn(ARGS).to(ARGS.device)
-            encoder_optimizer = None
-            decoder_optimizer = None
-      
-    elif ARGS.setting == 'transformer':
-            transformer = RegTransformer(4096,10, num_layers=ARGS.transformer_layers, num_heads=ARGS.transformer_heads)
-            transformer = torch.nn.DataParallel(transformer, device_ids=[0,1])
+    if ARGS.reload:
+        if exp_name.startswith('jade'):
+            reload_file_path= '../jade_checkpoints/{}.pt'.format(ARGS.reload)
+        else:
+            reload_file_path = '/data1/louis/checkpoints/{}.pt'.format(ARGS.reload)
+        reload_file_path = ARGS.reload
+        print('Reloading model from {}'.format(reload_file_path))
+        saved_model = torch.load(reload_file_path)
+        encoder = saved_model['encoder']
+        decoder = saved_model['decoder']
+        encoder.batch_size = ARGS.batch_size
+        decoder.batch_size = ARGS.batch_size
+        encoder_optimizer = saved_model['encoder_optimizer']
+        decoder_optimizer = saved_model['decoder_optimizer']
+    else: 
+        encoder = models.EncoderRNN(ARGS, ARGS.device).to(ARGS.device)
+        #decoder = models.DecoderRNN(ARGS, ARGS.device).to(ARGS.device)
+        decoder = models.DecoderRNN_openattn(ARGS).to(ARGS.device)
+        encoder_optimizer = None
+        decoder_optimizer = None
+    
+    global TRAIN_START_TIME; TRAIN_START_TIME = time()
     print('\nTraining the model')
     train_info, _ = train.train(ARGS, encoder, decoder, transformer, dataset=dataset, train_generator=train_generator, val_generator=val_generator, exp_name=exp_name, device=ARGS.device, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer)
        
@@ -78,6 +75,7 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
     val_generator = data_loader.load_data_lookup(val_file_path, video_lookup_table=val_table, batch_size=1, shuffle=False)
     test_generator = data_loader.load_data_lookup(test_file_path, video_lookup_table=test_table, batch_size=1, shuffle=False)
 
+    global EVAL_START_TIME; EVAL_START_TIME = time()
     if ARGS.no_chkpt: print("\nUsing final (likely overfit) version of network for outputs because no checkpoints were saved")
     else:
         print("Reloading best network version for outputs")
@@ -86,21 +84,21 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
         encoder,decoder = checkpoint['encoder'], checkpoint['decoder']
 
     print('\nComputing outputs on val set')
-    val_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS=ARGS, dataset=dataset, data_generator=val_generator, exp_name=exp_name, dset_fragment='val', setting=ARGS.setting)
+    val_output_info = write_outputs_get_info(encoder, decoder, ARGS=ARGS, dataset=dataset, data_generator=val_generator, exp_name=exp_name, dset_fragment='val', setting=ARGS.setting)
     val_output_info['dset_fragment'] = 'val'
     print('\nComputing outputs on train set')
-    train_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS=ARGS, dataset=dataset, data_generator=train_generator, exp_name=exp_name, dset_fragment='train', setting=ARGS.setting)
+    train_output_info = write_outputs_get_info(encoder, decoder, ARGS=ARGS, dataset=dataset, data_generator=train_generator, exp_name=exp_name, dset_fragment='train', setting=ARGS.setting)
     train_output_info['dset_fragment'] = 'train'
     fixed_thresh = ((train_output_info['thresh']*1200)+(val_output_info['thresh']*100))/1300
     print('\nComputing outputs on test set')
-    test_output_info = write_outputs_get_info(encoder, decoder, transformer, ARGS=ARGS, dataset=dataset, data_generator=test_generator, exp_name=exp_name, dset_fragment='test', fixed_thresh=fixed_thresh, setting=ARGS.setting)
+    test_output_info = write_outputs_get_info(encoder, decoder, ARGS=ARGS, dataset=dataset, data_generator=test_generator, exp_name=exp_name, dset_fragment='test', fixed_thresh=fixed_thresh, setting=ARGS.setting)
     test_output_info['dset_fragment'] = 'test'
 
     summary_filename = '../experiments/{}/{}_summary.txt'.format(exp_name, exp_name) 
     with open(summary_filename, 'w') as summary_file:
         summary_file.write('Experiment name: {}\n'.format(exp_name))
         summary_file.write('\tTrain\tVal\tTest\n')
-        for k in ['dset_fragment', 'l2_distance', 'cos_similarity', 'thresh', 'legit_f1', 'best_acc', 'acchalf', 'f1half', 'avg_pos_prob', 'avg_neg_prob']: 
+        for k in ['dset_fragment', 'l2_distance', 'tp', 'fn', 'fp', 'tn', 'thresh', 'best_acc', 'acchalf', 'legit_f1', 'f1half', 'inf_acc', 'inf_acchalf', 'avg_pos_prob', 'avg_neg_prob']: 
             summary_file.write(k+'\t'+str(train_output_info[k])+'\t'+str(val_output_info[k])+'\t'+str(test_output_info[k])+'\n')
         summary_file.write('\nParameters:\n')
         for key in options.IMPORTANT_PARAMS:
@@ -129,7 +127,7 @@ def get_user_yesno_answer(question):
 def main():
     if ARGS.mini: ARGS.exp_name = 'try'
     
-    exp_name = utils.get_datetime_stamp() if ARGS.exp_name == "" else ARGS.exp_name
+    exp_name = get_datetime_stamp() if ARGS.exp_name == "" else ARGS.exp_name
     if not os.path.isdir('../experiments/{}'.format(exp_name)): os.mkdir('../experiments/{}'.format(exp_name))
     elif ARGS.exp_name == 'try' or ARGS.exp_name.startswith('jade'): pass
     else:
@@ -143,6 +141,7 @@ def main():
         print("Not applying enc_dec_hidden_init because the encoder and decoder are different sizes")
         ARGS.enc_dec_hidden_init = False
 
+    global LOAD_START_TIME; LOAD_START_TIME = time() 
     if ARGS.mini:
         if ARGS.dataset == 'MSVD':
             train_table = val_table = test_table = data_loader.video_lookup_table_from_range(1,7, dataset=ARGS.dataset)
@@ -161,6 +160,7 @@ def main():
             test_table = data_loader.video_lookup_table_from_range(7010,10000, dataset='MSRVTT')
         
     run_experiment( exp_name, ARGS, train_table=train_table,val_table=val_table,test_table=test_table)
+    print(f'Load Time: {asMinutes(TRAIN_START_TIME-LOAD_START_TIME)}\nTrain Time: {asMinutes(EVAL_START_TIME-TRAIN_START_TIME)}\nEval Time: {asMinutes(time() - EVAL_START_TIME)}\nTotal Time: {asMinutes(time()-LOAD_START_TIME)}')
 
 
 if __name__=="__main__":
