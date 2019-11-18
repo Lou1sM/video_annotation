@@ -168,12 +168,12 @@ if __name__ == "__main__":
     
     ALREADY_SORTED = False
     convert_json_to_h5s(
-         json_file_path='/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d.json', 
-         out_h5_train_file_path='/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d-train.h5',
-         out_h5_val_file_path= '/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d-val.h5',
-         out_h5_test_file_path= '/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d-test.h5',
+         json_file_path='/data1/louis/data/rdf_video_captions/MSVD-wordnet-50d.json', 
+         out_h5_train_file_path='/data1/louis/data/rdf_video_captions/MSVD-wordnet-50d-train.h5',
+         out_h5_val_file_path= '/data1/louis/data/rdf_video_captions/MSVD-wordnet-50d-val.h5',
+         out_h5_test_file_path= '/data1/louis/data/rdf_video_captions/MSVD-wordnet-50d-test.h5',
          train_max=1200,val_max=1300,test_max=1970,
-         embedding_size=25,
+         embedding_size=50,
          max_len=25
          )
 

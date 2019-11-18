@@ -129,23 +129,18 @@ if __name__=="__main__":
     device='cuda'
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp_name", type=str, default="")
-    parser.add_argument("--enc_zeroes", action="store_true")
-    parser.add_argument("--dec_zeroes", action="store_true")
     parser.add_argument("--quick", "-q", action="store_true")
     parser.add_argument("--ind_size", type=int, default=10)
     parser.add_argument("--setting", type=str, default='embeddings')
     parser.add_argument("--checkpoint_to_test", type=str)
     parser.add_argument("--dataset", type=str, required=True)
-    parser.add_argument("--ontology", type=str, default='')
+    parser.add_argument("--ontology", type=str, default='wordnet')
 
 
     ARGS = parser.parse_args() 
     ARGS.device = "cuda" if torch.cuda.is_available() else "cpu"
     checkpoint_path = ARGS.checkpoint_to_test
         
-    print("Ground Truth Forcing:", gtf)
-    print('enc_zeroes', ARGS.enc_zeroes)
-    print('dec_zeroes', ARGS.dec_zeroes)
     checkpoint = torch.load(checkpoint_path, map_location=ARGS.device)
     encoder = checkpoint['encoder']
     decoder = checkpoint['decoder']

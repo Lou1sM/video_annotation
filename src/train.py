@@ -48,7 +48,8 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, enco
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
 
-    if ARGS.final_bottleneck > 0: encoder_outputs, encoder_hidden = None,None
+    if ARGS.final_bottleneck > 0: 
+        encoder_outputs, encoder_hidden = torch.zeros(target_number_tensor.max,ARGS.batch_size,ARGS.dec_size),None
     else:
         encoder_hidden = encoder.initHidden()
         encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
@@ -195,7 +196,7 @@ def train_on_batch_pred(ARGS, input_tensor, target_tensor, target_number_tensor,
     return loss.item(), norm_loss.item()
 
 
-def make_mlp_dict_from_pickle(fname,grad=False):
+def make_mlp_dict_from_pickle(fname,grad=False,sigmoid=False):
     mlp_dict = {}
     print(mlp_dict)
     weight_dict = torch.load(fname)
@@ -206,7 +207,9 @@ def make_mlp_dict_from_pickle(fname,grad=False):
         output_lyr = nn.Linear(weights["output_weights"].shape[1], weights["output_bias"].shape[0])
         output_lyr.weight = nn.Parameter(torch.FloatTensor(weights["output_weights"]), requires_grad=grad)
         output_lyr.bias = nn.Parameter(torch.FloatTensor(weights["output_bias"]), requires_grad=grad)
-        mlp_dict[rel] = nn.Sequential(hidden_lyr, nn.ReLU(), output_lyr)
+        if sigmoid: mlp_dict[rel] = nn.Sequential(hidden_lyr, nn.ReLU(), output_lyr, nn.Sigmoid()) 
+        else: mlp_dict[rel] =  nn.Sequential(hidden_lyr, nn.ReLU(), output_lyr)
+
     return mlp_dict
 
 def train(ARGS, encoder, decoder, transformer, dataset, train_generator, val_generator, exp_name, device, encoder_optimizer=None, decoder_optimizer=None):
@@ -386,12 +389,13 @@ def eval_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, video
         denom = torch.tensor([0]).float().to(device)
         l2_distances = []
         total_dist = torch.zeros([ARGS.ind_size], device=device).float()
-        decoder.batch_size=1
+        #decoder.batch_size=1
         for b in range(ARGS.eval_batch_size-1):
             dec_out_list = []
             single_dec_input = decoder_input[:, b].view(1, 1, -1)
             if ARGS.dec_rnn == 'gru':
-                single_dec_hidden = decoder_hidden_0[:, b].unsqueeze(1)
+                try: single_dec_hidden = decoder_hidden_0[:, b].unsqueeze(1)
+                except: set_trace()
             elif ARGS.dec_rnn == 'lstm':
                 single_dec_hidden = (decoder_hidden_0[0][:, b].unsqueeze(1), decoder_hidden_0[1][:, b].unsqueeze(1))
             l_loss = 0

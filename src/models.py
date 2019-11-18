@@ -234,9 +234,9 @@ class DecoderRNN_openattn(nn.Module):
 
     def forward(self, input_, hidden, input_lengths, encoder_outputs):
         if self.final_bottleneck: 
-            hidden = torch.randn(1,self.batch_size,self.hidden_size).cuda()
+            hidden = torch.randn(1,input_.shape[0],self.hidden_size).cuda()
             largest_in_batch = int(torch.max(input_lengths).item())
-            output = self.dummy_out(torch.randn([self.batch_size,largest_in_batch,1]).cuda())
+            output = self.dummy_out(torch.randn([input_.shape[0],largest_in_batch,1]).cuda())
         else:
             attn_concat_outp, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs)
             output = self.out(attn_concat_outp)
