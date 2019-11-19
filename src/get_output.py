@@ -1,8 +1,5 @@
 from pdb import set_trace
-import math
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
-plt.switch_backend('agg')
 import argparse
 import torch.nn as nn
 import os
@@ -79,13 +76,10 @@ def write_outputs_get_info(encoder, decoder, ARGS, dataset, data_generator, exp_
 
     outputs_filename = '../experiments/{}/{}-{}_outputs.txt'.format(exp_name, exp_name, dset_fragment)
     print('writing outputs to', outputs_filename)
-    with open(outputs_filename, 'w') as outputs_file:
-        json.dump(outputs, outputs_file)
+    with open(outputs_filename, 'w') as outputs_file: json.dump(outputs, outputs_file)
    
     gt_file_path = f'/data1/louis/data/rdf_video_captions/{dataset}.json'
-    with open(gt_file_path) as f:
-        gt_json = json.load(f)
-        gt_json = {g['video_id']: g for g in gt_json}
+    with open(gt_file_path) as f: gt_json_as_dict = {g['video_id']: g for g in json.load(f)}
 
     mlp_dict = {}
     weight_dict = torch.load(f"/data1/louis/data/{dataset}-mlps.pickle")
@@ -98,28 +92,13 @@ def write_outputs_get_info(encoder, decoder, ARGS, dataset, data_generator, exp_
         output_layer.bias = nn.Parameter(torch.FloatTensor(weights["output_bias"]), requires_grad=False)
         mlp_dict[relation] = nn.Sequential(hidden_layer, nn.ReLU(), output_layer, nn.Sigmoid()) 
 
-    gt_file_path = f"/data1/louis/data/rdf_video_captions/{dataset}.json"
-
-    with open(gt_file_path, 'r') as gt_file:
-        gt = json.load(gt_file)
-
-    metric_data, total_metric_data, positive_probs, negative_probs, inference_probs, error_dict = find_best_thresh_from_probs(exp_name, dset_fragment, ind_size=ARGS.ind_size, mlp_dict=mlp_dict, gt_json=gt_json)
+    metric_data, positive_probs, negative_probs, inference_probs, error_dict = find_best_thresh_from_probs(outputs_json=outputs, gt_json=gt_json_as_dict, mlp_dict=mlp_dict)
     test_info.update(metric_data)
     legit_thresh = fixed_thresh if dset_fragment == 'test' else metric_data['thresh'] 
-    print(fixed_thresh, metric_data['thresh'])
     test_info['legit_f1'] = compute_scores_for_thresh(positive_probs, negative_probs, inference_probs, legit_thresh)[4]
     
     with open('../experiments/{}/{}-{}errors.json'.format(exp_name, exp_name, dset_fragment), 'w') as error_file:
         json.dump(error_dict, error_file)
-    
-    plt.xlim(0,len(total_metric_data['thresh']))
-    plt.ylim(0.0, max(total_metric_data['f1']) + 0.1)
-    plt.plot(total_metric_data['f1'], label='F1')
-    plt.xlabel('Threshold')
-    plt.ylabel('F1 Score')
-    plt.title("{}: F1 scores by threshold".format(exp_name))
-    plt.savefig('../experiments/{}/{}-{}_F1_scores_by_threshold.png'.format(exp_name, exp_name, dset_fragment))
-    plt.clf()
 
     print(test_info)
     return test_info

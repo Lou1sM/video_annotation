@@ -24,12 +24,8 @@ def compute_scores_for_thresh(positive_probs, negative_probs, inference_probs, t
     return tp, fp, fn, tn, f1, acc, inf_acc
 
 
-def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size, mlp_dict, gt_json):
-    
-    emb_file_path = f"../experiments/{exp_name}/{exp_name}-{dset_fragment}_outputs.txt"
-    with open(emb_file_path, 'r') as emb_file:
-        outputs_json = json.load(emb_file)
-        
+def find_best_thresh_from_probs(outputs_json, gt_json, mlp_dict):
+       
     positive_probs, negative_probs, inference_probs, error_dict = compute_probs_for_dataset(outputs_json, gt_json, mlp_dict, device='cuda')
        
     threshes,tps,fps,fns,tns,f1s,accs,inf_accs = [[]]*8
@@ -56,13 +52,9 @@ def find_best_thresh_from_probs(exp_name, dset_fragment, ind_size, mlp_dict, gt_
             best_acc = acc
             best_inf_acc = inf_acc
 
-    total_metric_data = {'thresh': threshes, 'tp': tps, 'fp': fps, 'fn': fns, 'tn':tns, 'f1': f1s, 'acc': accs}
     best_metric_data = {'thresh': best_thresh, 'tp':best_tp, 'fp':best_fp, 'fn':best_fn, 'tn':best_tn, 'f1':best_f1, 'best_acc':best_acc, 'inf_acc': best_inf_acc, 'tphalf':tphalf, 'fphalf':fphalf, 'fnhalf':fnhalf, 'tnhalf':tnhalf, 'f1half':f1half, 'acchalf':acchalf, 'inf_acchalf': inf_acchalf, 'avg_pos_prob':avg_pos_prob, 'avg_neg_prob':avg_neg_prob}
 
-    with open('../experiments/{}/{}-{}metrics.json'.format(exp_name, dset_fragment, exp_name), 'w') as jsonfile:
-        json.dump(total_metric_data, jsonfile)
-
-    return best_metric_data, total_metric_data, positive_probs, negative_probs, inference_probs, error_dict
+    return best_metric_data, positive_probs, negative_probs, inference_probs, error_dict
 
 
 

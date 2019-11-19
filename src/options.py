@@ -5,11 +5,9 @@ import argparse
 def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
-    #argparser.add_argument("--attn_type", choices = ["dot", "ff"], default = "dot")
     argparser.add_argument("--batch_size", type = int, default = 100)
     argparser.add_argument("--cuda_visible_devices", type=str, default='0')
     argparser.add_argument("--dataset", type=str, default='MSVD', choices=['MSVD', 'MSRVTT'])
-    argparser.add_argument("--ontology", type=str, default='', choices=['', 'wordnet'])
     argparser.add_argument("--dec_layers", default = 2, type=int)
     argparser.add_argument("--dec_init", type=str, choices=['zeroes','unit','learned','unit_learned'],default='unit')
     argparser.add_argument("--dec_rnn", choices = ["gru", "lstm"], default = "gru")
@@ -32,6 +30,7 @@ def load_arguments():
     argparser.add_argument("--no_chkpt", action="store_true", help = "don't write checkpoint")    
     argparser.add_argument("--norm_threshold", type=float, default=1.0, help = "value below which the norm is penalized")    
     argparser.add_argument("--num_frames", type = int, default = 8)
+    argparser.add_argument("--ontology", type=str, default='wordnet', choices=['', 'wordnet'])
     argparser.add_argument("--optimizer", choices = ['SGD', 'Adam', 'RMS'], default = 'Adam')
     argparser.add_argument("--output_cnn_size", type = int, default = 4096)
     argparser.add_argument("--overwrite", action="store_true", default=False, help = "whether to overwrite existing experiment of same name")    
