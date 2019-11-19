@@ -198,7 +198,6 @@ def train_on_batch_pred(ARGS, input_tensor, target_tensor, target_number_tensor,
 
 def make_mlp_dict_from_pickle(fname,grad=False,sigmoid=False):
     mlp_dict = {}
-    print(mlp_dict)
     weight_dict = torch.load(fname)
     for rel, weights in weight_dict.items():
         hidden_lyr = nn.Linear(weights["hidden_weights"].shape[1], weights["hidden_bias"].shape[0])
