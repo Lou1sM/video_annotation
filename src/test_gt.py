@@ -5,7 +5,7 @@ import argparse
 from pdb import set_trace
 from copy import deepcopy
 
-gt_json_fname = f'/home/louis/test_new_msvd.json'
+gt_json_fname = f'/home/louis/video_annotation/src/test_new_msvd.json'
 with open(gt_json_fname) as f: gt_json_as_dict = {dp['video_id']: dp for dp in json.load(f)}
 
 outputs_json_fname = f'/data1/louis/data/rdf_video_captions/test_gt.json'
