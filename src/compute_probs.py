@@ -23,7 +23,7 @@ def compute_probs_for_dataset(outputs_json, gt_json, mlp_dict, device):
     for dpoint in outputs_json:
         video_id = dpoint['video_id']
         assert isinstance(gt_json,dict)
-        try: gt = gt_json[int(video_id)]
+        try: gt = gt_json[video_id]
         except: set_trace()
         atoms,inferences,lcwa = gt['facts'], gt['inferences'], gt['lcwa']
         for atom in atoms:

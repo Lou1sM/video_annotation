@@ -13,15 +13,15 @@ outputs_json_fname = f'/data1/louis/data/rdf_video_captions/test_gt.json'
 with open(outputs_json_fname) as f: outputs = json.load(f)
 
 gt_outputs = []
-for dp in outputs:
+for dp in outputs[:10]:
     new = deepcopy(dp)
-    new['embeddings'] = gt_json_as_dict[int(dp['video_id'])]['gt_embeddings']
+    new['embeddings'] = gt_json_as_dict[dp['video_id']]['gt_embeddings']
     gt_outputs.append(new)
 
-sames = [dp['embeddings'] == gt_json_as_dict[int(new['video_id'])]['gt_embeddings'] for dp in gt_outputs]
+sames = [dp['embeddings'] == gt_json_as_dict[dp['video_id']]['gt_embeddings'] for dp in gt_outputs]
 try: assert sum(sames) == len(sames)
-except: set_trace
-
+except: set_trace()
+set_trace()
 mlp_fname = f'/data1/louis/data/MSVD-wordnet-25d-mlps.pickle'
 mlp_dict = make_mlp_dict_from_pickle(mlp_fname,sigmoid=True)
 
