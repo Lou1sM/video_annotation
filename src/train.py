@@ -12,6 +12,7 @@ import utils
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 
+import math
 import torch
 import torch.nn as nn
 from torch import optim
@@ -49,7 +50,7 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, enco
     decoder_optimizer.zero_grad()
 
     if ARGS.final_bottleneck > 0: 
-        encoder_outputs, encoder_hidden = torch.zeros(target_number_tensor.max,ARGS.batch_size,ARGS.dec_size),None
+        encoder_outputs, encoder_hidden = torch.zeros((8,ARGS.batch_size,ARGS.dec_size)),None
     else:
         encoder_hidden = encoder.initHidden()
         encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
@@ -128,7 +129,7 @@ def train_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, enco
     encoder_optimizer.step()
     decoder_optimizer.step()
 
-    return round(loss.item(),3), round(norm_loss.item(),3)
+    return round(loss.item(),5), round(norm_loss.item(),5)
 
 
 def train_on_batch_pred(ARGS, input_tensor, target_tensor, target_number_tensor, video_ids, encoder, decoder, encoder_optimizer, decoder_optimizer, json_data_dict, mlp_dict, device):
@@ -166,12 +167,10 @@ def train_on_batch_pred(ARGS, input_tensor, target_tensor, target_number_tensor,
         mask = arange < lengths 
         mask = mask.float().unsqueeze(2)
 
-        assisted_embeddings = (decoder_outputs + ARGS.pred_embeddings_assist*target_tensor[:decoder_outputs.shape[1],:,:].permute(1,0,2))/(1+ARGS.pred_embeddings_assist)
         assert (ARGS.pred_embeddings_assist==0) == torch.all(torch.eq(assisted_embeddings, decoder_outputs))
         if ARGS.pred_normalize:
             assisted_embeddings = F.normalize(assisted_embeddings, p=2, dim=-1)
 
-        loss = get_pred_loss(video_ids, assisted_embeddings, json_data_dict, mlp_dict, margin=ARGS.pred_margin, device=device)
         inv_byte_mask = mask.byte()^1
         inv_mask = inv_byte_mask.float()
         assert (mask+inv_mask == torch.ones(ARGS.batch_size, decoder_outputs.shape[1], 1, device=ARGS.device)).all()
@@ -182,18 +181,44 @@ def train_on_batch_pred(ARGS, input_tensor, target_tensor, target_number_tensor,
         mean_norm = output_norms.mean()
         norm_criterion = nn.MSELoss()
         norm_loss = norm_criterion(ARGS.norm_threshold*torch.ones(ARGS.batch_size, decoder_outputs.shape[1], device=ARGS.device), output_norms)
-
+        assisted_embeddings = (decoder_outputs + ARGS.pred_embeddings_assist*target_tensor[:decoder_outputs.shape[1],:,:].permute(1,0,2))/(1+ARGS.pred_embeddings_assist)
+        dec_loss = get_pred_loss(video_ids, assisted_embeddings, json_data_dict, mlp_dict, margin=ARGS.pred_margin, device=device)
         packing_rescale = ARGS.batch_size * decoder_outputs.shape[1]/torch.sum(target_number_tensor) 
         norm_loss = norm_loss*packing_rescale
-        loss = loss*packing_rescale
-        total_loss = loss + ARGS.lmbda_norm*norm_loss
-        
-    total_loss.backward()
+
+    else:
+        dec_loss = torch.tensor([0]).float().to(device)
+        norm_loss = torch.tensor([0]).float().to(device)
+        decoder_hidden_0 = decoder.initHidden()
+        for b in range(ARGS.batch_size):
+            dec_out_list = []
+            single_dec_input = decoder_input[:, b].view(1, 1, -1)
+            if ARGS.dec_rnn == 'gru':
+                single_dec_hidden = decoder_hidden_0[:, b].unsqueeze(1)
+            elif ARGS.dec_rnn == 'lstm':
+                single_dec_hidden = (decoder_hidden_0[0][:, b].unsqueeze(1), decoder_hidden_0[1][:, b].unsqueeze(1))
+            for l in range(target_number_tensor[b].int()):
+                decoder_output, single_dec_hidden = decoder(input_=single_dec_input, input_lengths=torch.tensor([1]), encoder_outputs=encoder_outputs[:, b].unsqueeze(1), hidden=single_dec_hidden) 
+                dec_out_list.append(decoder_output)
+                output_norm = torch.norm(decoder_output, dim=-1)
+                mean_norm = output_norm.mean()
+                #norm_loss += F.relu(1-mean_norm)
+                norm_loss += (mean_norm-1)**2
+                single_dec_input = decoder_output
+            decoder_outputs  = torch.cat(dec_out_list, dim=1).to(device)
+            assisted_embeddings = (decoder_outputs + ARGS.pred_embeddings_assist*target_tensor[:decoder_outputs.shape[1],:,:].permute(1,0,2))/(1+ARGS.pred_embeddings_assist)
+            dec_loss += get_pred_loss(video_ids[b].unsqueeze(0), assisted_embeddings, json_data_dict, mlp_dict, margin=ARGS.pred_margin, device=device)
+
+        norm_loss /= ARGS.batch_size
+        dec_loss /= ARGS.batch_size
+    total_loss = dec_loss + ARGS.lmbda_norm*norm_loss
+    try: total_loss.backward()
+    except: set_trace()
     encoder_optimizer.step()
     decoder_optimizer.step()
     
     #return round(loss.item(), 3), round(norm_loss.item(),3)
-    return loss.item(), norm_loss.item()
+    return dec_loss.item(), norm_loss.item()
 
 
 def make_mlp_dict_from_pickle(fname,grad=False,sigmoid=False):
@@ -285,6 +310,7 @@ def train(ARGS, encoder, decoder, transformer, dataset, train_generator, val_gen
                     device)
             else:
                 print('Unrecognized setting: {}'.format(ARGS.setting))
+            if new_train_loss == 0: set_trace()
             print('Batch:', iter_, 'dec loss:', new_train_loss, 'norm loss', new_train_norm_loss)
             
             batch_train_losses.append(new_train_loss)
@@ -321,7 +347,7 @@ def train(ARGS, encoder, decoder, transformer, dataset, train_generator, val_gen
         epoch_val_losses.append(new_epoch_val_loss)
         epoch_val_norm_losses.append(new_epoch_val_norm_loss)
         save_dict = {'encoder':encoder, 'decoder':decoder, 'encoder_optimizer': encoder_optimizer, 'decoder_optimizer': decoder_optimizer}
-        save = not ARGS.no_chkpt
+        save = not ARGS.no_chkpt and new_epoch_val_loss < 0.01 and random.random() < 0.1
         EarlyStop(new_epoch_val_loss, save_dict, exp_name=exp_name, save=save)
         
         print('val_loss', new_epoch_val_loss)
@@ -389,7 +415,7 @@ def eval_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, video
         l2_distances = []
         total_dist = torch.zeros([ARGS.ind_size], device=device).float()
         #decoder.batch_size=1
-        for b in range(ARGS.eval_batch_size-1):
+        for b in range(ARGS.eval_batch_size):
             dec_out_list = []
             single_dec_input = decoder_input[:, b].view(1, 1, -1)
             if ARGS.dec_rnn == 'gru':
@@ -420,7 +446,9 @@ def eval_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, video
                 set_trace()
             dec_out_tensor = torch.cat(dec_out_list, dim=1).to(device)
             if ARGS.setting == "preds":
-                dec_loss += get_pred_loss(video_ids[b].unsqueeze(0), dec_out_tensor, json_data_dict, mlp_dict, margin=ARGS.pred_margin, device=device)
+                new = get_pred_loss(video_ids[b].unsqueeze(0), dec_out_tensor, json_data_dict, mlp_dict, margin=ARGS.pred_margin, device=device)
+                if math.isnan(dec_loss + new): set_trace()
+                dec_loss += new
             elif ARGS.setting == "embeddings":
                 dec_loss += l_loss*ARGS.ind_size/float(l)
         index_tensor = (target_number_tensor.long()-1).unsqueeze(0).unsqueeze(-1)
@@ -430,4 +458,4 @@ def eval_on_batch(ARGS, input_tensor, target_tensor, target_number_tensor, video
         dec_loss /= torch.sum(target_number_tensor)
         norm_loss /= torch.sum(target_number_tensor)
         
-        return round(dec_loss.item(),3), round(norm_loss.item(),3)
+        return round(dec_loss.item(),5), round(norm_loss.item(),5)

@@ -90,11 +90,11 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
     num_val = 0
     num_train = 0
     for dp in embeddings_and_ids:
-        if dp['video_id'] <= train_max:
+        if int(dp['video_id']) <= train_max:
             num_train += 1
-        elif dp['video_id'] <= val_max:
+        elif int(dp['video_id']) <= val_max:
             num_val += 1
-        elif dp['video_id'] <= test_max:
+        elif int(dp['video_id']) <= test_max:
             num_test += 1
         else:
             print("Unrecognised video id: {}".format(dp['video_id']))
@@ -131,7 +131,7 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
     print('Making h5...')
     print(list(set([len(dp['gt_embeddings']) for dp in embeddings_and_ids])))
     for idx, dp in enumerate(embeddings_and_ids):
-        new_vid_id = dp['video_id']
+        new_vid_id = int(dp['video_id'])
         if new_vid_id <= train_max:
             #print('train')
             id_train_dataset[idx_train] = new_vid_id
@@ -168,12 +168,12 @@ if __name__ == "__main__":
     
     ALREADY_SORTED = False
     convert_json_to_h5s(
-         json_file_path='/data1/louis/data/rdf_video_captions/MSVD-wordnet-50d.json', 
-         out_h5_train_file_path='/data1/louis/data/rdf_video_captions/MSVD-wordnet-50d-train.h5',
-         out_h5_val_file_path= '/data1/louis/data/rdf_video_captions/MSVD-wordnet-50d-val.h5',
-         out_h5_test_file_path= '/data1/louis/data/rdf_video_captions/MSVD-wordnet-50d-test.h5',
+         json_file_path='/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d.json', 
+         out_h5_train_file_path='/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d-train.h5',
+         out_h5_val_file_path= '/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d-val.h5',
+         out_h5_test_file_path= '/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d-test.h5',
          train_max=1200,val_max=1300,test_max=1970,
-         embedding_size=50,
+         embedding_size=25,
          max_len=25
          )
 

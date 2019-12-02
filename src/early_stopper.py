@@ -21,7 +21,8 @@ class EarlyStopper:
 
     def __call__(self, val_loss, model, exp_name, save=True):
 
-        if val_loss < self.val_loss_min - 0.01:
+        #if val_loss < self.val_loss_min - 0.01:
+        if val_loss < self.val_loss_min:
             if save: self.save_checkpoint(val_loss, model, exp_name)
             self.val_loss_min, self.model, self.counter  = val_loss, model, 0
         else:

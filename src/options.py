@@ -22,7 +22,7 @@ def load_arguments():
     argparser.add_argument("--enc_size", default = 2000, type=int)
     argparser.add_argument("--exp_name", type=str, default = "")
     argparser.add_argument("--final_bottleneck", type=int, default = 0)
-    argparser.add_argument("--ind_size", type = int, default=10, help="dimensionality of embeddings")
+    argparser.add_argument("--ind_size", type = int, default=25, help="dimensionality of embeddings")
     argparser.add_argument("--learning_rate", type = float, default = 1e-3)
     argparser.add_argument("--lmbda_norm", type = float, default = 1.0, help = "weight of norm loss")
     argparser.add_argument("--max_epochs", type = int, default = 1000)
@@ -33,10 +33,11 @@ def load_arguments():
     argparser.add_argument("--ontology", type=str, default='wordnet', choices=['', 'wordnet'])
     argparser.add_argument("--optimizer", choices = ['SGD', 'Adam', 'RMS'], default = 'Adam')
     argparser.add_argument("--output_cnn_size", type = int, default = 4096)
+    argparser.add_argument("--overfit", action="store_true", default=False)    
     argparser.add_argument("--overwrite", action="store_true", default=False, help = "whether to overwrite existing experiment of same name")    
     argparser.add_argument("--patience", type = int, default = 7)
-    argparser.add_argument("--pred_embeddings_assist",type=float,default=0.0,help = "how much to move the network outputs to gt when predicting")    
-    argparser.add_argument("--pred_margin",type=float,default=10.0,help = "margin within which to apply pred loss, ie we use relu(-/+pred-margin) for pos a neg respectively")
+    argparser.add_argument("--pred_embeddings_assist",type=float,default=1.0,help = "how much to move the network outputs to gt when predicting")    
+    argparser.add_argument("--pred_margin",type=float,default=1.0,help = "margin within which to apply pred loss, ie we use relu(-/+pred-margin) for pos a neg respectively")
     argparser.add_argument("--pred_normalize", action="store_true", default=False, help = "whether to normlize assisted embeddings before feeding to get_pred")
     argparser.add_argument("--quick_run", "-q", action="store_true", help="exit training loop after 1 batch")
     argparser.add_argument("--reload", default = None)
@@ -60,11 +61,13 @@ IMPORTANT_PARAMS = [
     'dec_size', 
     'enc_size', 
     'exp_name', 
+    'final_bottleneck',
     'ind_size', 
     'learning_rate', 
     'lmbda_norm', 
     'norm_threshold', 
     'ontology',
+    'overfit',
     'patience',
     'pred_embeddings_assist', 
     'pred_margin',
@@ -72,6 +75,7 @@ IMPORTANT_PARAMS = [
     'reload', 
     'seed',
     'setting', 
+    'teacher_forcing_ratio'
     ]
 
 assert sorted(IMPORTANT_PARAMS) == IMPORTANT_PARAMS, 'Alphabetize your parameters mate'

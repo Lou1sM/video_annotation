@@ -30,7 +30,6 @@ def compute_probs_for_dataset(outputs_json, gt_json, mlp_dict, device):
             embedding,predname,subname,objname  = get_pred_sub_obj(atom,gt,dpoint)
             isclass = predname.startswith('c')
             assert predname.startswith('c') or predname.startswith('r')
-            assert predname.startswith('r') != isclass
             new_pos_prediction = make_prediction(embedding.to(device),predname,isclass,mlp_dict,device).item()
             pos_predictions.append(new_pos_prediction)
             for ind in filter(lambda x: x,[predname,subname,objname]):
@@ -55,7 +54,6 @@ def compute_probs_for_dataset(outputs_json, gt_json, mlp_dict, device):
             predname = predname[1:]
             isclass = predname.startswith('c')
             assert predname.startswith('c') or predname.startswith('r')
-            assert predname.startswith('r') != isclass
             new_neg_prediction = make_prediction(embedding.to(device),predname,isclass,mlp_dict,device).item()
             neg_predictions.append(new_neg_prediction)
             for ind in filter(lambda x: x, [predname,subname,objname]):
@@ -78,9 +76,7 @@ def compute_probs_for_dataset(outputs_json, gt_json, mlp_dict, device):
         for inference in inferences:
             embedding,predname,subname,objname  = get_pred_sub_obj(inference,gt,dpoint)
             isclass = predname.startswith('c')
-            try: assert predname.startswith('c') or predname.startswith('r')
-            except: set_trace()
-            assert predname.startswith('r') != isclass
+            assert predname.startswith('c') or predname.startswith('r')
             new_inf_prediction = make_prediction(embedding.to(device),predname,isclass,mlp_dict,device).item()
             inf_predictions.append(new_inf_prediction)
     errors_by_object = {k: update_row(v) for k,v in errors_by_object.items()}

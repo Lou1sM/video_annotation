@@ -8,6 +8,7 @@ import torch
 from torchvision import models
 from data_loader import load_data, load_data_lookup, video_lookup_table_from_range, video_lookup_table_from_ids
 from search_threshes import find_best_thresh_from_probs, compute_scores_for_thresh
+from utils import plot_prob_hist
 
 
 def get_outputs(encoder, decoder, data_generator, ind_size, setting='embeddings', device='cuda'):
@@ -95,8 +96,11 @@ def write_outputs_get_info(encoder, decoder, ARGS, dataset, data_generator, exp_
     metric_data, positive_probs, negative_probs, inference_probs, error_dict = find_best_thresh_from_probs(outputs_json=outputs, gt_json=gt_json_as_dict, mlp_dict=mlp_dict)
     test_info.update(metric_data)
     legit_thresh = fixed_thresh if dset_fragment == 'test' else metric_data['thresh'] 
-    test_info['legit_f1'] = compute_scores_for_thresh(positive_probs, negative_probs, inference_probs, legit_thresh)[4]
-    
+    test_info['legit_f1'] = compute_scores_for_thresh(positive_probs, negative_probs, inference_probs, legit_thresh)[6]
+    plot_prob_hist(positive_probs, f'../experiments/{exp_name}/{exp_name}-{dset_fragment}-positive_probs.png')
+    plot_prob_hist(negative_probs, f'../experiments/{exp_name}/{exp_name}-{dset_fragment}-negative_probs.png')
+    plot_prob_hist(inference_probs, f'../experiments/{exp_name}/{exp_name}-{dset_fragment}-inference_probs.png')
+
     with open('../experiments/{}/{}-{}errors.json'.format(exp_name, exp_name, dset_fragment), 'w') as error_file:
         json.dump(error_dict, error_file)
 

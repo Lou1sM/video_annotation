@@ -15,5 +15,5 @@ for jp in json_paths:
     newdp['gt_embeddings'] = newdp.pop('gt_embedding') # Add 's' to field name
     data.append(newdp)
 
-with open(f_out,'w') as f: json.dump(data,f)
+with open(f_out,'w') as f: json.dump(data,f,indent=4)
 

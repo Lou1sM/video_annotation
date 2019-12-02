@@ -5,21 +5,23 @@ import torch.nn.functional as F
 from pdb import set_trace
 import re
 from utils import make_prediction
+import math
 
 torch.manual_seed(0)
 
 def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, margin, device):
-    printout = np.random.rand()<0.00
+    loss = torch.tensor([0.], device=device)
     num_atoms = 0
     for batch_idx, video_id in enumerate(video_ids):
-        dpoint = json_data_dict[int(video_id.item())]
+        dpoint = json_data_dict[str(int(video_id.item()))]
         atoms,inferences,lcwa = dpoint['facts'], dpoint['inferences'], dpoint['lcwa']
         try: neg_weight = float(len(atoms))/len(lcwa)
         except ZeroDivisionError: pass # Don't define neg_weight because it shouldn't be needed
-        loss = torch.tensor([0.], device=device)
+        neg_loss = torch.tensor([0.], device=device)
         truth_values = [True]*len(atoms) + [False]*len(lcwa)
+        if truth_values == []: continue
         num_atoms += len(truth_values)
-        for atomstr,truth_value in zip(atoms,truth_values):
+        for atomstr,truth_value in zip(atoms+lcwa,truth_values):
             assert atomstr.startswith('~') != truth_value
             if not truth_value: atomstr = atomstr[1:]
             items = re.split('\(|\)|,',atomstr)[:-1]
@@ -38,10 +40,11 @@ def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, margin, devic
                 obj_embedding = embeddings[batch_idx,obj_pos]
                 embedding = torch.cat([embedding, obj_embedding])
             prediction = make_prediction(embedding,predname,len(items)==2,mlp_dict,device)
-            if printout: print(truth_value, prediction.item())
             if truth_value: loss += F.relu(-prediction+margin)
-            else: loss += neg_pred_weight*F.relu(-prediction+margin)
-    return loss
+            else: loss += neg_weight*F.relu(prediction+margin)
+            if math.isnan(loss.item()): set_trace()
+            if math.isnan(loss.item()/num_atoms): set_trace()
+    return loss if num_atoms == 0 else loss/num_atoms
        
 
 if __name__ == "__main__":

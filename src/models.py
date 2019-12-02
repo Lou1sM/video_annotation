@@ -194,7 +194,6 @@ class DecoderRNN_openattn(nn.Module):
         elif self.rnn_type == 'lstm':
             self.rnn = nn.LSTM(self.output_size, self.hidden_size, num_layers=self.num_layers)
 
-        self.resize = nn.Linear(self.hidden_size, ARGS.ind_size)
         self.out = nn.Linear(2*self.hidden_size, self.output_size)
         if ARGS.final_bottleneck: self.dummy_out =nn.Linear(ARGS.final_bottleneck,self.output_size)
 
@@ -234,9 +233,9 @@ class DecoderRNN_openattn(nn.Module):
 
     def forward(self, input_, hidden, input_lengths, encoder_outputs):
         if self.final_bottleneck: 
-            hidden = torch.randn(1,input_.shape[0],self.hidden_size).cuda()
+            hidden = torch.randn(1,input_.shape[1],self.hidden_size).cuda()
             largest_in_batch = int(torch.max(input_lengths).item())
-            output = self.dummy_out(torch.randn([input_.shape[0],largest_in_batch,1]).cuda())
+            output = self.dummy_out(torch.randn([input_.shape[1],largest_in_batch,1]).cuda())
         else:
             attn_concat_outp, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs)
             output = self.out(attn_concat_outp)

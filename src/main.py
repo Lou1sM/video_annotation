@@ -24,6 +24,9 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
         if ARGS.max_epochs == 1000:
             ARGS.max_epochs = 1
         train_file_path = val_file_path = test_file_path = f'/data1/louis/data/rdf_video_captions/{dataset}-6dp.h5'
+    elif ARGS.overfit:
+        train_file_path = val_file_path = test_file_path = f'/data1/louis/data/rdf_video_captions/{dataset}-6dp.h5'
+        
     else:
         train_file_path = os.path.join('/data1/louis/data/rdf_video_captions', f'{dataset}-train.h5')
         val_file_path = os.path.join('/data1/louis/data/rdf_video_captions', f'{dataset}-val.h5')
@@ -129,20 +132,17 @@ def main():
     
     exp_name = get_datetime_stamp() if ARGS.exp_name == "" else ARGS.exp_name
     if not os.path.isdir('../experiments/{}'.format(exp_name)): os.mkdir('../experiments/{}'.format(exp_name))
-    elif ARGS.exp_name == 'try' or ARGS.exp_name.startswith('jade'): pass
-    else:
-        try: overwrite = get_user_yesno_answer('An experiment with name {} has already been run, do you want to overwrite?'.format(exp_name))
-        except OSError: overwrite = ARGS.overwrite
-        if not overwrite:
-            print('Please rerun command with a different experiment name')
-            sys.exit()
+    elif ARGS.exp_name == 'try' or ARGS.exp_name.startswith('jade') or ARGS.overwrite: pass
+    elif not get_user_yesno_answer('An experiment with name {} has already been run, do you want to overwrite?'.format(exp_name)):
+        print('Please rerun command with a different experiment name')
+        sys.exit()
 
     if ARGS.enc_dec_hidden_init and (ARGS.enc_size != ARGS.dec_size):
         print("Not applying enc_dec_hidden_init because the encoder and decoder are different sizes")
         ARGS.enc_dec_hidden_init = False
 
     global LOAD_START_TIME; LOAD_START_TIME = time() 
-    if ARGS.mini:
+    if ARGS.mini or ARGS.overfit:
         if ARGS.dataset == 'MSVD':
             train_table = val_table = test_table = data_loader.video_lookup_table_from_range(1,7, dataset=ARGS.dataset)
         elif ARGS.dataset == 'MSRVTT':
