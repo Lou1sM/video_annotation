@@ -21,12 +21,10 @@ class EarlyStopper:
 
     def __call__(self, val_loss, model, exp_name, save=True):
 
+        #if val_loss < self.val_loss_min - 0.01:
         if val_loss < self.val_loss_min:
-            if save:
-                self.save_checkpoint(val_loss, model, exp_name)
-            self.val_loss_min = val_loss
-            self.best_model = model
-            self.counter = 0
+            if save: self.save_checkpoint(val_loss, model, exp_name)
+            self.val_loss_min, self.model, self.counter  = val_loss, model, 0
         else:
             self.counter += 1
             print('Val loss was {}, no improvement on best of {}'.format(val_loss, self.val_loss_min))
@@ -34,29 +32,15 @@ class EarlyStopper:
             if self.counter >= self.patience:
                 self.early_stop = True
                 filepath = '../checkpoints/{}.pt'.format(exp_name)
-                #self.save_to_disk(filepath)
 
     def save_checkpoint(self, val_loss, model_dict, exp_name):
         '''Saves model when validation loss decrease.'''
         if exp_name.startswith('jade'):
-            if exp_name.endswith('d'):
-                filename = '../jade_checkpoints/{}.pt'.format(exp_name)
-            else:
-                filename = '../jade_checkpoints/{}.pt'.format(exp_name[:-2])
-        else:
-            #filename = '/data2/louis/checkpoints/{}.pt'.format(exp_name)
-            filename = '/data1/louis/checkpoints/{}.pt'.format(exp_name)
-            #filename = '../checkpoints/{}.pt'.format(exp_name)
-        
-        if self.verbose:
-            print('Validation loss decreased ({} --> {}).  Saving model to {} ...'.format(self.val_loss_min, val_loss, filename))
-        try:
-            torch.save(model_dict,filename)
-        except FileNotFoundError:
-            print("Can't save file to {} because the directory doesn't exist.".format(filename))
+            if exp_name.endswith('d'): filename = '../jade_checkpoints/{}.pt'.format(exp_name)
+            else: filename = '../jade_checkpoints/{}.pt'.format(exp_name[:-2])
+        else: filename = '/data1/louis/checkpoints/{}.pt'.format(exp_name)
+        if self.verbose: print(f'Validation loss decreased ({self.val_loss_min} --> {val_loss}).  Saving model to {filename} ...')
+        try: torch.save(model_dict,filename)
+        except FileNotFoundError: print("Can't save file to {} because the directory doesn't exist.".format(filename))
         self.val_loss_min = val_loss
         
-    def save_to_disk(self, exp_name):
-        filepath = os.path.join('/data2/louis/checkpoints', '{}.pt'.format(exp_name))
-        print('Saving final model to {}'.format(filepath) )
-        torch.save(self.best_model, filepath)

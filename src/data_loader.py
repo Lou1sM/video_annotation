@@ -8,7 +8,7 @@ looks up in this table and returns. This is useful to reduce the h5
 file size. 
 
 The resulting Dataset objects generates 4-tuples of the form
-(video, embedding_sequence, sequence_length, eos_gt)
+(video, embedding_sequence, sequence_length, (i3d_vec))
 """
 
 import numpy as np
@@ -17,36 +17,18 @@ import torchvision.transforms as transforms
 from torch.utils import data
 import h5py as h5
 import json
+from pdb import set_trace
 from skimage import img_as_float
 
 
 def load_vid_from_id(vid_id, dataset):
-    #return np.load('../data/frames/vid{}_resized.npz'.format(vid_id))['arr_0']
-    #if cnn in ["vgg", "vgg_old"]:
-    #    return np.load('../data/frames/vid{}.npz'.format(vid_id))['arr_0']
-    #elif cnn == "nasnet":
-    #    return np.load('../data/frames_331_nasnet/vid{}.npz'.format(vid_id))['arr_0']
-    #else:
-    #    print("Unknown value for enc_cnn:", cnn)
-    #if dataset == 'MSRVTT':
-        #print('Loading video', vid_id)
     return np.load('/data1/louis/frames-resized/{}/vid{}.npz'.format(dataset, vid_id))['arr_0']
-    #return np.load('../data/frames/vid{}.npz'.format(vid_id))['arr_0']
-
-def load_i3d_from_id(vid_id):
-    return np.load('../data/i3dvecs/vid{}.npy'.format(vid_id))
 
 def video_lookup_table_from_range(start_idx, end_idx, dataset):
     return {vid_id: load_vid_from_id(vid_id, dataset) for vid_id in range(start_idx, end_idx)}
 
 def video_lookup_table_from_ids(video_ids, cnn):
     return {vid_id: load_vid_from_id(vid_id, cnn) for vid_id in video_ids}
-
-def i3d_lookup_table_from_range(start_idx, end_idx):
-    return {vid_id: load_i3d_from_id(vid_id) for vid_id in range(start_idx, end_idx)}
-
-def i3d_lookup_table_from_ids(video_ids):
-    return {vid_id: load_i3d_from_id(vid_id) for vid_id in video_ids}
 
 class VideoDataset(data.Dataset):
     """Dataset object that expects h5 file containing full video tensors, not ids."""
@@ -55,17 +37,15 @@ class VideoDataset(data.Dataset):
         self.videos = self.archive['videos']
         self.seq_lens = np.array(self.archive['seq_len'], dtype=np.int32)
         self.embeddings = self.archive['embeddings']
-        self.eos_gts = self.archive['eos_gt']
         self.transform = transform
         
     def __getitem__(self, index):
         video = self.videos[index]
         embedding_seq = self.embeddings[index]
         seq_len = self.seq_lens[index]
-        eos_gt = self.eos_gts[index]
         if self.transform != None:
             video = self.transform(video)
-        return video, embedding_seq, seq_len, eos_gt
+        return video, embedding_seq, seq_len
 
     def __len__(self):
         return len(self.videos)
@@ -78,7 +58,7 @@ def load_data(h5file_path, batch_size, shuffle):
     """Load data from specified file path and return a Dataset that loads full video tensors.
 
     Each element is a 4-tuple of the form
-    (video, embedding_sequence, sequence_length, eos_gt)
+    (video, embedding_sequence, sequence_length)
     """
     transforms.ToTensor()
     transform = transforms.Compose(
@@ -115,7 +95,6 @@ class LookupDataset(data.Dataset):
         self.archive.close()
 
 
-
 def load_data_lookup(h5file_path, video_lookup_table, batch_size, shuffle, i3d_lookup_table=None):
 
     transforms.ToTensor()
@@ -127,7 +106,6 @@ def load_data_lookup(h5file_path, video_lookup_table, batch_size, shuffle, i3d_l
     new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle, drop_last=True)
 
     return new_data_loaded
-
 
 
 class TestConvNet(torch.nn.Module):
@@ -148,62 +126,15 @@ class TestConvNet(torch.nn.Module):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    #new_data_loaded = load_data_lookup('../data/dummy_data/train_data_dummy.h5', batch_size=2, vid_range=(1,1201), shuffle=True)    
-    video_lookup_table = video_lookup_table_from_range(1201,1301, dataset='MSRVTT')
-    #video_lookup_table = video_lookup_table_from_range(1,7, cnn='vgg')
-    #video_lookup_table = video_lookup_table_from_range(1, 1201, cnn='vgg')
-    print(video_lookup_table.keys())
-    #new_data_loaded = load_data_lookup('../data/rdf_video_captions/train_10d-det.h5', batch_size=1, video_lookup_table=video_lookup_table, shuffle=False)    
-    #new_data_loaded = load_data_lookup('../data/rdf_video_captions/10d-6dp.h5', batch_size=1, video_lookup_table=video_lookup_table, shuffle=False)    
-    new_data_loaded = load_data_lookup('../data/rdf_video_captions/10d-val.h5', batch_size=1, video_lookup_table=video_lookup_table, shuffle=False)    
-    with open('../data/rdf_video_captions/MSRVTT-10d-det.json.neg', 'r') as f:
-        j = json.load(f)
+    new_data_loaded = load_data_lookup('/data1/louis/data/rdf_video_captions/10d-val.h5', batch_size=1, video_lookup_table=video_lookup_table, shuffle=False)    
     for epoch in range(1):
         print(epoch)
         print("Number of batches:", len(new_data_loaded), "\n")
         print(new_data_loaded)
         for i, data in enumerate(new_data_loaded):
-            vid_id = int(data[4].item())
-            print(vid_id)
+            vid_id = data[4]
+            vid = data[0]
             target_number_tensor = data[2]
+            print(vid.shape)
+            print(vid_id)
             print(target_number_tensor)
-            #print(data)
-            h5_num_inds = int(data[2].item())
-            #print(i, type(data))
-            #print("Number of elements in each batch:",len(data), "\n")
-            #print(data[0].shape)
-            #print(data[1].shape)
-            #print(data[2].shape)
-            #print(data[3].shape)
-            #print(data[4])
-            #print('video id', data[4].item())
-            #for e in range(data[1].shape[1]):
-                #print(data[1][0,e,:])
-            #print('first inp elem', data[1][0,0,0].item())
-            #print('second inp elem', data[1][0,1,0].item())
-            #print('first outp elem', data[1][0,0,0].item())
-            #print(data[1].squeeze()[0])
-            #print(data[1][0][0])
-            #print(data[0].type())
-            #print(data[2])
-            #print(data[0][0,0,0,0,0])
-            ##im = data[0][0,0,:,:,:].type('torch.FloatTensor')
-            #im = data[0][0,0,:,:,:]
-            #print(im.shape)
-            #im = np.transpose(im, axes=(2,1,0))
-            #print(im.shape)
-            #plt.imshow(im)
-            #plt.show()
-            #outp = test_net(data[0][:,0,:,:,:].type('torch.FloatTensor'))
-            #outp = test_net(data[0][:,0,:,:,:])
-            #print(type(data[0][0,:,:,:,:]))
-            #print(type(data[0][0,:,:,:,:].double()))
-            #test_net = test_net.float()
-            test_net = TestConvNet().float()
-            outp = test_net(data[0][0,:,:,:,:].float())
-            #print("Input sample:\n")
-            #print(data[0][0,0,:,:,:])
-            #print("Test output:\n")
-            #print(outp[0])
-            #break
-        #break

@@ -7,7 +7,38 @@ plt.switch_backend('agg')
 import matplotlib.ticker as ticker
 import numpy as np
 import time
+import re
+import torch
 from datetime import datetime
+
+
+def plot_prob_hist(problist, fname):
+    plt.hist(problist, bins=100)
+    plt.xlabel('probability')
+    plt.savefig(fname)
+    plt.clf()
+
+def get_pred_sub_obj(atomstr,gt,dpoint):
+    items = re.split('\(|\)|,',atomstr)[:-1]
+    if len(items) == 2:
+        predname,subname = items
+        sub_pos = gt['individuals'].index(subname)
+        objname = None
+        embedding = torch.tensor(dpoint['embeddings'][sub_pos])
+    else:
+        predname,subname,objname = items
+        sub_pos,obj_pos = gt['individuals'].index(subname), gt['individuals'].index(objname)
+        sub_embedding = torch.tensor(dpoint['embeddings'][sub_pos])
+        obj_embedding = torch.tensor(dpoint['embeddings'][obj_pos])
+        embedding =  torch.cat([sub_embedding, obj_embedding])
+    return embedding,predname,subname,objname
+
+
+with open('class_order.json') as f: CLASS_ORDER = json.load(f)
+def make_prediction(embedding,predname,isclass,mlp_dict,device):
+    if isclass: return mlp_dict['classes'].to(device)(embedding)[CLASS_ORDER.index(predname)]
+    try: return mlp_dict[predname].to(device)(embedding)
+    except KeyError: print(f"Can't find mlp for predicate {predname}")
 
 
 def get_datetime_stamp():

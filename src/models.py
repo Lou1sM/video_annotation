@@ -1,3 +1,4 @@
+from pdb import set_trace
 import math
 import numpy as np
 import random
@@ -36,9 +37,6 @@ class EncoderRNN(nn.Module):
         self.hidden_init = torch.randn(self.num_layers, 1, int(self.hidden_size), device=device)
         self.hidden_init.requires_grad = True
         self.init_type = ARGS.enc_init
-        self.i3d = ARGS.i3d and not ARGS.i3d_after
-        self.i3d_size = 1024 if self.i3d else 0
-        #self.attn_type = ARGS.attn_type
         self.attn_type = 'dot'
 
         if self.cnn_type == "vgg_old":
@@ -55,15 +53,16 @@ class EncoderRNN(nn.Module):
 
         #Encoder Recurrent layer
         if self.rnn_type == 'gru':
-            self.rnn = nn.GRU(self.output_cnn_size+self.i3d_size, self.hidden_size, num_layers=self.num_layers)
+            self.rnn = nn.GRU(self.output_cnn_size, self.hidden_size, num_layers=self.num_layers)
         elif self.rnn_type == 'lstm':
-            self.rnn = nn.LSTM(self.output_cnn_size+self.i3d_size, self.hidden_size, num_layers=self.num_layers)
+            self.rnn = nn.LSTM(self.output_cnn_size, self.hidden_size, num_layers=self.num_layers)
 
         #self.resize = nn.Linear(self.hidden_size, ARGS.ind_size+1)
         if self.attn_type == 'ff':
             self.resize = nn.Linear(self.hidden_size, ARGS.dec_size)
         elif self.attn_type == 'dot':
             self.resize = nn.Linear(self.hidden_size, ARGS.ind_size)
+        self.resize = nn.Linear(self.hidden_size, ARGS.dec_size)
         self.cnn_resize = nn.Linear(4032, self.output_cnn_size)
 
 
@@ -82,15 +81,13 @@ class EncoderRNN(nn.Module):
             x = x.view(x.size(0),-1)
         return x
 
-    def forward(self, input_, i3d_vec, hidden):
+    def forward(self, input_, hidden):
         
         # pass the input through the cnn
-        cnn_outputs = torch.zeros(self.num_frames, input_.shape[1], self.output_cnn_size+self.i3d_size, device=self.device)
+        cnn_outputs = torch.zeros(self.num_frames, input_.shape[1], self.output_cnn_size, device=self.device)
 
         for i, inp in enumerate(input_):
             embedded = self.cnn_vector(inp)
-            if self.i3d:
-                embedded = torch.cat([embedded, i3d_vec], dim=1)
             cnn_outputs[i] = embedded 
 
         # pass the output of the vgg layers through the GRU cell
@@ -114,7 +111,6 @@ class EncoderRNN(nn.Module):
             return  self.hidden_init+torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)/torch.norm(self.hidden_init,2)
 
 
-
 class DecoderRNN(nn.Module):
     
     def __init__(self, ARGS, device):
@@ -135,7 +131,6 @@ class DecoderRNN(nn.Module):
 
         # Resize from GRU size to embedding size
         self.out1 = nn.Linear(self.hidden_size, ARGS.ind_size)
-        self.eos = nn.Sequential(nn.Linear(ARGS.ind_size, 1), nn.Sigmoid())
 
 
     def forward(self, input_, hidden, input_lengths, encoder_outputs):
@@ -182,88 +177,30 @@ class DecoderRNN_openattn(nn.Module):
         super(DecoderRNN_openattn, self).__init__()
         self.hidden_size = int(ARGS.dec_size)
         self.num_layers = int(ARGS.dec_layers)
-        #self.dropout_p = ARGS.dropout
+        self.final_bottleneck = ARGS.final_bottleneck > 0
         self.batch_size = int(ARGS.batch_size)
         self.device = ARGS.device
         self.output_size = int(ARGS.ind_size)
         self.rnn_type = ARGS.dec_rnn
 
-        self.i3d = ARGS.i3d and ARGS.i3d_after
-        self.i3d_size = 1024 if self.i3d else 0
         #self.dropout = nn.Dropout(self.dropout_p)
         self.hidden_init = torch.randn(self.num_layers, 1, int(self.hidden_size), device=ARGS.device)
         self.hidden_init.requires_grad = True
         self.init_type = ARGS.dec_init
-        #self.attn_type = ARGS.attn_type
         self.attn_type = 'dot'
-        #self.num_eos_layers = len(ARGS.eos_sizes)
-        self.num_eos_layers = 0
-
 
         if self.rnn_type == 'gru':
-            self.rnn = nn.GRU(self.output_size+self.i3d_size, self.hidden_size, num_layers=self.num_layers)
+            self.rnn = nn.GRU(self.output_size, self.hidden_size, num_layers=self.num_layers)
         elif self.rnn_type == 'lstm':
-            self.rnn = nn.LSTM(self.output_size+self.i3d_size, self.hidden_size, num_layers=self.num_layers)
+            self.rnn = nn.LSTM(self.output_size, self.hidden_size, num_layers=self.num_layers)
 
-        #if self.attn_type == 'dot':
-        self.resize = nn.Linear(self.hidden_size, ARGS.ind_size)
-        self.out = nn.Linear(2*ARGS.ind_size, self.output_size)
-        #elif self.attn_type == 'ff':
-        #    self.attention_layer = nn.Sequential(nn.Linear(2*ARGS.dec_size, 1), nn.Tanh())
-        #    self.out = nn.Linear(2*self.hidden_size, self.output_size)
+        self.out = nn.Linear(2*self.hidden_size, self.output_size)
+        if ARGS.final_bottleneck: self.dummy_out =nn.Linear(ARGS.final_bottleneck,self.output_size)
 
 
-        #if len(ARGS.eos_sizes) == 1:
-        #    self.eos= nn.Sequential(
-        #        nn.Linear(2*ARGS.ind_size, ARGS.eos_sizes[0]), 
-        #        nn.ReLU(),
-        #        nn.Linear(ARGS.eos_sizes[0], 1),
-        #        #nn.Sigmoid()    
-        #        )
-        #elif len(ARGS.eos_sizes) == 2:
-        #    self.eos= nn.Sequential(
-        #        nn.Linear(2*ARGS.ind_size, ARGS.eos_sizes[0]), 
-        #        nn.ReLU(),
-        #        nn.Linear(ARGS.eos_sizes[0], ARGS.eos_sizes[1]),
-        #        nn.ReLU(),
-        #        nn.Linear(ARGS.eos_sizes[1], 1),
-        #        #nn.Sigmoid()    
-        #        )
-        #elif len(ARGS.eos_sizes) == 3:
-        #    self.eos= nn.Sequential(
-        #        nn.Linear(2*ARGS.ind_size, ARGS.eos_sizes[0]), 
-        #        nn.ReLU(),
-        #        nn.Linear(ARGS.eos_sizes[0], ARGS.eos_sizes[1]),
-        #        nn.ReLU(),
-        #        nn.Linear(ARGS.eos_sizes[1], ARGS.eos_sizes[2]),
-        #        nn.ReLU(),
-        #        nn.Linear(ARGS.eos_sizes[2], 1),
-        #        #nn.Sigmoid()    
-        #        )
-        #self.eos1 = nn.Sequential(nn.Linear(2*ARGS.ind_size, ARGS.ind_size), nn.ReLU())
-        #self.eos2 = nn.Sequential(nn.Linear(ARGS.ind_size, 1), nn.Sigmoid())
-        #self.eos =  nn.Sequential(
-        #        #nn.Linear(2*ARGS.ind_size,ARGS.ind_size), 
-        #        nn.Linear(2*ARGS.ind_size,100), 
-        #        nn.ReLU(),
-        #        nn.Linear(100, 1), 
-        #        nn.Sigmoid())
-
-
-    def get_attention_context_concatenation(self, input_, hidden, input_lengths, encoder_outputs, i3d):
+    def get_attention_context_concatenation(self, input_, hidden, input_lengths, encoder_outputs):
         
         max_seq_len = input_.shape[0]
-        if self.i3d:
-            batch_size = input_.shape[1]
-            i3d_expanded = i3d.repeat(1, max_seq_len)
-            i3d_expanded = i3d_expanded.view(batch_size, max_seq_len, 1024)
-            i3d_expanded = i3d_expanded.transpose(0,1)
-            input_ = torch.cat([input_, i3d_expanded], dim=-1)
-        #if self.training:
-        #    drop_input = self.dropout(input_)
-        #else:
-        #    drop_input = (1-self.dropout_p)*input_
-        
         #pack the sequence to avoid useless computations
         packed = torch.nn.utils.rnn.pack_padded_sequence(input_, input_lengths.int(), enforce_sorted=False)
         packed, hidden = self.rnn(packed, hidden)
@@ -276,50 +213,35 @@ class DecoderRNN_openattn(nn.Module):
             ff_attn_weights = torch.zeros(longest_in_batch, 8, encoder_outputs.shape[1], device=self.device)
             for i in range(longest_in_batch):
                 for j in range(8):
-                    #print(output[i].shape, encoder_outputs[j].shape)
                     ff_attn_input = torch.cat([output[i], encoder_outputs[j]], dim=1)
-                    #print('ffat', ff_attn_input.shape)
                     new_weight = self.attention_layer(ff_attn_input)
                     ff_attn_weights[i,j] = new_weight.squeeze(-1)
-                    #print(ff_attn_weights[i,j])
             ff_enc_perm = encoder_outputs.transpose(0,1)
             ff_attn_weights = ff_attn_weights.permute(2,0,1)
             ff_attn_weights = F.softmax(ff_attn_weights, dim=2)
-            #print('post trans', ff_attn_weights.shape)
-            #print(ff_attn_weights.sum(dim=2))
-            #print(torch.ones(self.batch_size, longest_in_batch, device=self.device))
-            #print(ff_attn_weights.sum(dim=2) == torch.ones(self.batch_size, longest_in_batch, device=self.device))
-            #assert (ff_attn_weights.sum(dim=2) == torch.ones(self.batch_size, longest_in_batch, device=self.device)).all()
             attn_contexts = torch.bmm(ff_attn_weights, ff_enc_perm)
             attn_concat_outp = torch.cat([attn_contexts, output_perm], dim=-1)
         
         elif self.attn_type == 'dot':
-            output_perm = self.resize(output_perm)
             attn_weights = torch.bmm(output_perm, enc_perm).permute(0,2,1)
             attn_weights = F.softmax(attn_weights, dim=1)
             weighted_enc_outp = torch.matmul(enc_perm, attn_weights).permute(0,2,1)
             attn_concat_outp = torch.cat([output_perm, weighted_enc_outp], dim=2)
 
-        #print(attn_concat_outp.shape)
         return attn_concat_outp, hidden
         
 
-    def forward(self, input_, hidden, input_lengths, encoder_outputs, i3d):
-        attn_concat_outp, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs, i3d)
-
-        #if self.i3d:
-            #attn_concat_outp = torch.cat([attn_concat_outp, i3d], dim=-1)
-        output = self.out(attn_concat_outp)
+    def forward(self, input_, hidden, input_lengths, encoder_outputs):
+        if self.final_bottleneck: 
+            hidden = torch.randn(1,input_.shape[1],self.hidden_size).cuda()
+            largest_in_batch = int(torch.max(input_lengths).item())
+            output = self.dummy_out(torch.randn([input_.shape[1],largest_in_batch,1]).cuda())
+        else:
+            attn_concat_outp, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs)
+            output = self.out(attn_concat_outp)
         
         return output, hidden
 
-    def eos_preds(self, input_, hidden, input_lengths, encoder_outputs, i3d):
-        attn_concat_outp, hidden = self.get_attention_context_concatenation(input_, hidden, input_lengths, encoder_outputs, i3d)
-        
-        eos_pred = self.eos(attn_concat_outp)
-        
-        return eos_pred, hidden
-   
 
     def initHidden(self):
         if self.init_type == 'zeroes':
@@ -347,10 +269,7 @@ class NumIndRegressor(nn.Module):
         self.dropout = nn.Dropout(p=self.dropout_p)
         self.activation = nn.LeakyReLU()
         #self.single = nn.Linear(50,1)
-        if ARGS.i3d:
-            self.l1 = nn.Linear(ARGS.enc_size + 1024, ARGS.reg_sizes[0])
-        else:
-            self.l1 = nn.Linear(ARGS.enc_size, ARGS.reg_sizes[0])
+        self.l1 = nn.Linear(ARGS.enc_size, ARGS.reg_sizes[0])
 
         self.l2 = nn.Linear(ARGS.reg_sizes[0], ARGS.reg_sizes[1])
         self.l3 = nn.Linear(ARGS.reg_sizes[1], 1)

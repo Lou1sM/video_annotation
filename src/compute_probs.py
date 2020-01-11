@@ -1,3 +1,5 @@
+from pdb import set_trace
+import re
 import pandas as pd
 import sys
 import torch.nn as nn
@@ -5,6 +7,7 @@ import json
 import torch
 import numpy as np
 import torch.nn.functional as F
+from utils import get_pred_sub_obj, make_prediction
 
 
 def update_row(error_row):
@@ -15,135 +18,83 @@ def update_row(error_row):
 
 
 def compute_probs_for_dataset(outputs_json, gt_json, mlp_dict, device):
-    
-    total_count = 0
-    missed_count = 0
-    pos_predictions = []
-    neg_predictions = []
-    #error_dict = {'pos_errors': {}, 'neg_errors': {}}
-    errors_by_object = {}
+    pos_predictions, neg_predictions, inf_predictions, errors_by_object  = [], [], [], {}
 
     for dpoint in outputs_json:
-        video_id = int(dpoint['videoId'])
-        gt = gt_json[video_id]
-        
-        triples = gt['caption']
-        ntriples = gt['negatives']
-
-        for triple in triples:
-            total_count += 1
-            sub, relation, obj = triple.split()
-            try:
-                mlp = mlp_dict[relation].to(device)
-            except KeyError:
-                missed_count += 1
-                #print("Can't find mlp for relation {}".format(relation))
-                continue
-            sub_pos = gt['individuals'].index(sub)
-            obj_pos = gt['individuals'].index(obj)
-            #print(dpoint['embeddings'])
-            sub_embedding = torch.tensor(dpoint['embeddings'][sub_pos], device=device)
-            obj_embedding = torch.tensor(dpoint['embeddings'][obj_pos], device=device)
-            sub_obj_concat = torch.cat([sub_embedding, obj_embedding])
-            new_pos_prediction = mlp(sub_obj_concat).item()
+        video_id = dpoint['video_id']
+        assert isinstance(gt_json,dict)
+        try: gt = gt_json[video_id]
+        except: set_trace()
+        atoms,inferences,lcwa = gt['facts'], gt['inferences'], gt['lcwa']
+        for atom in atoms:
+            embedding,predname,subname,objname  = get_pred_sub_obj(atom,gt,dpoint)
+            isclass = predname.startswith('c')
+            assert predname.startswith('c') or predname.startswith('r')
+            new_pos_prediction = make_prediction(embedding.to(device),predname,isclass,mlp_dict,device).item()
             pos_predictions.append(new_pos_prediction)
-            for ind in [sub,relation,obj]:
+            for ind in filter(lambda x: x,[predname,subname,objname]):
                 if ind not in errors_by_object.keys():
                     errors_by_object[ind] = {'subject_pos': 0, 'object_pos': 0, 'predicate_pos': 0, 'subject_neg': 0, 'object_neg': 0, 'predicate_neg': 0, 'total_errors_pos':0, 'total_errors_neg':0, 'total_errors': 0, 'total':0}
                 errors_by_object[ind]['total'] += 1
 
             if new_pos_prediction < .5:
-                errors_by_object[sub]['subject_pos'] += 1
-                errors_by_object[sub]['total_errors_pos'] += 1
-                errors_by_object[sub]['total_errors'] += 1
-                errors_by_object[obj]['object_pos'] += 1
-                errors_by_object[obj]['total_errors_pos'] += 1
-                errors_by_object[obj]['total_errors'] += 1
-                errors_by_object[relation]['predicate_pos'] += 1
-                errors_by_object[relation]['total_errors_pos'] += 1
-                errors_by_object[relation]['total_errors'] += 1
+                errors_by_object[subname]['subject_pos'] += 1
+                errors_by_object[subname]['total_errors_pos'] += 1
+                errors_by_object[subname]['total_errors'] += 1
+                errors_by_object[predname]['predicate_pos'] += 1
+                errors_by_object[predname]['total_errors_pos'] += 1
+                errors_by_object[predname]['total_errors'] += 1
+                if objname:
+                    errors_by_object[objname]['object_pos'] += 1
+                    errors_by_object[objname]['total_errors_pos'] += 1
+                    errors_by_object[objname]['total_errors'] += 1
 
-
-            #if relation.endswith('about'):
-                #print('pos:', new_pos_prediction)
-                #print(errors_by_object[relation])
-                #print()
-               #try:
-                    #error_dict['pos_errors'][video_id].append(triple)
-                #except KeyError as e:
-                    #print(e)
-                    #error_dict['pos_errors'][video_id] = [triple]
-        #print(errors_by_object)
-        #break
-        #continue
-  
-        for ntriple in ntriples:
-            total_count += 1
-            sub, relation, obj = ntriple.split()
-            try:
-                mlp = mlp_dict[relation].to(device)
-            except KeyError:
-                missed_count += 1
-                #print("Can't find mlp for relation {}".format(relation))
-                continue
-            sub_pos = gt['individuals'].index(sub)
-            obj_pos = gt['individuals'].index(obj)
-            sub_embedding = torch.tensor(dpoint['embeddings'][sub_pos], device=device)
-            obj_embedding = torch.tensor(dpoint['embeddings'][obj_pos], device=device)
-            sub_obj_concat = torch.cat([sub_embedding, obj_embedding])
-            new_neg_prediction = mlp(sub_obj_concat).item()
+        for negatom in lcwa:
+            embedding,predname,subname,objname = get_pred_sub_obj(negatom,gt,dpoint)
+            predname = predname[1:]
+            isclass = predname.startswith('c')
+            assert predname.startswith('c') or predname.startswith('r')
+            new_neg_prediction = make_prediction(embedding.to(device),predname,isclass,mlp_dict,device).item()
             neg_predictions.append(new_neg_prediction)
-            #if relation.endswith('about'):
-                #print('neg:', new_neg_prediction)
-                #print(errors_by_object[relation])
-                #print()
-            for ind in [sub,relation,obj]:
+            for ind in filter(lambda x: x, [predname,subname,objname]):
                 if ind not in errors_by_object.keys():
                     errors_by_object[ind] = {'subject_pos': 0, 'object_pos': 0, 'predicate_pos': 0, 'subject_neg': 0, 'object_neg': 0, 'predicate_neg': 0, 'total_errors_pos':0, 'total_errors_neg':0, 'total_errors': 0, 'total':0}
                 errors_by_object[ind]['total'] += 1
 
             if new_neg_prediction > .5:
-                errors_by_object[sub]['subject_neg'] += 1
-                errors_by_object[sub]['total_errors_neg'] += 1
-                errors_by_object[sub]['total_errors'] += 1
-                errors_by_object[obj]['object_neg'] += 1
-                errors_by_object[obj]['total_errors_neg'] += 1
-                errors_by_object[obj]['total_errors'] += 1
-                errors_by_object[relation]['predicate_neg'] += 1
-                errors_by_object[relation]['total_errors_neg'] += 1
-                errors_by_object[relation]['total_errors'] += 1
+                errors_by_object[subname]['subject_neg'] += 1
+                errors_by_object[subname]['total_errors_neg'] += 1
+                errors_by_object[subname]['total_errors'] += 1
+                errors_by_object[predname]['total_errors_neg'] += 1
+                errors_by_object[predname]['total_errors'] += 1
+                errors_by_object[predname]['predicate_neg'] += 1
+                if objname:
+                    errors_by_object[objname]['object_neg'] += 1
+                    errors_by_object[objname]['total_errors_neg'] += 1
+                    errors_by_object[objname]['total_errors'] += 1
 
-            #if relation.endswith('about'):
-                #print('neg:', new_neg_prediction)
-                #print(errors_by_object[relation])
-                #print()
-            #if new_neg_prediction > .9:
-                #try:
-                    #error_dict['neg_errors'][video_id].append(ntriple)
-                #except KeyError:
-                    #error_dict['neg_errors'][video_id] = [ntriple]
-  
-    print('Missed:', missed_count)
-    print('Total:', total_count)
+        for inference in inferences:
+            embedding,predname,subname,objname  = get_pred_sub_obj(inference,gt,dpoint)
+            isclass = predname.startswith('c')
+            assert predname.startswith('c') or predname.startswith('r')
+            new_inf_prediction = make_prediction(embedding.to(device),predname,isclass,mlp_dict,device).item()
+            inf_predictions.append(new_inf_prediction)
     errors_by_object = {k: update_row(v) for k,v in errors_by_object.items()}
-    return pos_predictions, neg_predictions, errors_by_object
-
+    return pos_predictions, neg_predictions, inf_predictions, errors_by_object
 
 
 if __name__ == "__main__":
     
     exp_name = sys.argv[1]
-
-    with open('../experiments/{}/{}-test_outputs.txt'.format(exp_name, exp_name)) as f:
+    with open('../experiments/{}/{}-train_outputs.txt'.format(exp_name, exp_name)) as f:
         outputs_json = json.load(f)
 
-    with open('../data/rdf_video_captions/MSRVTT-10d-det.json.neg') as f:
-        gt = json.load(f)
-        #gt = {int(g['videoId']): g for g in gt}
-        gt = {g['videoId']: g for g in gt}
+    with open('/data4/patrick/wordnet-data-gen/out/msvd.0.json') as f:
+        gt = [json.load(f)]
+        gt = {g['video_id']: g for g in gt}
 
     mlp_dict = {}
-    weight_dict = torch.load("../data/10d-mlps.pickle")
+    weight_dict = torch.load("/data1/louis/data/10d-mlps.pickle")
     for relation, weights in weight_dict.items():
         hidden_layer = nn.Linear(weights["hidden_weights"].shape[0], weights["hidden_bias"].shape[0])
         hidden_layer.weight = nn.Parameter(torch.FloatTensor(weights["hidden_weights"]), requires_grad=False)
