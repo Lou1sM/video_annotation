@@ -92,24 +92,46 @@ def load_data(h5file_path, batch_size, shuffle):
 
 
 class LookupDataset(data.Dataset):
+    """Dataset object that expects videos as ids, and forms a lookup table for such ids.
+
+    To save duplicating the same video for each caption that accompanies that video, the
+    h5 file read by this object contains video ids in place of the full video tensor. For
+    a given h5 file, the videos corresponding to video ids are loaded into memory as a 
+    lookup table and stored in self.video_lookup_dict. The range of video ids that can 
+    appear in the file must be passed as an argument to this init of this object. 
+
+    Args:
+      archive: full file path of the h5 file
+      vid_range: range of video ids for building lookup table
+    """
+
     def __init__(self, archive, video_lookup_table, i3d_lookup_table, transform=None):
-        with open(json_path) as f: self.json_list = json.load(f)
+        self.archive = h5.File(archive, 'r')
+        self.seq_lens = np.array(self.archive['embedding_len'], dtype=np.int32)
+        self.embeddings = self.archive['embeddings']
+        self.video_ids = self.archive['videoId']
         self.transform = transform
+        self.eos_gts = self.archive['eos_gt']
         self.video_lookup_table = video_lookup_table
+        self.i3d_lookup_table = i3d_lookup_table
+        self.with_i3d = not (i3d_lookup_table == None)
+        #{vid_id: load_vid_from_id(vid_id+1) for vid_id in range(vid_range[0], vid_range[1])}
 
     def __getitem__(self, index):
-        dp = self.json_list[idx]
-        video_id = dp['video_id']
-        multiclass_inds = dp['multiclass_inds']
-        atoms = dp['atoms']
         #print('getting item for index', index)
         embedding_seq = self.embeddings[index]
+        seq_len = self.seq_lens[index]
+        video_id = self.video_ids[index]
         video = self.video_lookup_table[video_id]
+        i3d = self.i3d_lookup_table[video_id] if self.with_i3d else 0
+        eos_gt = self.eos_gts[index]
         video_id = self.video_ids[index].astype(np.int32)
-        return video, multiclass_inds, atoms, video_id
+        if self.transform != None:
+            video = self.transform(video)
+        return video, embedding_seq, seq_len, eos_gt, video_id, i3d
 
     def __len__(self):
-        return len(self.json_list)
+        return len(self.seq_lens)
 
     def close(self):
         self.archive.close()
@@ -117,14 +139,39 @@ class LookupDataset(data.Dataset):
 
 
 def load_data_lookup(h5file_path, video_lookup_table, batch_size, shuffle, i3d_lookup_table=None):
+    """Load data from specified file path and return a Dataset that uses a lookup table for videos.
+
+    Each element returned is a 5-tuple of the form
+    (video, embedding_sequence, sequence_length, eos_gt, video_id)
+    
+    The lookup table consumes ~15G memory for the full train set, ~1G for the full validation set
+    and ~5G for the full test set. There are mini-datasets available by passing the --mini flag 
+    when calling main.py.
+
+    Args:
+      h5_file_path: full path to a h5_file containing one dataset with key 'videoId' which stores
+              video ids (ints), one dataset with key 'embeddings' which stores sequences of embed-
+              dings (padded np arrays), and one dataset with key 'embedding_len' which stores the
+              lengths of sequences of the embeddings (ints)
+
+      vid_range: a tuple of two ints, specifying the range of videos to load in the video lookup
+              table, default split given in MSVD is (1,1201) for train data, (1201,1301) for val-
+              idation data and (1301,1971) for test data
+      batch_size: int, number of dataset elements to return for each batch
+      shuffle: bool, whether to shuffle entire dataset before each epoch
+    """
 
     transforms.ToTensor()
     transform = transforms.Compose(
         [transforms.ToTensor()],
         )
 
-    new_data = LookupDataset(json_path, video_lookup_table=video_lookup_table)
+    new_data = LookupDataset(h5file_path, video_lookup_table=video_lookup_table, i3d_lookup_table=i3d_lookup_table)
     new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle, drop_last=True)
+
+    #print("\n NEW DATA LOADED \n")
+    #print(new_data.video_ids)
+    #print(new_data.video_lookup_table)
 
     return new_data_loaded
 
