@@ -1,3 +1,4 @@
+from gensim.models import KeyedVectors
 import csv
 import sys
 import os
@@ -12,72 +13,33 @@ from get_output import write_outputs_get_info
 from pdb import set_trace
 
 
-def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
-    """Cant' just pass generators as need to re-init with batch_size=1 when testing.""" 
-    dataset = f'{ARGS.dataset}-{ARGS.ontology}-{ARGS.ind_size}d'
-
-    if ARGS.mini:
-        ARGS.batch_size = min(2, ARGS.batch_size)
-        ARGS.enc_size, ARGS.dec_size  = 50, 51
-        ARGS.enc_layers = ARGS.dec_layers = 1
-        ARGS.no_chkpt = True
-        if ARGS.max_epochs == 1000:
-            ARGS.max_epochs = 1
-        train_file_path = val_file_path = test_file_path = f'/data1/louis/data/rdf_video_captions/{dataset}-6dp.h5'
-    elif ARGS.overfit:
-        train_file_path = val_file_path = test_file_path = f'/data1/louis/data/rdf_video_captions/{dataset}-6dp.h5'
-        
-    else:
-        train_file_path = os.path.join('/data1/louis/data/rdf_video_captions', f'{dataset}-train.h5')
-        val_file_path = os.path.join('/data1/louis/data/rdf_video_captions', f'{dataset}-val.h5')
-        test_file_path = os.path.join('/data1/louis/data/rdf_video_captions', f'{dataset}-test.h5')
-    assert os.path.isfile(train_file_path), f"No train file found at {train_file_path}"
-    print(f'Using dataset at: {train_file_path}')
+def run_experiment(exp_name, ARGS, json_data, train_dl, val_dl, test_dl, w2v):
 
     ARGS.eval_batch_size = min(ARGS.batch_size,100)
-    train_generator = data_loader.load_data_lookup(train_file_path, video_lookup_table=train_table, batch_size=ARGS.batch_size, shuffle=ARGS.shuffle)
-    val_generator = data_loader.load_data_lookup(val_file_path,video_lookup_table=val_table, batch_size=ARGS.eval_batch_size, shuffle=ARGS.shuffle)
-     
     print(ARGS)
-   
-    encoder = None
-    encoder_optimizer = None
-    decoder = None
-    decoder_optimizer = None
-    transformer = None
-    transformer_optimizer = None
-    regressor = None
-    regressor_optimizer = None
+    inds,preds,json_data_dict = json_data['inds'],json_data['preds'],json_data['dataset']
 
+    set_trace()
     if ARGS.reload:
-        if exp_name.startswith('jade'):
-            reload_file_path= '../jade_checkpoints/{}.pt'.format(ARGS.reload)
-        else:
-            reload_file_path = '/data1/louis/checkpoints/{}.pt'.format(ARGS.reload)
+        reload_file_path = '/data1/louis/checkpoints/{}.pt'.format(ARGS.reload)
         reload_file_path = ARGS.reload
         print('Reloading model from {}'.format(reload_file_path))
         saved_model = torch.load(reload_file_path)
         encoder = saved_model['encoder']
-        decoder = saved_model['decoder']
+        multiclassifier = saved_model['multiclassifier']
         encoder.batch_size = ARGS.batch_size
-        decoder.batch_size = ARGS.batch_size
-        encoder_optimizer = saved_model['encoder_optimizer']
-        decoder_optimizer = saved_model['decoder_optimizer']
+        optimizer = saved_model['optimizer']
     else: 
         encoder = models.EncoderRNN(ARGS, ARGS.device).to(ARGS.device)
-        #decoder = models.DecoderRNN(ARGS, ARGS.device).to(ARGS.device)
-        decoder = models.DecoderRNN_openattn(ARGS).to(ARGS.device)
-        encoder_optimizer = None
-        decoder_optimizer = None
+        multiclassifier = models.MLP(ARGS.enc_size,ARGS.classif_size,len(inds))
+        mlp_dict = {pred: models.MLP(ARGS.enc_size + arity*ARGS.ind_size,ARGS.mlp_size,1).to(ARGS.device) for pred,arity in preds}
+        ind_dict = {ind: torch.nn.parameter(w2v[ind],device=ARGS.device) for ind in inds}
+        optimizer = None
     
     global TRAIN_START_TIME; TRAIN_START_TIME = time()
     print('\nTraining the model')
-    train_info, _ = train.train(ARGS, encoder, decoder, transformer, dataset=dataset, train_generator=train_generator, val_generator=val_generator, exp_name=exp_name, device=ARGS.device, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer)
+    train_info, _ = train.train(ARGS, encoder, multiclassifier, json_data_dict, ind_dict, mlp_dict, train_dl=train_dl, val_dl=val_dl, exp_name=exp_name, device=ARGS.device, optimizer=optimizer, train=True)
        
-    train_generator = data_loader.load_data_lookup(train_file_path, video_lookup_table=train_table, batch_size=1, shuffle=False)
-    val_generator = data_loader.load_data_lookup(val_file_path, video_lookup_table=val_table, batch_size=1, shuffle=False)
-    test_generator = data_loader.load_data_lookup(test_file_path, video_lookup_table=test_table, batch_size=1, shuffle=False)
-
     global EVAL_START_TIME; EVAL_START_TIME = time()
     if ARGS.no_chkpt: print("\nUsing final (likely overfit) version of network for outputs because no checkpoints were saved")
     else:
@@ -86,6 +48,7 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
         checkpoint = torch.load(filename)
         encoder,decoder = checkpoint['encoder'], checkpoint['decoder']
 
+    """
     print('\nComputing outputs on val set')
     val_output_info = write_outputs_get_info(encoder, decoder, ARGS=ARGS, dataset=dataset, data_generator=val_generator, exp_name=exp_name, dset_fragment='val', setting=ARGS.setting)
     val_output_info['dset_fragment'] = 'val'
@@ -116,6 +79,7 @@ def run_experiment(exp_name, ARGS, train_table, val_table, test_table):
 
     print(val_output_info)
     return val_output_info
+    """
 
 
 def get_user_yesno_answer(question):
@@ -128,7 +92,20 @@ def get_user_yesno_answer(question):
     
 
 def main():
-    if ARGS.mini: ARGS.exp_name = 'try'
+    if ARGS.mini: 
+        ARGS.exp_name = 'try'
+        splits = [4,6,11] 
+        json_path = f"{ARGS.dataset}_10dp.json"
+        ARGS.batch_size = min(2, ARGS.batch_size)
+        ARGS.enc_size, ARGS.dec_size  = 50, 51
+        ARGS.enc_layers = ARGS.dec_layers = 1
+        ARGS.no_chkpt = True
+        if ARGS.max_epochs == 1000:
+            ARGS.max_epochs = 1
+        w2v = KeyedVectors.load_word2vec_format('/home/louis/model.bin',binary=True,limit=20000)
+    else:
+        json_path = f"{ARGS.dataset}_final.json"
+        splits =  [1200,1300,1970] if ARGS.dataset=='msvd' else [6517,7010,10000]
     
     exp_name = get_datetime_stamp() if ARGS.exp_name == "" else ARGS.exp_name
     if not os.path.isdir('../experiments/{}'.format(exp_name)): os.mkdir('../experiments/{}'.format(exp_name))
@@ -137,29 +114,12 @@ def main():
         print('Please rerun command with a different experiment name')
         sys.exit()
 
-    if ARGS.enc_dec_hidden_init and (ARGS.enc_size != ARGS.dec_size):
-        print("Not applying enc_dec_hidden_init because the encoder and decoder are different sizes")
-        ARGS.enc_dec_hidden_init = False
+    with open(json_path) as f: json_data=json.load(f)
 
     global LOAD_START_TIME; LOAD_START_TIME = time() 
-    if ARGS.mini or ARGS.overfit:
-        if ARGS.dataset == 'MSVD':
-            train_table = val_table = test_table = data_loader.video_lookup_table_from_range(1,7, dataset=ARGS.dataset)
-        elif ARGS.dataset == 'MSRVTT':
-            train_table = val_table = test_table = data_loader.video_lookup_table_from_range(0,6, dataset=ARGS.dataset)
-    else:
-        print('\nLoading lookup tables\n')
-        if ARGS.dataset == 'MSVD':
-            train_table = data_loader.video_lookup_table_from_range(1,1201, dataset='MSVD')
-            val_table = data_loader.video_lookup_table_from_range(1201,1301, dataset='MSVD')
-            test_table = data_loader.video_lookup_table_from_range(1301,1971, dataset='MSVD')
-        
-        elif ARGS.dataset == 'MSRVTT':
-            train_table = data_loader.video_lookup_table_from_range(0,6513, dataset='MSRVTT')
-            val_table = data_loader.video_lookup_table_from_range(6513,7010, dataset='MSRVTT')
-            test_table = data_loader.video_lookup_table_from_range(7010,10000, dataset='MSRVTT')
-        
-    run_experiment( exp_name, ARGS, train_table=train_table,val_table=val_table,test_table=test_table)
+    train_dl, val_dl, test_dl = data_loader.get_split_dls(json_data['dataset'],splits,ARGS.batch_size,ARGS.shuffle)
+    
+    run_experiment(exp_name, ARGS, json_data, train_dl, val_dl, test_dl, w2v)
     print(f'Load Time: {asMinutes(TRAIN_START_TIME-LOAD_START_TIME)}\nTrain Time: {asMinutes(EVAL_START_TIME-TRAIN_START_TIME)}\nEval Time: {asMinutes(time() - EVAL_START_TIME)}\nTotal Time: {asMinutes(time()-LOAD_START_TIME)}')
 
 

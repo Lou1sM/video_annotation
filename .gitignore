@@ -13,10 +13,10 @@ src/output.txt
 data/logs/*
 src/*.swp
 src/most_recent_lossplot.png
+**/tags
+**/*.json
 
 ### IntelliJ IDEA / PyCharm
 .idea
 *.iml
 *.iws
-<<<<<<< HEAD
-**/tags

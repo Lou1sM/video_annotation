@@ -9,42 +9,52 @@ import math
 
 torch.manual_seed(0)
 
-def get_pred_loss(video_ids, embeddings, json_data_dict, mlp_dict, margin, device):
+def get_pred_loss(video_ids, context_vecs, json_data_dict, ind_dict, mlp_dict, training, margin=1, device='cuda'):
     loss = torch.tensor([0.], device=device)
     num_atoms = 0
-    for batch_idx, video_id in enumerate(video_ids):
+    for video_id, context_vec in zip(video_ids,context_vecs):
         dpoint = json_data_dict[str(int(video_id.item()))]
-        atoms,inferences,lcwa = dpoint['facts'], dpoint['inferences'], dpoint['lcwa']
+        atoms,lcwa = dpoint['pruned_atoms_with_synsets'], dpoint['lcwa']
         try: neg_weight = float(len(atoms))/len(lcwa)
         except ZeroDivisionError: pass # Don't define neg_weight because it shouldn't be needed
-        neg_loss = torch.tensor([0.], device=device)
         truth_values = [True]*len(atoms) + [False]*len(lcwa)
         if truth_values == []: continue
         num_atoms += len(truth_values)
-        for atomstr,truth_value in zip(atoms+lcwa,truth_values):
-            assert atomstr.startswith('~') != truth_value
-            if not truth_value: atomstr = atomstr[1:]
-            items = re.split('\(|\)|,',atomstr)[:-1]
-            if len(items) == 2:
-                predname,subname = items
-                assert predname.startswith('c') #Should be unary
-            elif len(items) == 3:
-                predname,subname,objname = items
-                try: assert predname.startswith('r')
-                except: set_trace()
+        for tfatom,truth_value in zip(atoms+lcwa,truth_values):
+            if len(tfatom) == 2:
+                predname,subname = tfatom
+                embedding = torch.cat([context_vec, ind_dict[subname]])
+            elif len(tfatom) == 3:
+                predname,subname,objname = tfatom
+                context_embedding = torch.cat([context_vec, ind_dict[subname],ind_dict[objname]])
             else: set_trace()
-            sub_pos = dpoint['individuals'].index(subname)
-            embedding = embeddings[batch_idx,sub_pos]
             if len(items) == 3:
                 obj_pos = dpoint['individuals'].index(objname)
                 obj_embedding = embeddings[batch_idx,obj_pos]
-                embedding = torch.cat([embedding, obj_embedding])
-            prediction = make_prediction(embedding,predname,len(items)==2,mlp_dict,device)
-            if truth_value: loss += F.relu(-prediction+margin)
-            else: loss += neg_weight*F.relu(prediction+margin)
-            if math.isnan(loss.item()): set_trace()
-            if math.isnan(loss.item()/num_atoms): set_trace()
-    return loss if num_atoms == 0 else loss/num_atoms
+            mlp = mlp_dict[predname]
+            prediction = mlp[context_embedding]
+            if training:
+                if truth_value: loss += F.relu(-prediction+margin)
+                else: loss += neg_weight*F.relu(prediction+margin)
+                if math.isnan(loss.item()): set_trace()
+                if math.isnan(loss.item()/num_atoms): set_trace()
+            else:
+                if truth_value: pos_predictions.append(prediction)
+                else: loss += neg_predictions.append(prediction)
+    if training: return loss if num_atoms == 0 else loss/num_atoms
+    else: return pos_predictions, neg_predictions
+
+def compute_probs_from_dataset(dl,json_data_dict,ind_dict,mlp_dict):
+    pos_predictions, neg_predictions = [], []
+    for d in d:
+        video_tensor = d[0]
+        video_ids = d[2]
+        context_vecs = encoder(video_tensor)
+        new_pos_predictions, new_neg_predictions = get_pred_loss(video_ids, context_vecs, json_data_dict, ind_dict, mlp_dict, training=False)
+        pos_predictions += new_pos_predictions
+        neg_predictions += new_neg_predictions
+    return pos_predictions, neg_predictions
+        
        
 
 if __name__ == "__main__":

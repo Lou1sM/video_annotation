@@ -6,7 +6,7 @@ import os
 import json
 import torch
 from torchvision import models
-from data_loader import load_data, load_data_lookup, video_lookup_table_from_range, video_lookup_table_from_ids
+import data_loader 
 from search_threshes import find_best_thresh_from_probs, compute_scores_for_thresh
 from utils import plot_prob_hist
 
@@ -71,7 +71,7 @@ def get_outputs(encoder, decoder, data_generator, ind_size, setting='embeddings'
     return output, positions, test_info
 
 
-def write_outputs_get_info(encoder, decoder, ARGS, dataset, data_generator, exp_name, dset_fragment, fixed_thresh=None, setting='embeddings'):
+def write_outputs_get_info(encoder, multiclassifier, mlp_dict, ind_dict, ARGS, dataset, data_generator, exp_name, fixed_thresh=None):
 
     outputs, positions, test_info  = get_outputs(encoder, decoder, data_generator=data_generator, ind_size=ARGS.ind_size, device=ARGS.device, setting=setting)
 
@@ -79,8 +79,8 @@ def write_outputs_get_info(encoder, decoder, ARGS, dataset, data_generator, exp_
     print('writing outputs to', outputs_filename)
     with open(outputs_filename, 'w') as outputs_file: json.dump(outputs, outputs_file)
    
-    gt_file_path = f'/data1/louis/data/rdf_video_captions/{dataset}.json'
-    with open(gt_file_path) as f: gt_json_as_dict = {g['video_id']: g for g in json.load(f)}
+    #gt_file_path = f'/data1/louis/data/rdf_video_captions/{dataset}.json'
+    #with open(gt_file_path) as f: gt_json_as_dict = {g['video_id']: g for g in json.load(f)}
 
     mlp_dict = {}
     weight_dict = torch.load(f"/data1/louis/data/{dataset}-mlps.pickle")
@@ -93,7 +93,7 @@ def write_outputs_get_info(encoder, decoder, ARGS, dataset, data_generator, exp_
         output_layer.bias = nn.Parameter(torch.FloatTensor(weights["output_bias"]), requires_grad=False)
         mlp_dict[relation] = nn.Sequential(hidden_layer, nn.ReLU(), output_layer, nn.Sigmoid()) 
 
-    metric_data, positive_probs, negative_probs, inference_probs, error_dict = find_best_thresh_from_probs(outputs_json=outputs, gt_json=gt_json_as_dict, mlp_dict=mlp_dict)
+    metric_data, positive_probs, negative_probs = find_best_thresh_from_probs(outputs_json=outputs, gt_json=gt_json_as_dict, mlp_dict=mlp_dict)
     test_info.update(metric_data)
     legit_thresh = fixed_thresh if dset_fragment == 'test' else metric_data['thresh'] 
     test_info['legit_f1'] = compute_scores_for_thresh(positive_probs, negative_probs, inference_probs, legit_thresh)[6]
