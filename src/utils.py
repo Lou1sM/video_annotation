@@ -12,6 +12,11 @@ import torch
 from datetime import datetime
 
 
+def get_w2v_vec(word,w2v_table):
+    import numpy as np
+    try: return np.array(w2v_table[word])
+    except KeyError: return np.random.normal(scale=0.1,size=w2v_table['is_VERB'].shape)
+
 def plot_prob_hist(problist, fname):
     plt.hist(problist, bins=100)
     plt.xlabel('probability')

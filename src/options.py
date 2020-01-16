@@ -6,6 +6,7 @@ def load_arguments():
     argparser = argparse.ArgumentParser(sys.argv[0])
 
     argparser.add_argument("--batch_size", type = int, default = 100)
+    argparser.add_argument("--bottleneck", action="store_true", default=False)    
     argparser.add_argument("--classif_size", default = 200, type=int)
     argparser.add_argument("--cuda_visible_devices", type=str, default='0')
     argparser.add_argument("--dataset", type=str, default='MSVD', choices=['MSVD', 'MSRVTT'])
@@ -17,8 +18,10 @@ def load_arguments():
     argparser.add_argument("--enc_rnn", choices = ["gru", "lstm"], default = "gru")
     argparser.add_argument("--enc_size", default = 2000, type=int)
     argparser.add_argument("--exp_name", type=str, default = "")
-    argparser.add_argument("--ind_size", type = int, default=25, help="dimensionality of embeddings")
+    argparser.add_argument("--i3d", action="store_true", default=False)    
+    argparser.add_argument("--ind_size", type = int, default=300, help="dimensionality of embeddings")
     argparser.add_argument("--learning_rate", type = float, default = 1e-3)
+    argparser.add_argument("--lmbda", type=float, default = 1.0)
     argparser.add_argument("--max_epochs", type = int, default = 1000)
     argparser.add_argument("--mini", "-m", action="store_true",help="use dataset of just 6 data points")
     argparser.add_argument("--mlp_size", default = 50, type=int)
@@ -44,18 +47,18 @@ def load_arguments():
 
 IMPORTANT_PARAMS = [
     'batch_size',
+    'bottleneck',
     'cuda_visible_devices',
     'dataset',
     'enc_size', 
     'exp_name', 
+    'i3d',
     'ind_size', 
     'learning_rate', 
     'ontology',
-    'overfit',
     'patience',
     'reload', 
     'seed',
-    'setting', 
     ]
 
 assert sorted(IMPORTANT_PARAMS) == IMPORTANT_PARAMS, 'Alphabetize your parameters mate'

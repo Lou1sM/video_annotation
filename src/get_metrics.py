@@ -1,13 +1,17 @@
-import os
-import operator
 import numpy as np
-import subprocess
-from compute_probs import compute_probs_for_dataset
+from get_pred import compute_probs_for_dataset
 from pdb import set_trace
 
 
-def compute_scores_for_thresh(positive_probs, negative_probs, thresh):
+def compute_dset_fragment_scores(dl,encoder,multiclassifier,dataset_dict,fragment_name,i3d):
+    pos_classifications,neg_classifications,pos_predictions,neg_predictions,perfects = compute_probs_for_dataset(dl,encoder,multiclassifier,dataset_dict,i3d)
+    classification_scores = find_best_thresh_from_probs(pos_classifications,neg_classifications)
+    prediction_scores = find_best_thresh_from_probs(pos_predictions,neg_classifications)
+    classification_scores['dset_fragment'] = fragment_name
+    prediction_scores['dset_fragment'] = fragment_name
+    return classification_scores, prediction_scores, perfects
 
+def compute_scores_for_thresh(positive_probs, negative_probs, thresh):
     tp = len([p for p in positive_probs if p>thresh])
     fp = len([p for p in negative_probs if p>thresh])
     fn = len([p for p in positive_probs if p<thresh])
@@ -21,16 +25,11 @@ def compute_scores_for_thresh(positive_probs, negative_probs, thresh):
     return tp, fp, fn, tn, f1, acc
 
 
-def find_best_thresh_from_probs(outputs_json, gt_json, mlp_dict):
-       
-    positive_probs, negative_probs = compute_probs_for_dataset(dl,json_data_dict,ind_dict,mlp_dict)
-       
+def find_best_thresh_from_probs(positive_probs, negative_probs):
     avg_pos_prob = sum(positive_probs)/len(positive_probs)
     avg_neg_prob = sum(negative_probs)/len(negative_probs)
-
-    tphalf, fphalf, fnhalf, tnhalf, f1half, acchalf = compute_scores_for_thresh(positive_probs, negative_probs, 0.5)
+    tphalf, fphalf, fnhalf, tnhalf, f1half, acchalf = compute_scores_for_thresh(positive_probs, negative_probs, 0.0)
     
-    print("\nSearching thresholds")
     best_f1 = -1
     for thresh in np.linspace(avg_neg_prob, avg_pos_prob, num=10):
         tp, fp, fn, tn, f1, acc = compute_scores_for_thresh(positive_probs, negative_probs, thresh)
@@ -40,10 +39,22 @@ def find_best_thresh_from_probs(outputs_json, gt_json, mlp_dict):
             best_f1 = f1
             best_acc = acc
 
-    best_metric_data = {'thresh': best_thresh, 'tp':best_tp, 'fp':best_fp, 'fn':best_fn, 'tn':best_tn, 'f1':best_f1, 'best_acc':best_acc, 'tphalf':tphalf, 'fphalf':fphalf, 'fnhalf':fnhalf, 'tnhalf':tnhalf, 'f1half':f1half, 'acchalf':acchalf, 'avg_pos_prob':avg_pos_prob, 'avg_neg_prob':avg_neg_prob}
-
-    return best_metric_data, positive_probs, negative_probs
-
+    return  {'thresh': best_thresh, 
+             'tp':best_tp, 
+             'fp':best_fp, 
+             'fn':best_fn, 
+             'tn':best_tn, 
+             'f1':best_f1, 
+             'best_acc':best_acc, 
+             'tphalf':tphalf, 
+             'fphalf':fphalf, 
+             'fnhalf':fnhalf, 
+             'tnhalf':tnhalf, 
+             'f1half':f1half, 
+             'acchalf':acchalf, 
+             'avg_pos_prob':avg_pos_prob,
+             'avg_neg_prob':avg_neg_prob
+             }
 
 
 if __name__ == "__main__":
