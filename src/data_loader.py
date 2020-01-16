@@ -6,6 +6,16 @@ import json
 from pdb import set_trace
 
 
+def load_vgg_from_id(vid_id):
+    #return np.load(f'../data/frames/vid{vid_id}_resized.npz')['arr_0']
+    return np.load(f'/data1/louis/data/vggvecs/vid{vid_id}.npy')
+
+def vgg_lookup_table_from_range(start_idx, end_idx):
+    return {vid_id: load_vgg_from_id(vid_id) for vid_id in range(start_idx, end_idx)}
+
+def vgg_lookup_table_from_ids(video_ids):
+    return {vid_id: load_vgg_from_id(vid_id) for vid_id in video_ids}
+
 def load_i3d_from_id(vid_id):
     #return np.load(f'../data/frames/vid{vid_id}_resized.npz')['arr_0']
     return np.load(f'/data1/louis/data/i3dvecs/vid{vid_id}.npy')
@@ -28,9 +38,11 @@ def video_lookup_table_from_ids(video_ids):
 
 class LookupDataset(data.Dataset):
     def __init__(self, json_data, video_lookup_table, i3d_lookup_table, transform=None):
+    #def __init__(self, json_data, vgg_lookup_table, i3d_lookup_table, transform=None):
         self.dataset = json_data
         self.transform = transform
         self.video_lookup_table = video_lookup_table
+        #self.vgg_lookup_table = vgg_lookup_table
         self.i3d_lookup_table = i3d_lookup_table
 
     def __getitem__(self, index):
@@ -38,8 +50,10 @@ class LookupDataset(data.Dataset):
         video_id = dp['video_id']
         multiclass_inds = torch.tensor(dp['multiclass_inds'])
         video = self.video_lookup_table[video_id]
+        #vgg = self.vgg_lookup_table[video_id]
         try: i3d = torch.tensor([]) if self.i3d_lookup_table == None else self.i3d_lookup_table[video_id] 
         except: set_trace()
+        #return vgg, multiclass_inds, video_id, i3d
         return video, multiclass_inds, video_id, i3d
 
     def __len__(self):

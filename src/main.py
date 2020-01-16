@@ -77,11 +77,11 @@ def main():
         mlp_dict = {'classes':class_dict, 'relations':relation_dict}
         ind_dict = {tuple(ind): torch.nn.Parameter(torch.tensor(get_w2v_vec(ind,w2v),device=ARGS.device,dtype=torch.float32)) for ind in inds}
     
+        for param in encoder.cnn.parameters():
+            param.requires_grad=False
         encoder_params = filter(lambda enc: enc.requires_grad, encoder.parameters())
         params_list = [encoder.parameters(), multiclassifier.parameters()] + [ind for ind in ind_dict.values()] + [mlp.parameters() for mlp in mlp_dict['classes'].values()] + [mlp.parameters() for mlp in mlp_dict['relations'].values()]
         optimizer = optim.Adam([{'params': params, 'lr':ARGS.learning_rate, 'wd':ARGS.weight_decay} for params in params_list])
-    for param in encoder.cnn.parameters():
-        param.requires_grad = False
 
     dataset_dict = {'dataset':json_data_dict,'ind_dict':ind_dict,'mlp_dict':mlp_dict}
     global TRAIN_START_TIME; TRAIN_START_TIME = time()
@@ -101,20 +101,11 @@ def main():
 
     encoder.batch_size=1
     train_dl, val_dl, test_dl = data_loader.get_split_dls(json_data['dataset'],splits,batch_size=1,shuffle=False,i3d=ARGS.i3d)
-    val_classification_scores, val_prediction_scores, val_perfects = compute_dset_fragment_scores(val_dl,encoder,multiclassifier,dataset_dict,'val',ARGS.i3d)
-    train_classification_scores, train_prediction_scores, train_perfects = compute_dset_fragment_scores(train_dl,encoder,multiclassifier,dataset_dict,'train',ARGS.i3d)
+    val_classification_scores, val_prediction_scores, val_perfects = compute_dset_fragment_scores(val_dl,encoder,multiclassifier,dataset_dict,'val',ARGS)
+    train_classification_scores, train_prediction_scores, train_perfects = compute_dset_fragment_scores(train_dl,encoder,multiclassifier,dataset_dict,'train',ARGS)
     #fixed_thresh = ((train_output_info['thresh']*1200)+(val_output_info['thresh']*100))/1300
-    test_classification_scores, test_prediction_scores, test_perfects = compute_dset_fragment_scores(test_dl,encoder,multiclassifier,dataset_dict,'test',ARGS.i3d)
+    test_classification_scores, test_prediction_scores, test_perfects = compute_dset_fragment_scores(test_dl,encoder,multiclassifier,dataset_dict,'test',ARGS)
 
-    perfects={}
-    for vid_id,num_atoms in test_perfects.items():
-        if num_atoms < 2: continue
-        assert num_atoms == len(json_data_dict[vid_id]['pruned_atoms_with_synsets'])
-        perfects[vid_id]=json_data_dict[vid_id]['pruned_atoms_with_synsets']
-    perfects_path = f'../experiments/{exp_name}/perfects.json'
-    #if not os.path.isfile(perfects_path): os.mkdir(perfects_path)
-    open(perfects_path,'a').close()
-    with open(perfects_path,'w') as f: json.dump(perfects,f)
     summary_filename = '../experiments/{}/{}_summary.txt'.format(exp_name, exp_name) 
     with open(summary_filename, 'w') as summary_file:
         summary_file.write('Experiment name: {}\n'.format(exp_name))

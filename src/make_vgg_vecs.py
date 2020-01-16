@@ -1,5 +1,6 @@
-import numpy as np
 import os
+import json
+import numpy as np
 from pdb import set_trace
 import torch
 import torch.nn as nn
@@ -19,6 +20,7 @@ for i in range(1,1971):
     x = vgg.avgpool(x)
     x = x.view(x.size(0), -1)
     x = vgg.classifier[0](x)
+    #x = x.mean(dim=0)
     vggvec = x.squeeze()
     vggvec_np = vggvec.cpu().detach().numpy()
 

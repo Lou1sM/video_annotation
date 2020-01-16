@@ -35,7 +35,8 @@ def train_on_batch(ARGS, training_example, encoder, multiclassifier, dataset_dic
     else:
         encoder.eval()
         multiclassifier.eval()
-    encoding, encoder_hidden = encoder(input_tensor)
+    enc_hidden = encoder.initHidden()
+    encoding, encoder_hidden = encoder(input_tensor, enc_hidden)
     if ARGS.i3d: encoding = torch.cat([encoding,i3d],dim=-1)
     if ARGS.bottleneck: encoding = torch.randn_like(encoding)
 

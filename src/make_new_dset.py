@@ -10,7 +10,7 @@ from semantic_parser import tuplify
 #with open('/home/louis/video_annotation/nlp/msvd_filtered_linked_merged_parsed_captions.json') as f: d=json.load(f)
 with open('msvd_linked_parsed_captions.json') as f: d=json.load(f)
 
-ignore_preds = ['take','do','be','have']
+ignore_preds = ['take','do','be','have','try','go','stand','many']
 ignore_inds = ['it','piece','thing','one','group','other']
 all_atoms_as_lists  = [a for dp in d for a in dp['atoms_with_synsets']]
 all_inds = [tuple(i) for dp in d for a in dp['atoms_with_synsets'] for i in a[1:]]

@@ -1,14 +1,22 @@
+import json
 import numpy as np
 from get_pred import compute_probs_for_dataset
 from pdb import set_trace
 
 
-def compute_dset_fragment_scores(dl,encoder,multiclassifier,dataset_dict,fragment_name,i3d):
-    pos_classifications,neg_classifications,pos_predictions,neg_predictions,perfects = compute_probs_for_dataset(dl,encoder,multiclassifier,dataset_dict,i3d)
+def compute_dset_fragment_scores(dl,encoder,multiclassifier,dataset_dict,fragment_name,ARGS):
+    pos_classifications,neg_classifications,pos_predictions,neg_predictions,perfects = compute_probs_for_dataset(dl,encoder,multiclassifier,dataset_dict,ARGS.i3d)
     classification_scores = find_best_thresh_from_probs(pos_classifications,neg_classifications)
     prediction_scores = find_best_thresh_from_probs(pos_predictions,neg_classifications)
     classification_scores['dset_fragment'] = fragment_name
     prediction_scores['dset_fragment'] = fragment_name
+    for vid_id,num_atoms in perfects.items():
+        if num_atoms < 2: continue
+        assert num_atoms == len(dataset_dict['dataset'][vid_id]['pruned_atoms_with_synsets'])
+        perfects[vid_id]=dataset_dict['dataset'][vid_id]['pruned_atoms_with_synsets']
+    perfects_path = f'../experiments/{ARGS.exp_name}/train_perfects.json'
+    open(perfects_path,'a').close()
+    with open(perfects_path,'w') as f: json.dump(perfects,f)
     return classification_scores, prediction_scores, perfects
 
 def compute_scores_for_thresh(positive_probs, negative_probs, thresh):
