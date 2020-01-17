@@ -46,12 +46,11 @@ def get_pred_loss(video_ids, encodings, dataset_dict, testing, margin=1, device=
 def compute_probs_for_dataset(dl,encoder,multiclassifier,dataset_dict,use_i3d):
     pos_classifications, neg_classifications, pos_predictions, neg_predictions, perfects = [],[],[],[],{}
     for d in dl:
-        input_tensor = d[0].float().transpose(0,1).to('cuda')
+        video_tensor = d[0].float().transpose(0,1).to('cuda')
         multiclass_inds = d[1].byte().to('cuda')
         video_ids = d[2].to('cuda')
         i3d = d[3].float().to('cuda')
-        enc_hidden = encoder.initHidden()
-        encoding, enc_hidden = encoder(input_tensor, enc_hidden)
+        encoding, enc_hidden = encoder(video_tensor)
         if use_i3d: encoding = torch.cat([encoding,i3d],dim=-1)
         multiclassif = multiclassifier(encoding)
         new_pos_classifications,new_neg_classifications = multiclassif[multiclass_inds], multiclassif[~multiclass_inds]

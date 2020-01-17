@@ -73,13 +73,15 @@ class EncoderRNN(nn.Module):
             x = x.view(x.size(0),-1)
         return x
 
-    def forward(self, input_, hidden):
+    def forward(self, input_, hidden=None):
+        if hidden==None: hidden=self.initHidden()
         
         # pass the input through the cnn
         cnn_outputs = torch.zeros(self.num_frames, input_.shape[1], self.output_cnn_size, device=self.device)
 
         for i, inp in enumerate(input_):
             embedded = self.cnn_vector(inp)
+            cnn_outputs[i] = embedded
 
         # pass the output of the vgg layers through the GRU cell
         outputs, hidden = self.rnn(cnn_outputs, hidden)

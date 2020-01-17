@@ -77,11 +77,11 @@ def main():
         mlp_dict = {'classes':class_dict, 'relations':relation_dict}
         ind_dict = {tuple(ind): torch.nn.Parameter(torch.tensor(get_w2v_vec(ind,w2v),device=ARGS.device,dtype=torch.float32)) for ind in inds}
     
-        for param in encoder.cnn.parameters():
-            param.requires_grad=False
         encoder_params = filter(lambda enc: enc.requires_grad, encoder.parameters())
         params_list = [encoder.parameters(), multiclassifier.parameters()] + [ind for ind in ind_dict.values()] + [mlp.parameters() for mlp in mlp_dict['classes'].values()] + [mlp.parameters() for mlp in mlp_dict['relations'].values()]
         optimizer = optim.Adam([{'params': params, 'lr':ARGS.learning_rate, 'wd':ARGS.weight_decay} for params in params_list])
+    for param in encoder.cnn.parameters():
+        param.requires_grad = False
 
     dataset_dict = {'dataset':json_data_dict,'ind_dict':ind_dict,'mlp_dict':mlp_dict}
     global TRAIN_START_TIME; TRAIN_START_TIME = time()
