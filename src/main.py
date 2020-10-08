@@ -21,6 +21,8 @@ def main():
     print(ARGS)
 
     global LOAD_START_TIME; LOAD_START_TIME = time() 
+    if ARGS.mini: 
+        ARGS.exp_name = 'try'
     exp_name = get_datetime_stamp() if ARGS.exp_name == "" else ARGS.exp_name
     if not os.path.isdir('../experiments/{}'.format(exp_name)): os.mkdir('../experiments/{}'.format(exp_name))
     elif ARGS.exp_name == 'try' or ARGS.exp_name.startswith('jade') or ARGS.overwrite: pass
@@ -28,8 +30,7 @@ def main():
         print('Please rerun command with a different experiment name')
         sys.exit()
     
-    if ARGS.mini: 
-        ARGS.exp_name = 'try'
+    if ARGS.mini:
         splits = [4,6,11] 
         json_path = f"{ARGS.dataset}_10dp.json"
         ARGS.batch_size = min(2, ARGS.batch_size)
@@ -72,16 +73,12 @@ def main():
         mlp_dict = {}
         class_dict = {tuple(c): my_models.MLP(encoding_size + ARGS.ind_size,ARGS.mlp_size,1).to(ARGS.device) for c in classes}
         relation_dict = {tuple(r): my_models.MLP(encoding_size + 2*ARGS.ind_size,ARGS.mlp_size,1).to(ARGS.device) for r in relations}
-        #class_dict = {tuple(c): my_models.MLP(ARGS.enc_size + ARGS.ind_size,ARGS.mlp_size,1).to(ARGS.device) for c in classes}
-        #relation_dict = {tuple(r): my_models.MLP(ARGS.enc_size + 2*ARGS.ind_size,ARGS.mlp_size,1).to(ARGS.device) for r in relations}
         mlp_dict = {'classes':class_dict, 'relations':relation_dict}
-        ind_dict = {tuple(ind): torch.nn.Parameter(torch.tensor(get_w2v_vec(ind,w2v),device=ARGS.device,dtype=torch.float32)) for ind in inds}
+        ind_dict = {tuple(ind): torch.nn.Parameter(torch.tensor(get_w2v_vec(ind[0],w2v),device=ARGS.device,dtype=torch.float32)) for ind in inds}
     
         encoder_params = filter(lambda enc: enc.requires_grad, encoder.parameters())
         params_list = [encoder.parameters(), multiclassifier.parameters()] + [ind for ind in ind_dict.values()] + [mlp.parameters() for mlp in mlp_dict['classes'].values()] + [mlp.parameters() for mlp in mlp_dict['relations'].values()]
         optimizer = optim.Adam([{'params': params, 'lr':ARGS.learning_rate, 'wd':ARGS.weight_decay} for params in params_list])
-    for param in encoder.cnn.parameters():
-        param.requires_grad = False
 
     dataset_dict = {'dataset':json_data_dict,'ind_dict':ind_dict,'mlp_dict':mlp_dict}
     global TRAIN_START_TIME; TRAIN_START_TIME = time()

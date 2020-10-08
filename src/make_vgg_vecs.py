@@ -11,7 +11,7 @@ num_ftrs = vgg.classifier[6].in_features
 vgg.classifier[6] = nn.Linear(num_ftrs, 4096)
 
 for i in range(1,1971):
-    framepath = f'/data1/louis/data/frames/vid{i}.npz'
+    framepath = f'/data1/louis/unnormed_frames/vid{i}_resized.npz'
     print(framepath)
     video_array = np.load(framepath)['arr_0']
     x = torch.tensor(video_array).float().cuda()
