@@ -1,3 +1,6 @@
+"""Script to preprocess video tensors to extract feature vectors with the i3d
+network. This network is frozen during training so feature vectors are pre-
+computed to speed up training.
 import torch
 import numpy as np
 import os
@@ -15,7 +18,7 @@ for i in range(1,1971):
     video_array = np.load(framepath)['arr_0']
     tensor_test_img = torch.tensor(video_array).cuda()
     cat_list = [
-        torch.randn(1,3,224,224).cuda().double(), 
+        torch.randn(1,3,224,224).cuda().double(),
         tensor_test_img,
         torch.randn(1,3,224,224).cuda().double()]
     test_img_padded = torch.cat(cat_list)

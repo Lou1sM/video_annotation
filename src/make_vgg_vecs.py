@@ -1,3 +1,7 @@
+"""Pre-extract VGG feature vectors from each frame of videos. The VGG network
+is frozen during training.
+"""
+
 import numpy as np
 import os
 from pdb import set_trace

@@ -1,4 +1,6 @@
 """Functions for creating a h5 file from a json in the agree-upon format.
+h5 is the required format for streaming data to a pytorch dataset, as
+implemented in data_loader.py
 
 When called from the command line, takes 4 arguments: the path of the json
 file to read from, and three paths to write the train, test and validation
@@ -109,13 +111,13 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
     emb_seq_train_dataset = h5_f_train.create_dataset('gt_embeddings', (num_train,max_len,embedding_size), dtype=np.float64)
     seq_len_train_dataset = h5_f_train.create_dataset('embedding_len', (num_train,), dtype='uint8')
     eos_gt_train_dataset = h5_f_train.create_dataset('eos_gt', (num_train,max_len), dtype='uint8')
-   
+
     h5_f_val = h5py.File(out_h5_val_file_path, 'w')
     id_val_dataset = h5_f_val .create_dataset('video_id', (num_val,), dtype='uint32')
     emb_seq_val_dataset = h5_f_val.create_dataset('gt_embeddings', (num_val,max_len,embedding_size), dtype=np.float64)
     seq_len_val_dataset = h5_f_val.create_dataset('embedding_len', (num_val,), dtype='uint8')
     eos_gt_val_dataset = h5_f_val.create_dataset('eos_gt', (num_val,max_len), dtype='uint8')
-    
+
     h5_f_test = h5py.File(out_h5_test_file_path, 'w')
     id_test_dataset = h5_f_test.create_dataset('video_id', (num_test,), dtype='uint32')
     emb_seq_test_dataset = h5_f_test.create_dataset('gt_embeddings', (num_test,max_len,embedding_size), dtype=np.float64)
@@ -123,7 +125,7 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
     eos_gt_test_dataset = h5_f_test.create_dataset('eos_gt', (num_test,max_len), dtype='uint8')
 
 
-    
+
     # Now transfer the data from json to the h5s, with relevant intermediary processing
     idx_train = 0
     idx_val = 0
@@ -140,7 +142,7 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
             eos_gt_train_dataset[idx_train] = make_eos_gt(len(list_of_lists), max_len=max_len)
             emb_seq_train_dataset[idx_train] = padded_emb_seq_from_lists(list_of_lists, embedding_size=embedding_size, max_len=max_len)
             idx_train += 1
-        
+
         elif new_vid_id <= val_max:
             #print('val')
             id_val_dataset[idx_val] = new_vid_id
@@ -149,26 +151,26 @@ def convert_json_to_h5s(json_file_path, out_h5_train_file_path, out_h5_val_file_
             eos_gt_val_dataset[idx_val] = make_eos_gt(len(list_of_lists), max_len=max_len)
             emb_seq_val_dataset[idx_val] = padded_emb_seq_from_lists(list_of_lists, embedding_size=embedding_size, max_len=max_len)
             idx_val += 1
-        
+
         elif new_vid_id <= test_max:
-            #print('test') 
+            #print('test')
             id_test_dataset[idx_test] = new_vid_id
             list_of_lists = dp['gt_embeddings']
             seq_len_test_dataset[idx_test] = len(list_of_lists)
             eos_gt_test_dataset[idx_test] = make_eos_gt(len(list_of_lists), max_len=max_len)
             emb_seq_test_dataset[idx_test] = padded_emb_seq_from_lists(list_of_lists, embedding_size=embedding_size, max_len=max_len)
             idx_test += 1
-    
+
     h5_f_train.close()
     h5_f_val.close()
     h5_f_test.close()
 
 
 if __name__ == "__main__":
-    
+
     ALREADY_SORTED = False
     convert_json_to_h5s(
-         json_file_path='/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d.json', 
+         json_file_path='/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d.json',
          out_h5_train_file_path='/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d-train.h5',
          out_h5_val_file_path= '/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d-val.h5',
          out_h5_test_file_path= '/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d-test.h5',
