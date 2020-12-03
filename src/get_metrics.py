@@ -10,6 +10,11 @@ from get_pred import compute_probs_for_dataset
 
 
 def compute_dset_fragment_scores(dl,encoder,multiclassifier,dataset_dict,fragment_name,ARGS):
+    """Compute performance metrics for a train/val/test dataset fragment. First
+    executes forward pass of network to get outputs corresponding to true and
+    false individuals and predicates; then thresholds and computes metrics.
+    """
+
     pos_classifications,neg_classifications,pos_predictions,neg_predictions,perfects = compute_probs_for_dataset(dl,encoder,multiclassifier,dataset_dict,ARGS.i3d)
     classification_scores = find_best_thresh_from_probs(pos_classifications,neg_classifications)
     prediction_scores = find_best_thresh_from_probs(pos_predictions,neg_classifications)
@@ -39,6 +44,11 @@ def compute_scores_for_thresh(positive_probs, negative_probs, thresh):
 
 
 def find_best_thresh_from_probs(positive_probs, negative_probs):
+    """Compute accuracy and f1 by thresholding probabilities for positive and
+    negative atoms. Use both a fixed threshold of 0.5 (reported in the paper)
+    and also search for the threshold that gives the highest f1.
+    """
+
     avg_pos_prob = sum(positive_probs)/len(positive_probs)
     avg_neg_prob = sum(negative_probs)/len(negative_probs)
     tphalf, fphalf, fnhalf, tnhalf, f1half, acchalf = compute_scores_for_thresh(positive_probs, negative_probs, 0.0)
@@ -68,13 +78,3 @@ def find_best_thresh_from_probs(positive_probs, negative_probs):
             'avg_pos_prob':avg_pos_prob,
             'avg_neg_prob':avg_neg_prob
             }
-
-
-if __name__ == "__main__":
-    import sys
-    from train import make_mlp_dict_from_pickle
-    exp_name = sys.argv[1]
-    mlp_dict = make_mlp_dict_from_pickle(f'/data1/louis/data/MSVD-wordnet-25d-mlps.pickle', sigmoid=True)
-    with open('/data1/louis/data/rdf_video_captions/MSVD-wordnet-25d.json') as f: gt_json = {d['video_id']: d for d in json.load(f)}
-    with open(f'../experiments/{exp_name}/{exp_name}-test_outputs.txt') as f: exp_outputs = json.load(f)
-    best_metric_data, positive_probs, negative_probs, inference_probs, error_dict = find_best_thresh_from_probs(exp_outputs,gt_json,mlp_dict)

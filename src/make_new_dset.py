@@ -7,7 +7,6 @@ from nltk.corpus import wordnet
 from collections import OrderedDict
 from semantic_parser import tuplify
 
-#with open('/home/louis/video_annotation/nlp/msvd_filtered_linked_merged_parsed_captions.json') as f: d=json.load(f)
 with open('msvd_linked_parsed_captions.json') as f: d=json.load(f)
 
 #ignore_preds = ['take','do','be','have','try','go','stand','many']
@@ -51,14 +50,14 @@ inds_by_id = {dp['video_id']: set([tuple(i) for a in dp['atoms_with_synsets'] fo
 def corrupt_atom_at_idx(atom,idx):
     new_ind = random.choice([ind for ind in unique_individuals if ind!=atom[idx]])
     return [new_ind if i == idx else o for i,o in enumerate(atom)]
-    
+
 def corrupt_atom(atom):
     return [corrupt_atom_at_idx(atom,idx) for idx in range(1,len(atom))]
 
 def corrupt_atom_pred(atom):
     other_options = unique_classes if len(atom)==2 else unique_relations
     return [tuple([new_pred] + list(atom[1:])) for new_pred in other_options if new_pred!=atom[0]]
-    
+
 def compute_lcwa(atoms):
     return [corruption for atom in atoms for corruption in corrupt_atom_pred(atom)]
 

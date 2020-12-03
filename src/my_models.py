@@ -16,12 +16,11 @@ from torch import optim
 import torch.nn.functional as F
 from torchvision import datasets, models, transforms
 from early_stopper import EarlyStopper
-from attention import Attention
 import pretrainedmodels
 
 
 class EncoderRNN(nn.Module):
-    
+
     def __init__(self, ARGS, device):
         super(EncoderRNN, self).__init__()
         self.num_frames = ARGS.num_frames
@@ -47,7 +46,7 @@ class EncoderRNN(nn.Module):
 
     def forward(self, input_, hidden=None):
         if hidden==None: hidden=self.initHidden()
-        
+
         outputs, hidden = self.rnn(input_, hidden)
         outputs = self.resize(outputs.view(self.num_frames,-1).transpose(0,1)).view(self.batch_size,-1)
 
@@ -61,7 +60,7 @@ class EncoderRNN(nn.Module):
                 return torch.ones(self.num_layers, self.batch_size, self.output_size, device=self.device)/(self.output_size**0.5)
             elif self.rnn_type == 'lstm':
                 return (torch.ones(self.num_layers, self.batch_size, self.output_size, device=self.device)/(self.output_size**0.5), torch.ones(self.num_layers, self.batch_size, self.output_size, device=self.device)/(self.output_size**0.5))
-                
+
         elif self.init_type == 'learned':
             return self.hidden_init+torch.zeros(self.num_layers, self.batch_size, self.output_size, device=self.device)
         elif self.init_type == 'unit_learned':

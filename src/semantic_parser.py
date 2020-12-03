@@ -28,7 +28,7 @@ def build_atoms(sent_words, single_words_only=False):
             obj1 = [word for word in sent_words if word.dependency_relation=='obj' and word.governor == root_pos][0]
             root_atom = [root.lemma, subj1.lemma, obj1.lemma]
         except:
-            root_atom = [root.lemma, subj1.lemma]   
+            root_atom = [root.lemma, subj1.lemma]
     elif root.upos in ['ADJ']:
         try:
             subj1 = [word for word in sent_words if word.dependency_relation=='nsubj' and word.governor == root_pos][0]
@@ -62,7 +62,7 @@ def build_atoms(sent_words, single_words_only=False):
         if rel == 'compound':
             #import pdb; pdb.set_trace()
             other_half = sent_words[dep.governor-1]
-            if single_words_only: 
+            if single_words_only:
                 atoms.append([dep.lemma,other_half.lemma])
                 continue
             elif int(other_half.index) == int(dep.index)+1: #Pre-nominal modifier, most common in English
@@ -80,7 +80,7 @@ def build_atoms(sent_words, single_words_only=False):
             #print('conj_on', thing_being_conjuncted_on)
             thing_its_being_conjuncted_to = sent_words[thing_being_conjuncted_on.governor-1]
             root_pos2 = int(thing_being_conjuncted_on.index)
-            if thing_its_being_conjuncted_to.upos == 'VERB': 
+            if thing_its_being_conjuncted_to.upos == 'VERB':
                 try:
                     subj2 = [word for word in sent_words if word.dependency_relation=='nsubj' and word.governor == root_pos2][0]
                 except IndexError:
@@ -90,7 +90,7 @@ def build_atoms(sent_words, single_words_only=False):
                     atom2 = [thing_being_conjuncted_on.lemma, subj2.lemma, obj2.lemma]
                     atoms.append(atom2)
                 except IndexError:
-                    atom2 = [thing_being_conjuncted_on.lemma, subj2.lemma]   
+                    atom2 = [thing_being_conjuncted_on.lemma, subj2.lemma]
                     atoms.append(atom2)
             elif thing_its_being_conjuncted_to.upos == 'ADJ':
                 try:
@@ -99,7 +99,7 @@ def build_atoms(sent_words, single_words_only=False):
                     subj2 = subj1
                 atom2 = [thing_being_conjuncted_on.lemma, subj2.lemma]
                 atoms.append(atom2)
-            
+
             elif thing_its_being_conjuncted_to == subj1:
                 replace_idx = root_atom.index(subj1.lemma)
                 atom2 = copy(root_atom)
@@ -137,12 +137,12 @@ def merge_graphs(data):
     merged_data={}
     for d in data:
         vid_id = d['video_id']
-        if vid_id in merged_data.keys(): 
+        if vid_id in merged_data.keys():
             try: merged_data[vid_id]['atoms'] = list(set(tuplify(merged_data[vid_id]['atoms']) + tuplify(d['atoms'])))
             except: pdb.set_trace()
             #merged_data[vid_id]['atoms_with_synsets'] = list(set([tuple(tuplify(item)) for item in merged_data[vid_id]['atoms_with_synsets']] + [tuple(tuplify(item)) for item in d['atoms_with_synsets']]))
             merged_data[vid_id]['captions'] += [d['sentence']]
-        else: 
+        else:
             merged_data[vid_id] = d
             merged_data[vid_id]['captions'] = [d['sentence']]
             merged_data[vid_id]['atoms'] = d['atoms']
@@ -167,7 +167,7 @@ if __name__ == "__main__":
         merged_data = merge_graphs(data)
 
     with open('msvd_merged_parsed_captions.json', 'w') as f:
-        json.dump(merged_data, f) 
+        json.dump(merged_data, f)
     """
     import pickle
     with open('eval_scores_etenet2d_msvd.pkl','rb') as f: d=pickle.load(f)
@@ -192,5 +192,5 @@ if __name__ == "__main__":
         if len(parsed_captions) % 1000 == 0: print(len(parsed_captions))
 
     with open('msvd_baseline_parsed_captions.json', 'w') as f:
-        json.dump(parsed_captions, f) 
+        json.dump(parsed_captions, f)
 

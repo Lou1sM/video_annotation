@@ -19,7 +19,6 @@ from torch import optim
 import torch.nn.functional as F
 from torchvision import datasets, models, transforms
 from early_stopper import EarlyStopper
-from attention import Attention
 from get_pred import get_pred_loss
 import pretrainedmodels
 
@@ -29,7 +28,7 @@ def train_on_batch(ARGS, training_example, encoder, multiclassifier, dataset_dic
     multiclass_inds = training_example[1].float().to(device)
     video_ids = training_example[2].to(device)
     i3d = training_example[3].float().to(device)
-    if train: 
+    if train:
         encoder.train()
         multiclassifier.train()
     else:
@@ -49,7 +48,7 @@ def train_on_batch(ARGS, training_example, encoder, multiclassifier, dataset_dic
 
 def train(ARGS, encoder, multiclassifier, dataset_dict, train_dl, val_dl, optimizer, exp_name, device, train):
     EarlyStop = EarlyStopper(patience=ARGS.patience)
-    
+
     epoch_train_multiclass_losses = []
     epoch_val_multiclass_losses = []
     epoch_train_pred_losses = []
@@ -63,13 +62,13 @@ def train(ARGS, encoder, multiclassifier, dataset_dict, train_dl, val_dl, optimi
         print("Epoch:", epoch_num+1)
         for iter_, training_example in enumerate(train_dl):
             new_train_multiclass_loss, new_train_pred_loss = train_on_batch(
-                ARGS, 
+                ARGS,
                 training_example,
-                encoder=encoder, 
-                multiclassifier=multiclassifier, 
+                encoder=encoder,
+                multiclassifier=multiclassifier,
                 dataset_dict=dataset_dict,
-                optimizer=optimizer, 
-                criterion=criterion, 
+                optimizer=optimizer,
+                criterion=criterion,
                 device=device, train=True)
             print('Batch:', iter_, 'multiclass loss:', new_train_multiclass_loss, 'pred loss:', new_train_pred_loss)
             batch_train_multiclass_losses.append(new_train_multiclass_loss)
@@ -80,7 +79,7 @@ def train(ARGS, encoder, multiclassifier, dataset_dict, train_dl, val_dl, optimi
         batch_val_pred_losses = []
         for iter_, valing_triplet in enumerate(val_dl):
             new_val_multiclass_loss, new_val_pred_loss = train_on_batch(ARGS, training_example, encoder=encoder, multiclassifier=multiclassifier, optimizer=None, criterion=criterion, dataset_dict=dataset_dict, device=device, train=False)
-                
+
             batch_val_multiclass_losses.append(new_val_multiclass_loss)
             batch_val_pred_losses.append(new_val_pred_loss)
 
@@ -97,9 +96,9 @@ def train(ARGS, encoder, multiclassifier, dataset_dict, train_dl, val_dl, optimi
         save_dict = {'encoder':encoder, 'multiclassifier':multiclassifier, 'ind_dict': dataset_dict['ind_dict'], 'mlp_dict': dataset_dict['mlp_dict'], 'optimizer': optimizer}
         #save = not ARGS.no_chkpt and new_epoch_val_loss < 0.01 and random.random() < 0.1
         EarlyStop(epoch_val_multiclass_loss+epoch_val_pred_loss, save_dict, exp_name=exp_name, save=not ARGS.no_chkpt)
-        
+
         print('val_multiclass_loss', epoch_val_multiclass_loss,'val_pred_loss', epoch_val_pred_loss)
         if EarlyStop.early_stop:
-            break 
-   
+            break
+
         print(f'Epoch time: {utils.asMinutes(time.time()-epoch_start_time)}')

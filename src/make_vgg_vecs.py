@@ -15,8 +15,7 @@ num_ftrs = vgg.classifier[6].in_features
 vgg.classifier[6] = nn.Linear(num_ftrs, 4096)
 
 for i in range(1,1971):
-    framepath = f'/data1/louis/unnormed_frames/vid{i}_resized.npz'
-    print(framepath)
+    framepath = f'../data/frames/vid{i}_resized.npz'
     video_array = np.load(framepath)['arr_0']
     x = torch.tensor(video_array).float().cuda()
     x = vgg.features(x)
@@ -26,4 +25,6 @@ for i in range(1,1971):
     vggvec = x.squeeze()
     vggvec_np = vggvec.cpu().detach().numpy()
 
-    np.save(f'/data1/louis/data/vggvecs/vid{i}.npy', vggvec_np)
+    vggpath = f'../data/vggvecs/vid{i}.npy'
+    print('saving vggvec to',vggpath)
+    np.save(vggpath, vggvec_np)
