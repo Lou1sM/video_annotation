@@ -1,26 +1,13 @@
 from pdb import set_trace
-import json
-import math
-import numpy as np
-import random
-from random import shuffle
-import re
-import string
 import time
-import unicodedata
 import utils
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 
-import math
 import torch
 import torch.nn as nn
-from torch import optim
-import torch.nn.functional as F
-from torchvision import datasets, models, transforms
 from early_stopper import EarlyStopper
 from get_pred import get_pred_loss
-import pretrainedmodels
 
 
 def train_on_batch(ARGS, training_example, encoder, multiclassifier, dataset_dict, optimizer, criterion, device, train):
@@ -48,11 +35,6 @@ def train_on_batch(ARGS, training_example, encoder, multiclassifier, dataset_dic
 
 def train(ARGS, encoder, multiclassifier, dataset_dict, train_dl, val_dl, optimizer, exp_name, device, train):
     EarlyStop = EarlyStopper(patience=ARGS.patience)
-
-    epoch_train_multiclass_losses = []
-    epoch_val_multiclass_losses = []
-    epoch_train_pred_losses = []
-    epoch_val_pred_losses = []
 
     criterion = nn.BCEWithLogitsLoss()
     for epoch_num in range(ARGS.max_epochs):
@@ -86,8 +68,6 @@ def train(ARGS, encoder, multiclassifier, dataset_dict, train_dl, val_dl, optimi
             if ARGS.quick_run:
                 break
 
-        epoch_train_multiclass_loss = sum(batch_train_multiclass_losses)/len(batch_train_multiclass_losses)
-        epoch_train_pred_loss = sum(batch_train_pred_losses)/len(batch_train_pred_losses)
         try:
             epoch_val_multiclass_loss = sum(batch_val_multiclass_losses)/len(batch_val_multiclass_losses)
             epoch_val_pred_loss = sum(batch_val_pred_losses)/len(batch_val_pred_losses)

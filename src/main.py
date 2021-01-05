@@ -36,17 +36,17 @@ def main(args):
         splits = [4,6,11]
         json_path = f"{args.dataset}_10dp.json"
         args.batch_size = min(2, args.batch_size)
-        args.enc_size, args.dec_size  = 50, 51
+        args.enc_size, args.dec_size = 50, 51
         args.enc_layers = args.dec_layers = 1
         args.no_chkpt = True
         if args.max_epochs == 1000:
             args.max_epochs = 1
         w2v = KeyedVectors.load_word2vec_format(w2v_path,binary=True,limit=2000)
     else:
-        splits =  [1200,1300,1970] if args.dataset=='MSVD' else [6517,7010,10000]
+        splits = [1200,1300,1970] if args.dataset=='MSVD' else [6517,7010,10000]
         json_path = f"{args.dataset}_final.json"
         print('Loading w2v model...')
-        w2v = KeyedVectors.load_word2vec_format(w2v_path,binary=True)
+        w2v = KeyedVectors.load_word2vec_format(w2v_path,binary=True,limit=args.w2v_limit)
     with open(json_path) as f: json_data=json.load(f)
 
     inds,classes,relations,json_data_list = json_data['inds'],json_data['classes'],json_data['relations'],json_data['dataset']
@@ -54,7 +54,8 @@ def main(args):
         dp['pruned_atoms_with_synsets'] = [tuplify(a) for a in dp['pruned_atoms_with_synsets']]
         dp['lcwa'] = [tuplify(a) for a in dp['lcwa']]
     json_data_dict = {dp['video_id']:dp for dp in json_data_list}
-    train_dl, val_dl, test_dl = data_loader.get_split_dls(json_data_list,splits,args.batch_size,args.shuffle,args.i3d,data_dir=args.data_dir)
+    video_data_dir = os.path.join(args.data_dir,args.dataset)
+    train_dl, val_dl, test_dl = data_loader.get_split_dls(json_data_list,splits,args.batch_size,args.shuffle,args.i3d,video_data_dir=video_data_dir)
 
     if args.reload:
         reload_file_path = args.reload
@@ -69,7 +70,7 @@ def main(args):
     else:
         print('Initializing new networks...')
         encoder = my_models.EncoderRNN(args, args.device).to(args.device)
-        encoding_size = args.enc_size + 1024 if args.i3d else args.enc_size
+        encoding_size = args.enc_size + 4096 if args.i3d else args.enc_size
         multiclassifier = my_models.MLP(encoding_size,args.classif_size,len(inds)).to(args.device)
         mlp_dict = {}
         class_dict = {tuple(c): my_models.MLP(encoding_size + args.ind_size,args.mlp_size,1).to(args.device) for c in classes}
@@ -77,7 +78,7 @@ def main(args):
         mlp_dict = {'classes':class_dict, 'relations':relation_dict}
         ind_dict = {tuple(ind): torch.nn.Parameter(torch.tensor(get_w2v_vec(ind[0],w2v),device=args.device,dtype=torch.float32)) for ind in inds}
 
-        encoder_params = filter(lambda enc: enc.requires_grad, encoder.parameters())
+        #encoder_params = filter(lambda enc: enc.requires_grad, encoder.parameters())
         params_list = [encoder.parameters(), multiclassifier.parameters()] + [ind for ind in ind_dict.values()] + [mlp.parameters() for mlp in mlp_dict['classes'].values()] + [mlp.parameters() for mlp in mlp_dict['relations'].values()]
         optimizer = optim.Adam([{'params': params, 'lr':args.learning_rate, 'wd':args.weight_decay} for params in params_list])
 
@@ -93,12 +94,12 @@ def main(args):
         checkpoint = torch.load(checkpoint_path)
         encoder = checkpoint['encoder']
         multiclassifier = checkpoint['multiclassifier']
-        dataset_dict['ind_dict']  = checkpoint['ind_dict']
-        dataset_dict['mlp_dict']  = checkpoint['mlp_dict']
+        dataset_dict['ind_dict'] = checkpoint['ind_dict']
+        dataset_dict['mlp_dict'] = checkpoint['mlp_dict']
         print("Reloading best network version for outputs")
 
     encoder.batch_size=1
-    train_dl, val_dl, test_dl = data_loader.get_split_dls(json_data['dataset'],splits,batch_size=1,shuffle=False,i3d=args.i3d,data_dir=args.data_dir)
+    train_dl, val_dl, test_dl = data_loader.get_split_dls(json_data['dataset'],splits,batch_size=1,shuffle=False,i3d=args.i3d,video_data_dir=video_data_dir)
     val_classification_scores, val_prediction_scores, val_perfects = compute_dset_fragment_scores(val_dl,encoder,multiclassifier,dataset_dict,'val',args)
     train_classification_scores, train_prediction_scores, train_perfects = compute_dset_fragment_scores(train_dl,encoder,multiclassifier,dataset_dict,'train',args)
     #fixed_thresh = ((train_output_info['thresh']*1200)+(val_output_info['thresh']*100))/1300
@@ -134,7 +135,6 @@ if __name__=="__main__":
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    import os
     os.environ['CUDA_VISIBLE_DEVICES'] = ARGS.cuda_visible_devices
     import numpy as np
     np.random.seed(ARGS.seed)

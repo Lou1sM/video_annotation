@@ -124,8 +124,6 @@ def build_atoms(sent_words, single_words_only=False):
                     atoms.append(atom2)
     return atoms
 
-
-
 def atom_predict(sentence,single_words_only):
     parsed = nlp(sentence)
     sent_words = [token.words[0] for token in parsed.sentences[0].tokens]

@@ -7,32 +7,32 @@ import json
 from pdb import set_trace
 
 
-def load_vgg_from_id(vid_id,data_dir):
-    return np.load(os.path.join(data_dir,f'vggvecs/vid{vid_id}.npy'))
+def load_vgg_from_id(vid_id,video_data_dir):
+    return np.load(os.path.join(video_data_dir,f'vggvecs/vid{vid_id}.npy'))
 
-def vgg_lookup_table_from_range(start_idx, end_idx, data_dir):
+def vgg_lookup_table_from_range(start_idx, end_idx, video_data_dir):
     return {vid_id: load_vgg_from_id(vid_id) for vid_id in range(start_idx, end_idx)}
 
-def vgg_lookup_table_from_ids(video_ids, data_dir):
-    return {vid_id: load_vgg_from_id(vid_id, data_dir) for vid_id in video_ids}
+def vgg_lookup_table_from_ids(video_ids, video_data_dir):
+    return {vid_id: load_vgg_from_id(vid_id, video_data_dir) for vid_id in video_ids}
 
-def load_i3d_from_id(vid_id,data_dir):
-    return np.load(os.path.join(data_dir,f'i3dvecs/vid{vid_id}.npy'))
+def load_i3d_from_id(vid_id,video_data_dir):
+    return np.load(os.path.join(video_data_dir,f'i3dvecs/vid{vid_id}.npy'))
 
-def i3d_lookup_table_from_range(start_idx, end_idx, data_dir):
-    return {vid_id: load_i3d_from_id(vid_id, data_dir) for vid_id in range(start_idx, end_idx)}
+def i3d_lookup_table_from_range(start_idx, end_idx, video_data_dir):
+    return {vid_id: load_i3d_from_id(vid_id, video_data_dir) for vid_id in range(start_idx, end_idx)}
 
-def i3d_lookup_table_from_ids(video_ids, data_dir):
-    return {vid_id: load_i3d_from_id(vid_id, data_dir) for vid_id in video_ids}
+def i3d_lookup_table_from_ids(video_ids, video_data_dir):
+    return {vid_id: load_i3d_from_id(vid_id, video_data_dir) for vid_id in video_ids}
 
-def load_vid_from_id(data_dir,vid_id):
-    return np.load(os.path.join(data_dir,f'frames/vid{vid_id}.npz'))['arr_0']
+def load_vid_from_id(video_data_dir,vid_id):
+    return np.load(os.path.join(video_data_dir,f'frames/vid{vid_id}.npz'))['arr_0']
 
-def video_lookup_table_from_range(start_idx, end_idx, data_dir):
-    return {vid_id: load_vid_from_id(vid_id, data_dir) for vid_id in range(start_idx, end_idx)}
+def video_lookup_table_from_range(start_idx, end_idx, video_data_dir):
+    return {vid_id: load_vid_from_id(vid_id, video_data_dir) for vid_id in range(start_idx, end_idx)}
 
-def video_lookup_table_from_ids(video_ids, data_dir):
-    return {vid_id: load_vid_from_id(vid_id, data_dir) for vid_id in video_ids}
+def video_lookup_table_from_ids(video_ids, video_data_dir):
+    return {vid_id: load_vid_from_id(vid_id, video_data_dir) for vid_id in video_ids}
 
 class LookupDataset(data.Dataset):
     def __init__(self, json_data, vgg_lookup_table, i3d_lookup_table, transform=None):
@@ -57,25 +57,25 @@ class LookupDataset(data.Dataset):
         self.archive.close()
 
 
-def load_data_lookup(json_data, vgg_lookup_table, i3d_lookup_table, batch_size, shuffle, data_dir):
-    new_data = LookupDataset(json_data, vgg_lookup_table, i3d_lookup_table, data_dir)
+def load_data_lookup(json_data, vgg_lookup_table, i3d_lookup_table, batch_size, shuffle, video_data_dir):
+    new_data = LookupDataset(json_data, vgg_lookup_table, i3d_lookup_table, video_data_dir)
     new_data_loaded = data.DataLoader(new_data, batch_size=batch_size, shuffle=shuffle, drop_last=True)
 
     return new_data_loaded
 
-def get_split_dls(json_data,splits,batch_size,shuffle,i3d,data_dir):
+def get_split_dls(json_data,splits,batch_size,shuffle,i3d,video_data_dir):
     train_data = json_data[0:splits[0]]
     val_data = json_data[splits[0]:splits[1]]
     test_data = json_data[splits[1]:splits[2]+1]
-    train_table = vgg_lookup_table_from_ids([dp['video_id'] for dp in train_data],data_dir)
-    train_i3d_table = i3d_lookup_table_from_ids([dp['video_id'] for dp in train_data],data_dir) if i3d else None
-    train_dl = load_data_lookup(train_data,train_table,train_i3d_table,batch_size,shuffle,data_dir)
-    val_table = vgg_lookup_table_from_ids([dp['video_id'] for dp in val_data],data_dir)
-    val_i3d_table = i3d_lookup_table_from_ids([dp['video_id'] for dp in val_data],data_dir) if i3d else None
-    val_dl = load_data_lookup(val_data, val_table,val_i3d_table,batch_size,shuffle,data_dir)
-    test_table = vgg_lookup_table_from_ids([dp['video_id'] for dp in test_data],data_dir)
-    test_i3d_table = i3d_lookup_table_from_ids([dp['video_id'] for dp in test_data],data_dir) if i3d else None
-    test_dl = load_data_lookup(test_data,test_table,test_i3d_table,batch_size,shuffle,data_dir)
+    train_table = vgg_lookup_table_from_ids([dp['video_id'] for dp in train_data],video_data_dir)
+    train_i3d_table = i3d_lookup_table_from_ids([dp['video_id'] for dp in train_data],video_data_dir) if i3d else None
+    train_dl = load_data_lookup(train_data,train_table,train_i3d_table,batch_size,shuffle,video_data_dir)
+    val_table = vgg_lookup_table_from_ids([dp['video_id'] for dp in val_data],video_data_dir)
+    val_i3d_table = i3d_lookup_table_from_ids([dp['video_id'] for dp in val_data],video_data_dir) if i3d else None
+    val_dl = load_data_lookup(val_data, val_table,val_i3d_table,batch_size,shuffle,video_data_dir)
+    test_table = vgg_lookup_table_from_ids([dp['video_id'] for dp in test_data],video_data_dir)
+    test_i3d_table = i3d_lookup_table_from_ids([dp['video_id'] for dp in test_data],video_data_dir) if i3d else None
+    test_dl = load_data_lookup(test_data,test_table,test_i3d_table,batch_size,shuffle,video_data_dir)
     return train_dl, val_dl, test_dl
 
 class TestConvNet(torch.nn.Module):

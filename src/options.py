@@ -40,6 +40,7 @@ def load_arguments():
     argparser.add_argument("--shuffle", action="store_false", default=True)
     argparser.add_argument("--verbose", action="store_true", help="print network info before training")
     argparser.add_argument("--weight_decay", type=float, default=0.0)
+    argparser.add_argument("--w2v_limit", type=int, default=10000000)
 
     args = argparser.parse_args()
     return args
