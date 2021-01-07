@@ -1,6 +1,7 @@
 # Knowledge Graph Extraction from Videos
 
 Code for the paper [Knowledge Graph Extraction from Videos](https://arxiv.org/abs/2007.10040).
+Download the word2vec vectors, and place at ../data/w2v_vecs.bin
 For each dataset: 
     Download videos and captions (separate files) from Microsoft.
     Preprocess datasets using preprocess_<dataset-name>.py to obtain video tensors

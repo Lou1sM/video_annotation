@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import torch
 
@@ -9,7 +8,7 @@ class EarlyStopper:
         Args:
             patience (int): How long to wait after last time validation loss improved.
                             Default: 7
-            verbose (bool): If True, prints a message for each validation loss improvement. 
+            verbose (bool): If True, prints a message for each validation loss improvement.
                             Default: False
         """
         self.patience = patience
@@ -23,7 +22,7 @@ class EarlyStopper:
         #if val_loss < self.val_loss_min - 0.01:
         if val_loss < self.val_loss_min:
             if save: self.save_checkpoint(val_loss, model, exp_name)
-            self.val_loss_min, self.model, self.counter  = val_loss, model, 0
+            self.val_loss_min, self.model, self.counter = val_loss, model, 0
         else:
             self.counter += 1
             print('Val loss was {}, no improvement on best of {}'.format(val_loss, self.val_loss_min))
@@ -38,4 +37,3 @@ class EarlyStopper:
         try: torch.save(model_dict,filename)
         except FileNotFoundError: print(f"Can't save file to {filename} because the directory doesn't exist.")
         self.val_loss_min = val_loss
-        

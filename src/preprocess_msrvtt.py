@@ -1,71 +1,53 @@
-"""Download and process MSRVTT clips using urls in csv file. Pair the captions
-and video tensors by associating both with a video_id that is an int up to
-10000.
+"""Process MSVD .avi clips into np arrays and save in .npy files. Save all
+captions for a video in a single list with corresponding int id.
 """
 
 import cv2
 import numpy as np
 import os
 import json
-import youtube_dl
-import subprocess
-import skvideo.io
 import math
 from pdb import set_trace
 
-ydl = youtube_dl.YoutubeDL()
 
-def timeformat(time_in_seconds):
-    minutes = time_in_seconds//60
-    seconds = str(time_in_seconds - 60*minutes)
-    minutes = str(int(minutes))
-    if len(minutes) == 1:
-        minutes = '0' + str(minutes)
-    if len(seconds) == 3:
-        seconds = '0' + str(seconds)
-    return f"00:{minutes}:{seconds}"
-
+with open('videodatainfo_2017.json') as f:msrvtt = json.load(f)
 
 def reshape_video_tensor(ar):
     framed_ar = ar[range(ar.shape[0])[::math.ceil(ar.shape[0]/8)],:,:,:] # Use only 8 evenly spaced frames
+    if framed_ar.shape[0] == 7:
+        framed_ar = np.concatenate((framed_ar,ar[ar.shape[0]-1:ar.shape[0]]),axis=0)
     framed_ar = np.array([cv2.resize(frame,(256,256)) for frame in framed_ar])
+    framed_ar = np.transpose(framed_ar,(0,3,1,2))
+    assert framed_ar.shape[0] == 8
     return framed_ar
 
-def download_video_segment(video_dict):
-    url_info = ydl.extract_info(video_dict['url'],download=False)
-    urls = [f['url'] for f in url_info['formats'] if f['vcodec'] != 'none' and f['acodec'] == 'none']
-    video_filepath = os.path.join(video_dir,f'{video_dict["video_id"]}.mkv')
-    args_to_run = ['ffmpeg','-loglevel','-8','-i',urls[0],'-y','-ss',timeformat(video_dict['start time']),'-to',timeformat(video_dict['end time']),video_filepath]
-    for url in urls:
-        args_to_run = ['ffmpeg','-i',url,'-y','-ss',timeformat(video_dict['start time']),'-to',timeformat(video_dict['end time']),video_filepath]
-        subprocess.run(args_to_run)
-        try:
-            ar = skvideo.io.vread(video_filepath)
-            return(reshape_video_tensor(ar))
-        except: pass
-    set_trace()
-    print(f"Can't download video {video_dict['video_id'][5:]}")
+captions_by_video_id = {}
+trainval_paths = [os.path.join('TrainValVideo', filename) for filename in os.listdir('TrainValVideo')]
+test_paths = [os.path.join('TestVideo', filename) for filename in os.listdir('TestVideo')]
+for video_path in trainval_paths + test_paths:
+    int_id = video_path.split('/')[-1].split('.')[0][5:] # Names are 'video<some-number>.mp4'
+    v = cv2.VideoCapture(video_path)
+    frame_list = []
+    num_frames = 0
+    while True:
+        frame_exists, frame = v.read()
+        if not frame_exists:
+            break
+        frame_list.append(frame)
+        num_frames += 1
+    video_tensor = np.stack(frame_list)
+    resized_video_tensor = reshape_video_tensor(video_tensor)
+    np.save(os.path.join('../data/MSRVTT/frames',f'vid{int_id}_resized'),resized_video_tensor)
+    print(int_id)
+    #captions_for_this_video = captions_by_id.loc[captions_by_id['VideoID']==true_id]['Description'].tolist()
+    #captions_by_int_id[int_id] = captions_for_this_video
+
+for caption_dict in msrvtt['sentences']:
+    video_id = caption_dict['video_id']
+    try:
+        captions_by_video_id[video_id] += caption_dict['caption']
+    except KeyError:
+        captions_by_video_id[video_id] = caption_dict['caption']
 
 
-video_dir = 'downloaded_videos'
-if not os.path.isdir(video_dir): os.mkdir(video_dir)
-
-with open('videodatainfo_2017.json') as f: d = json.load(f)
-
-new_sentences_dict = {}
-for sentence_dict in d['sentences']:
-    vidid = sentence_dict['video_id'][5:]
-    assert f'video{vidid}' == sentence_dict['video_id']
-    try: new_sentences_dict[vidid].append(sentence_dict['caption'])
-    except KeyError: new_sentences_dict[vidid] = [sentence_dict['caption']]
-
-captions_and_vidids = []
-for video_dict in d['videos']:
-    vidid = video_dict['video_id'][5:]
-    assert f'video{vidid}' == video_dict['video_id']
-    framed_ar = download_video_segment(video_dict)
-    captions = new_sentences_dict[vidid]
-    new_dpoint = {'video_id':int(vidid),'captions':captions}
-    captions_and_vidids.append(new_dpoint)
-
-with open('MSVD_captions.json','w') as f: json.dump(captions_and_vidids,f)
+with open('MSRVTT_captions.json', 'w') as f: json.dump(captions_by_video_id,f)

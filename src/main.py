@@ -1,9 +1,7 @@
-import csv
 import sys
 import os
 import json
 from pdb import set_trace
-from collections import OrderedDict
 from torch import optim
 from utils import get_datetime_stamp, asMinutes,get_w2v_vec
 from time import time
@@ -90,7 +88,7 @@ def main(args):
     global EVAL_START_TIME; EVAL_START_TIME = time()
     if args.no_chkpt: print("\nUsing final (likely overfit) version of network for outputs because no checkpoints were saved")
     else:
-        checkpoint_path = os.path.join(args.data_dir,'checkpoints/{}.pt'.format(args.exp_name))
+        checkpoint_path = os.path.join(args.data_dir,'checkpoints/{}.pt'.format(exp_name))
         checkpoint = torch.load(checkpoint_path)
         encoder = checkpoint['encoder']
         multiclassifier = checkpoint['multiclassifier']
