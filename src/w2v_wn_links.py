@@ -1,3 +1,12 @@
+"""Link parsed captions to wordnet synsets. Expects a dataset as a json file
+containing a dict, where keys are video_ids and values are lists of atoms. This
+is exactly the format that is produced by semantic_parser.py. Specify which
+dataset by using a second CL argument, ie run this script as
+    python w2v_wn_links.py <dset-name>
+Eg
+    python w2v_wn_links.py MSVD
+"""
+
 from pdb import set_trace
 import numpy as np
 from time import time
@@ -27,11 +36,11 @@ class WN_Linker():
     def convert_to_uni_tag(self,token): return '_'.join([token[0],nltk.map_tag('en-ptb','universal',token[1])])
     def tokenize(self, s): return [w for w in nltk.word_tokenize(s) if w not in self.stopwords]
     def tokenize_and_tag(self,sentence): return [self.convert_to_uni_tag(token) for token in nltk.pos_tag(nltk.word_tokenize(sentence)) if token[0] not in self.stopwords]
-  
+
     def wv_similarity(self,w1,w2): return self.w2v.similarity(w1,w2)
-    def wv_n_similarity(self,s1,s2): 
+    def wv_n_similarity(self,s1,s2):
         if not(len(self.tokenize_and_tag(s1)) and len(self.tokenize_and_tag(s2))): return 0.
-        try: return self.w2v.n_similarity(self.tokenize_and_tag(s1),self.tokenize_and_tag(s2)) 
+        try: return self.w2v.n_similarity(self.tokenize_and_tag(s1),self.tokenize_and_tag(s2))
         except KeyError:
             s1vecs = []
             s2vecs = []
@@ -54,7 +63,7 @@ class WN_Linker():
             if vecs == []: return [np.zeros(300)]
             return vecs
 
-    def compute_similarity(self,word_context,synset): 
+    def compute_similarity(self,word_context,synset):
         return self.wv_n_similarity(word_context,synset.definition())
 
     def link_word_to_wn(self,word,context,pos=None,context_as_vec=False):
@@ -62,7 +71,7 @@ class WN_Linker():
         synsets = [ss for ss in orig_synsets if ss.pos()==pos] if pos else orig_synsets
         if len(synsets) == 0: synsets = orig_synsets
         #sims = softmax([self.compute_similarity(context,ss) for ss in synsets])
-        if len(synsets) == 0: 
+        if len(synsets) == 0:
             #set_trace()
             #print('no synsets for',word)
             self.no_synsets.append(word)
@@ -117,27 +126,23 @@ def convert_logical_caption(caption):
 
 
 if __name__ == "__main__":
-      
+
     import json
-    import sys
-    dset = sys.argv[1]
-    w = KeyedVectors.load_word2vec_format('/home/louis/model.bin',binary=True,limit=20000)
+    w = KeyedVectors.load_word2vec_format('../data/w2v_vecs.bin',binary=True,limit=20000)
     print('model loaded')
     stopwords = nltk.corpus.stopwords.words('english')
     linker = WN_Linker(w,stopwords)
-    json_fn = f'../nlp/{dset}_merged_parsed_captions.json'
-    with open(json_fn) as f:
-        d=json.load(f)
-    new_dps = []
-    for vidid,dp in d.items():
-    #for dp in d:
-        #atoms_with_synsets = linker.get_synsets_of_rule_parse(dp,convert=True)
-        atoms_with_synsets = linker.get_synsets_of_rule_parse(dp,convert=False)
-        new_dp = dict(dp, **{'atoms_with_synsets': [atom for atom in atoms_with_synsets if not any([i[1] == None for i in atom])]})
-        new_dps.append(new_dp)
+    for dset in ['MSVD','MSRVTT']:
+        json_fn = f'{dset}_parsed_captions.json'
+        with open(json_fn) as f:
+            d=json.load(f)
+        new_dps = []
+        for vidid,dp in d.items():
+            atoms_with_synsets = linker.get_synsets_of_rule_parse(dp,convert=False)
+            # Discard atoms that have a component that hasn't been linked to WN
+            new_dp = dict(dp, **{'atoms_with_synsets': [atom for atom in atoms_with_synsets if not any([i[1] == None for i in atom])]})
+            new_dps.append(new_dp)
+            break
 
-    with open(f'{dset}_linked_parsed_captions.json','w') as f:
-        json.dump(new_dps,f)
-
-    print(linker.unfound_defs)
-    print(linker.no_synsets)
+        with open(f'{dset}_linked_parsed_captions.json','w') as f:
+            json.dump(new_dps,f)

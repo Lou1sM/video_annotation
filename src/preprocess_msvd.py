@@ -26,6 +26,7 @@ def reshape_video_tensor(ar):
 
 captions_by_int_id = {}
 for int_id, filename in enumerate(os.listdir('YouTubeClips')):
+    """
     v = cv2.VideoCapture(os.path.join('YouTubeClips',filename))
     frame_list = []
     num_frames = 0
@@ -36,11 +37,12 @@ for int_id, filename in enumerate(os.listdir('YouTubeClips')):
         frame_list.append(frame)
         num_frames += 1
     video_tensor = np.stack(frame_list)
-    true_id = filename[:11]
     print(true_id,int_id,num_frames)
     resized_video_tensor = reshape_video_tensor(video_tensor)
     np.save(os.path.join('../data/MSVD/frames',f'vid{int_id}_resized'),resized_video_tensor)
+    """
+    true_id = filename[:11]
     captions_for_this_video = captions_by_id.loc[captions_by_id['VideoID']==true_id]['Description'].tolist()
-    captions_by_int_id[int_id] = captions_for_this_video
+    captions_by_int_id[f'video{int_id}'] = captions_for_this_video
 
 with open('MSVD_captions.json', 'w') as f: json.dump(captions_by_int_id,f)

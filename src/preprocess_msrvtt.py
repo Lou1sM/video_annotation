@@ -22,6 +22,7 @@ def reshape_video_tensor(ar):
     return framed_ar
 
 captions_by_video_id = {}
+"""
 trainval_paths = [os.path.join('TrainValVideo', filename) for filename in os.listdir('TrainValVideo')]
 test_paths = [os.path.join('TestVideo', filename) for filename in os.listdir('TestVideo')]
 for video_path in trainval_paths + test_paths:
@@ -42,12 +43,13 @@ for video_path in trainval_paths + test_paths:
     #captions_for_this_video = captions_by_id.loc[captions_by_id['VideoID']==true_id]['Description'].tolist()
     #captions_by_int_id[int_id] = captions_for_this_video
 
+"""
 for caption_dict in msrvtt['sentences']:
     video_id = caption_dict['video_id']
     try:
-        captions_by_video_id[video_id] += caption_dict['caption']
+        captions_by_video_id[video_id].append(caption_dict['caption'])
     except KeyError:
-        captions_by_video_id[video_id] = caption_dict['caption']
+        captions_by_video_id[video_id] = [caption_dict['caption']]
 
 
 with open('MSRVTT_captions.json', 'w') as f: json.dump(captions_by_video_id,f)
