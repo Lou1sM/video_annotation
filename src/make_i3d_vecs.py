@@ -11,7 +11,6 @@ m.eval()
 m.cuda()
 
 def get_i3d_feature_vec(i3d_net,inp):
-    #set_trace()
     resized_inp = inp.transpose(0,1).unsqueeze(0)
     out = i3d_net.conv3d_1a_7x7(torch.cat([resized_inp,resized_inp[:,:,:1,:,:]],axis=2))
     out = i3d_net.maxPool3d_2a_3x3(out)
@@ -35,23 +34,24 @@ def get_i3d_feature_vec(i3d_net,inp):
     out = out.cpu().detach().numpy()
     return out
 
-dset_dir = '../data/MSVD'
-for vid_num in range(1,1971):
-    fpath = os.path.join(dset_dir,'frames',f'vid{vid_num}_resized.npy')
-    x = torch.tensor(np.load(fpath)).float().cuda()
-    try:
+
+if __name__ == "__main__":
+    dset_dir = '../data/MSVD'
+    for vid_num in range(1,1971):
+        fpath = os.path.join(dset_dir,'frames',f'vid{vid_num}_resized.npy')
+        x = torch.tensor(np.load(fpath)).float().cuda()
+        try:
+            feature_vec = get_i3d_feature_vec(m,x)
+        except: set_trace()
+        i3dpath = os.path.join(dset_dir,'i3dvecs',f'vid{vid_num}.npy')
+        np.save(i3dpath,feature_vec)
+        print(vid_num,feature_vec.shape)
+
+    dset_dir = '../data/MSRVTT'
+    for vid_num in range(10000):
+        fpath = os.path.join(dset_dir,'frames',f'vid{vid_num}_resized.npy')
+        x = torch.tensor(np.load(fpath)).float().cuda()
         feature_vec = get_i3d_feature_vec(m,x)
-    except: set_trace()
-    i3dpath = os.path.join(dset_dir,'i3dvecs',f'vid{vid_num}.npy')
-    np.save(i3dpath,feature_vec)
-    print(vid_num,feature_vec.shape)
-
-
-#dset_dir = '../data/MSRVTT'
-#for vid_num in range(10000):
-#    fpath = os.path.join(dset_dir,'frames',f'vid{vid_num}_resized.npy')
-#    x = torch.tensor(np.load(fpath)).float().cuda()
-#    feature_vec = get_i3d_feature_vec(m,x)
-#    i3dpath = os.path.join(dset_dir,'i3dvecs',f'vid{vid_num}.npy')
-#    np.save(i3dpath,feature_vec)
-#    print(vid_num)
+        i3dpath = os.path.join(dset_dir,'i3dvecs',f'vid{vid_num}.npy')
+        np.save(i3dpath,feature_vec)
+        print(vid_num)
