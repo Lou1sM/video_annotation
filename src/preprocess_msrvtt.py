@@ -1,13 +1,11 @@
-"""Process MSVD .avi clips into np arrays and save in .npy files. Save all
-captions for a video in a single list with corresponding int id.
+"""Process MSRVTT captions and save in a json, bundling together all captions
+for a given video.
 """
 
 import cv2
 import numpy as np
-import os
 import json
 import math
-from pdb import set_trace
 
 
 with open('videodatainfo_2017.json') as f:msrvtt = json.load(f)
@@ -22,28 +20,7 @@ def reshape_video_tensor(ar):
     return framed_ar
 
 captions_by_video_id = {}
-"""
-trainval_paths = [os.path.join('TrainValVideo', filename) for filename in os.listdir('TrainValVideo')]
-test_paths = [os.path.join('TestVideo', filename) for filename in os.listdir('TestVideo')]
-for video_path in trainval_paths + test_paths:
-    int_id = video_path.split('/')[-1].split('.')[0][5:] # Names are 'video<some-number>.mp4'
-    v = cv2.VideoCapture(video_path)
-    frame_list = []
-    num_frames = 0
-    while True:
-        frame_exists, frame = v.read()
-        if not frame_exists:
-            break
-        frame_list.append(frame)
-        num_frames += 1
-    video_tensor = np.stack(frame_list)
-    resized_video_tensor = reshape_video_tensor(video_tensor)
-    np.save(os.path.join('../data/MSRVTT/frames',f'vid{int_id}_resized'),resized_video_tensor)
-    print(int_id)
-    #captions_for_this_video = captions_by_id.loc[captions_by_id['VideoID']==true_id]['Description'].tolist()
-    #captions_by_int_id[int_id] = captions_for_this_video
 
-"""
 for caption_dict in msrvtt['sentences']:
     video_id = caption_dict['video_id']
     try:

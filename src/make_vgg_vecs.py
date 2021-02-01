@@ -25,20 +25,21 @@ def vgg_vec_from_video_array(video_array):
 
 
 # VGG vecs for MSVD videos
-for video_number in range(1,1971):
-    framepath = f'../data/msvd/frames/vid{video_number}_resized.npz'
-    video_array = np.load(framepath)['arr_0']
+for video_number in range(1970):
+    framepath = f'../data/MSVD/frames/vid{video_number}_resized.npy'
+    video_array = np.load(framepath)
     vggvec_np = vgg_vec_from_video_array(video_array)
-    vggpath = f'../data/msvd/vggvecs/vid{video_number}.npy'
+    vggpath = f'../data/MSVD/vggvecs/vid{video_number}.npy'
     print('saving vggvec to',vggpath)
     np.save(vggpath, vggvec_np)
+    break
 
 
 # VGG vecs for MSRVTT videos
-for video_number in range(0,1):
-    framepath = f'../data/msrvtt/frames/vid{video_number}_resized.npy'
+for video_number in range(1,10001):
+    framepath = f'../data/MSRVTT/frames/vid{video_number}_resized.npy'
     video_array = np.load(framepath)
     vggvec_np = vgg_vec_from_video_array(video_array)
-    vggpath = f'../data/msrvtt/vggvecs/vid{video_number}.npy'
+    vggpath = f'../data/MSRVTT/vggvecs/vid{video_number}.npy'
     print('saving vggvec to',vggpath)
     np.save(vggpath, vggvec_np)
