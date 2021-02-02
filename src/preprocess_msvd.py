@@ -14,6 +14,8 @@ from pdb import set_trace
 
 captions_by_id = pd.read_csv('MSR Video Description Corpus.csv')
 true_ids = [item[:11] for item in os.listdir('YouTubeClips')] # First 11 chars are the id
+frames_dir = '../data/MSVD/frames'
+if not os.path.isdir(frames_dir): os.makedirs(frames_dir)
 
 def reshape_video_tensor(ar):
     framed_ar = ar[range(ar.shape[0])[::math.ceil(ar.shape[0]/8)],:,:,:] # Use only 8 evenly spaced frames
@@ -38,7 +40,7 @@ for int_id, filename in enumerate(os.listdir('YouTubeClips')):
     video_tensor = np.stack(frame_list)
     print(int_id,num_frames)
     resized_video_tensor = reshape_video_tensor(video_tensor)
-    np.save(os.path.join('../data/MSVD/frames',f'vid{int_id}_resized'),resized_video_tensor)
+    np.save(os.path.join(frames_dir,f'vid{int_id}_resized'),resized_video_tensor)
     true_id = filename[:11]
     captions_for_this_video = captions_by_id.loc[captions_by_id['VideoID']==true_id]['Description'].tolist()
     captions_by_int_id[f'video{int_id}'] = captions_for_this_video

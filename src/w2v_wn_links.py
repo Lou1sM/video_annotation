@@ -18,6 +18,7 @@ from scipy.special import softmax
 from numpy import dot, array
 from gensim import matutils
 from nltk.stem import WordNetLemmatizer
+import math
 
 def normalize_vec(x): return x/np.linalg.norm(x)
 
@@ -32,6 +33,10 @@ class WN_Linker():
         self.pos_map = {k:'a' if k.startswith('J') else k[0].lower() if k[0] in ['N','V','R'] else None for k in pt_pss}
         self.pos_map[None] = None
         self.lemmatizer = lemmatizer if lemmatizer else WordNetLemmatizer()
+        try: self.lemmatizer.lemmatize('rowing')
+        except LookupError:
+            nltk.download('wordnet')
+            self.lemmatizer.lemmatize('rowing')
 
     def convert_to_uni_tag(self,token): return '_'.join([token[0],nltk.map_tag('en-ptb','universal',token[1])])
     def tokenize(self, s): return [w for w in nltk.word_tokenize(s) if w not in self.stopwords]
@@ -91,7 +96,9 @@ class WN_Linker():
     def lemmatize(self,w): return self.lemmatizer.lemmatize(w)
 
     def get_synsets_of_rule_parse(self,dp,use_offset=True,convert=False):
-        context = ' '.join(dp['captions'])
+        try: context = ' '.join(dp['captions'])
+        except TypeError: # Nan is in list
+            context = ' '.join([item for item in dp['captions'] if isinstance(item,str)])
         tokens = self.tokenize(context)
         vecs = self.get_vecs_for_BOW(context)
         context_vec = normalize_vec(array(vecs).mean(axis=0))
@@ -130,8 +137,21 @@ if __name__ == "__main__":
     import json
     w = KeyedVectors.load_word2vec_format('../data/w2v_vecs.bin',binary=True,limit=20000)
     print('model loaded')
-    stopwords = nltk.corpus.stopwords.words('english')
-    linker = WN_Linker(w,stopwords)
+    try: stopwords = nltk.corpus.stopwords.words('english')
+    except LookupError:
+        nltk.download('stopwords')
+        stopwords = nltk.corpus.stopwords.words('english')
+    try: linker = WN_Linker(w,stopwords)
+    except LookupError:
+        nltk.download('averaged_perceptron_tagger')
+        linker = WN_Linker(w,stopwords)
+    try: nltk.word_tokenize('cat')
+    except LookupError:
+        nltk.download('punkt')
+    try: nltk.map_tag('en-ptb','universal','NNP')
+    except LookupError:
+        nltk.download('universal_tagset')
+
     for dset in ['MSVD','MSRVTT']:
         json_fn = f'{dset}_parsed_captions.json'
         with open(json_fn) as f:
@@ -142,7 +162,6 @@ if __name__ == "__main__":
             # Discard atoms that have a component that hasn't been linked to WN
             new_dp = dict(dp, **{'atoms_with_synsets': [atom for atom in atoms_with_synsets if not any([i[1] == None for i in atom])]})
             new_dps.append(new_dp)
-            break
 
         with open(f'{dset}_linked_parsed_captions.json','w') as f:
             json.dump(new_dps,f)
