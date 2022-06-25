@@ -5,14 +5,15 @@ and write the parsed dataset, which also contains logical captions, to a new
 json file at <dset_name>_parsed_captions.json.
 """
 
-from pdb import set_trace
+import sys
 import json
 import stanza
 from nltk.stem import WordNetLemmatizer
 from copy import copy
+from langdetect import detect, detect_langs # could use detect_langs probs>0.5 but just using detect for now
 
 lemmatizer = WordNetLemmatizer()
-
+#with open('5000_words.txt') as f: COMMON_ENG_WORDS=f.read().splitlines()
 
 def build_atoms(sent_words, single_words_only=False):
     """Extract logical atoms from a list of syntactic dependencies."""
@@ -47,7 +48,7 @@ def build_atoms(sent_words, single_words_only=False):
         except IndexError:
             #TODO: catch some additional cases here, this exception normally means sentence is not a proper
             #sentece, eg just a np
-            #import pdb; pdb.set_trace()
+            #import pdb; pdb.breakpoint()
             return []
     else:
         print(root.upos)
@@ -80,6 +81,7 @@ def build_atoms(sent_words, single_words_only=False):
             thing_its_being_conjuncted_to = sent_words[thing_being_conjuncted_on.head-1]
             root_pos2 = int(thing_being_conjuncted_on.id)
             if thing_its_being_conjuncted_to.upos == 'VERB':
+                # Eg 'the boy runs and jumps'
                 try:
                     subj2 = [word for word in sent_words if word.deprel=='nsubj' and word.head == root_pos2][0]
                 except IndexError:
@@ -92,6 +94,7 @@ def build_atoms(sent_words, single_words_only=False):
                     atom2 = [thing_being_conjuncted_on.lemma, subj2.lemma]
                     atoms.append(atom2)
             elif thing_its_being_conjuncted_to.upos == 'ADJ':
+                # Eg 'the black and white cat'
                 try:
                     subj2 = [word for word in sent_words if word.deprel=='nsubj' and word.head == root_pos2][0]
                 except IndexError:
@@ -123,6 +126,12 @@ def build_atoms(sent_words, single_words_only=False):
 
 def atom_predict(sentence,single_words_only):
     """Turn NL sentence into set of atoms."""
+    #if not is_english(sentence):
+    if not detect(sentence) == 'en':
+        print('rejecting this because not english')
+        print(sentence + '\n')
+        breakpoint()
+        return []
     parsed = nlp(sentence)
     sent_words = [token.words[0] for token in parsed.sentences[0].tokens]
     atoms = build_atoms(sent_words,single_words_only)
@@ -140,7 +149,7 @@ def merge_graphs(data):
         vid_id = d['video_id']
         if vid_id in merged_data.keys():
             try: merged_data[vid_id]['atoms'] = list(set(tuplify(merged_data[vid_id]['atoms']) + tuplify(d['atoms'])))
-            except: pdb.set_trace()
+            except: breakpoint()
             #merged_data[vid_id]['atoms_with_synsets'] = list(set([tuple(tuplify(item)) for item in merged_data[vid_id]['atoms_with_synsets']] + [tuple(tuplify(item)) for item in d['atoms_with_synsets']]))
             merged_data[vid_id]['captions'] += [d['sentence']]
         else:
@@ -161,13 +170,16 @@ if __name__ == "__main__":
 
     nlp = stanza.Pipeline()
 
-    for dset_name in ['MSVD','MSRVTT']:
-        with open(f'{dset_name}_captions.json') as f: data = json.load(f)
-        logical_captions_by_vid_id = {}
-        for vid_id,caption_list in data.items():
-            try: atoms = list(set(tuplify([item for caption in caption_list for item in atom_predict(caption,False)])))
-            except: set_trace()
-            logical_captions_by_vid_id[vid_id] = {'atoms':atoms, 'captions':caption_list, 'video_id':vid_id}
+    dset_name = sys.argv[1]
+    #for dset_name in ['MSVD','MSRVTT']:
+    #for dset_name in ['MSRVTT']:
+    with open(f'{dset_name}_captions.json') as f: data = json.load(f)
+    logical_captions_by_vid_id = {}
+    for vid_id,caption_list in data.items():
+        #try: atoms = list(set(tuplify([item for caption in caption_list for item in atom_predict(caption,False)])))
+        #except: breakpoint()
+        atoms = list(set(tuplify([item for caption in caption_list for item in atom_predict(caption,False)])))
+        logical_captions_by_vid_id[vid_id] = {'atoms':atoms, 'captions':caption_list, 'video_id':vid_id}
 
-            print(vid_id)
-        with open(f'{dset_name}_parsed_captions.json', 'w') as f: json.dump(logical_captions_by_vid_id, f)
+        print(vid_id)
+    with open(f'{dset_name}_parsed_captions.json', 'w') as f: json.dump(logical_captions_by_vid_id, f)
