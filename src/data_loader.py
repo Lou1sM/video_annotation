@@ -104,4 +104,5 @@ if __name__ == "__main__":
         vid = data[0]
         multiclass_inds = data[2]
         print(vid.shape)
+        import pdb; pdb.set_trace()  # XXX BREAKPOINT
         print(multiclass_inds)

@@ -2,9 +2,9 @@ from __future__ import print_function
 import os
 import json
 import math
-import matplotlib.pyplot as plt
-plt.switch_backend('agg')
-import matplotlib.ticker as ticker
+#import matplotlib.pyplot as plt
+#plt.switch_backend('agg')
+#import matplotlib.ticker as ticker
 import numpy as np
 import time
 import re
@@ -12,6 +12,8 @@ import torch
 from datetime import datetime
 from pdb import set_trace
 
+
+def tuplify(x): return [tuple(item) for item in x]
 
 def get_w2v_vec(word,w2v_table):
     import numpy as np
@@ -75,8 +77,8 @@ def asMinutes(s):
     return '%dm %ds' % (m, s)
 
 
-# Function computing: 
-# - time elapsed 
+# Function computing:
+# - time elapsed
 # - estimated time remaining given the current time and progress %
 def timeSince(since, percent):
     now = time.time()

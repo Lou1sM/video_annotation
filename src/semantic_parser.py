@@ -6,138 +6,191 @@ json file at <dset_name>_parsed_captions.json.
 """
 
 import sys
+import math
+from time import time
 import json
-import stanza
+#import stanza
 from nltk.stem import WordNetLemmatizer
+import os
 from copy import copy
-from langdetect import detect, detect_langs # could use detect_langs probs>0.5 but just using detect for now
+from langdetect import detect, detect_langs
+import argparse
+from utils import tuplify
 
 lemmatizer = WordNetLemmatizer()
 #with open('5000_words.txt') as f: COMMON_ENG_WORDS=f.read().splitlines()
 
-def build_atoms(sent_words, single_words_only=False):
-    """Extract logical atoms from a list of syntactic dependencies."""
 
-    atoms = []
-    root = [word for word in sent_words if word.deprel=='root' and word.head == 0][0]
-    root_pos = int(root.id)
+class SemanticParser():
+    def __init__(self,syntactic_parser,single_words_only):
+        self.syntactic_parser = syntactic_parser
+        self.single_words_only = single_words_only
+        self.init_times()
 
-    if root.upos in ['VERB', 'AUX']:
-        try:
-            subj1 = [word for word in sent_words if word.deprel=='nsubj' and word.head == root_pos][0]
-        except IndexError:
+    def init_times(self):
+        self.parse_time = 0
+        self.detect_langs_time = 0
+        self.atoms_time = 0
+
+    def build_atoms(self,sent_words):
+        """Extract logical atoms from a list of syntactic dependencies."""
+
+        atoms = []
+        root = [word for word in sent_words if word.deprel=='root' and word.head == 0][0]
+        root_pos = int(root.id)
+
+        if root.upos in ['VERB', 'AUX']:
+            try:
+                subj1 = [word for word in sent_words if word.deprel=='nsubj' and word.head == root_pos][0]
+            except IndexError:
+                return []
+            try:
+                obj1 = [word for word in sent_words if word.deprel=='obj' and word.head == root_pos][0]
+                root_atom = [root.lemma, subj1.lemma, obj1.lemma]
+            except:
+                root_atom = [root.lemma, subj1.lemma]
+        elif root.upos in ['ADJ']:
+            try:
+                subj1 = [word for word in sent_words if word.deprel=='nsubj' and word.head == root_pos][0]
+                copula = [word for word in sent_words if word.deprel=='cop' and word.head == root_pos][0]
+                root_atom = [root.lemma, subj1.lemma]
+            except IndexError:
+                return []
+        elif root.upos in ["NOUN", 'PROPN']:
+            try:
+                copula = [word for word in sent_words if word.deprel=='cop' and word.head == root_pos][0]
+                prep = [word for word in sent_words if word.deprel=='case' and word.upos == 'ADP' and word.head == root_pos][0]
+                subj1 = [word for word in sent_words if word.deprel=='nsubj' and word.head == root_pos][0]
+                root_atom = [prep.lemma, subj1.lemma, root.lemma]
+            except IndexError:
+                #TODO: catch some additional cases here, this exception normally means sentence is not a proper
+                #sentece, eg just a np
+                #import pdb; pdb.breakpoint()
+                return []
+        else:
+            print(root.upos)
             return []
-        try:
-            obj1 = [word for word in sent_words if word.deprel=='obj' and word.head == root_pos][0]
-            root_atom = [root.lemma, subj1.lemma, obj1.lemma]
-        except:
-            root_atom = [root.lemma, subj1.lemma]
-    elif root.upos in ['ADJ']:
-        try:
-            subj1 = [word for word in sent_words if word.deprel=='nsubj' and word.head == root_pos][0]
-            copula = [word for word in sent_words if word.deprel=='cop' and word.head == root_pos][0]
-            root_atom = [root.lemma, subj1.lemma]
-        except IndexError:
-            return []
-    elif root.upos in ["NOUN", 'PROPN']:
-        try:
-            copula = [word for word in sent_words if word.deprel=='cop' and word.head == root_pos][0]
-            prep = [word for word in sent_words if word.deprel=='case' and word.upos == 'ADP' and word.head == root_pos][0]
-            subj1 = [word for word in sent_words if word.deprel=='nsubj' and word.head == root_pos][0]
-            root_atom = [prep.lemma, subj1.lemma, root.lemma]
-        except IndexError:
-            #TODO: catch some additional cases here, this exception normally means sentence is not a proper
-            #sentece, eg just a np
-            #import pdb; pdb.breakpoint()
-            return []
-    else:
-        print(root.upos)
-        return []
 
-    atoms.append(root_atom)
-    rdep = filter(lambda x: x not in [root, subj1, obj1], sent_words)
-    for dep in sent_words:
-        rel = dep.deprel
-        if rel == 'amod':
-            modifiee = sent_words[dep.head-1]
-            atoms.append([dep.lemma, modifiee.lemma])
-        if rel == 'compound':
-            other_half = sent_words[dep.head-1]
-            if single_words_only:
-                atoms.append([dep.lemma,other_half.lemma])
-                continue
-            elif int(other_half.id) == int(dep.id)+1: #Pre-nominal modifier, most common in English
-                compound = dep.lemma + "_" + other_half.lemma
-            elif int(other_half.id) == int(dep.id)-1: #Post-nominal modifier
-                compound = other_half.lemma + "_" + dep.lemma
-                print(compound)
-            else:
-                continue
-            for i, atom in enumerate(atoms): #Update this word to add the compound at all places it appears in all atoms
-                new_atom = [item if item != other_half.lemma else compound for item in atom]
-                atoms[i] = new_atom
-        if rel == 'cc':
-            thing_being_conjuncted_on = sent_words[dep.head-1]
-            thing_its_being_conjuncted_to = sent_words[thing_being_conjuncted_on.head-1]
-            root_pos2 = int(thing_being_conjuncted_on.id)
-            if thing_its_being_conjuncted_to.upos == 'VERB':
-                # Eg 'the boy runs and jumps'
-                try:
-                    subj2 = [word for word in sent_words if word.deprel=='nsubj' and word.head == root_pos2][0]
-                except IndexError:
-                    subj2 = subj1
-                try:
-                    obj2 = [word for word in sent_words if word.deprel=='obj' and word.head == root_pos2][0]
-                    atom2 = [thing_being_conjuncted_on.lemma, subj2.lemma, obj2.lemma]
-                    atoms.append(atom2)
-                except IndexError:
-                    atom2 = [thing_being_conjuncted_on.lemma, subj2.lemma]
-                    atoms.append(atom2)
-            elif thing_its_being_conjuncted_to.upos == 'ADJ':
-                # Eg 'the black and white cat'
-                try:
-                    subj2 = [word for word in sent_words if word.deprel=='nsubj' and word.head == root_pos2][0]
-                except IndexError:
-                    subj2 = subj1
-                atom2 = [thing_being_conjuncted_on.lemma, subj2.lemma]
-                atoms.append(atom2)
-
-            elif thing_its_being_conjuncted_to == subj1:
-                replace_idx = root_atom.index(subj1.lemma)
-                atom2 = copy(root_atom)
-                atom2[replace_idx] = thing_being_conjuncted_on.lemma
-                atoms.append(atom2)
-                #if len(root_atom) == 3: # Assume object in second clause should be the same as in first
-                #    try:
-                #        atom2 = [root.lemma, thing_being_conjuncted_on.lemma, obj1.lemma]
-                #    except Exception as e:
-                #        print(e)
-                #elif len(root_atom) == 2:
-                #    atom2 = [root.lemma, thing_being_conjuncted_on.lemma]
-            elif 'obj1' in globals() or 'obj1' in locals():
-                if thing_its_being_conjuncted_to == obj1:
+        atoms.append(root_atom)
+        rdep = filter(lambda x: x not in [root, subj1, obj1], sent_words)
+        for dep in sent_words:
+            rel = dep.deprel
+            if rel == 'amod':
+                modifiee = sent_words[dep.head-1]
+                atoms.append([dep.lemma, modifiee.lemma])
+            if rel == 'compound':
+                other_half = sent_words[dep.head-1]
+                if self.single_words_only:
+                    atoms.append([dep.lemma,other_half.lemma])
+                    continue
+                elif int(other_half.id) == int(dep.id)+1: #Pre-nominal modifier, most common in English
+                    compound = dep.lemma + "_" + other_half.lemma
+                elif int(other_half.id) == int(dep.id)-1: #Post-nominal modifier
+                    compound = other_half.lemma + "_" + dep.lemma
+                    print(compound)
+                else:
+                    continue
+                for i, atom in enumerate(atoms): #Update this word to add the compound at all places it appears in all atoms
+                    new_atom = [item if item != other_half.lemma else compound for item in atom]
+                    atoms[i] = new_atom
+            if rel == 'cc':
+                thing_being_conjuncted_on = sent_words[dep.head-1]
+                thing_its_being_conjuncted_to = sent_words[thing_being_conjuncted_on.head-1]
+                root_pos2 = int(thing_being_conjuncted_on.id)
+                if thing_its_being_conjuncted_to.upos == 'VERB':
+                    # Eg 'the boy runs and jumps'
                     try:
-                        subj2 = [word for word in sent_words if word.deprel=='subj' and word.head == root_pos2][0]
+                        subj2 = [word for word in sent_words if word.deprel=='nsubj' and word.head == root_pos2][0]
                     except IndexError:
                         subj2 = subj1
-                    atom2 = [root.lemma, subj2.lemma, thing_being_conjuncted_on.lemma]
+                    try:
+                        obj2 = [word for word in sent_words if word.deprel=='obj' and word.head == root_pos2][0]
+                        atom2 = [thing_being_conjuncted_on.lemma, subj2.lemma, obj2.lemma]
+                        atoms.append(atom2)
+                    except IndexError:
+                        atom2 = [thing_being_conjuncted_on.lemma, subj2.lemma]
+                        atoms.append(atom2)
+                elif thing_its_being_conjuncted_to.upos == 'ADJ':
+                    # Eg 'the black and white cat'
+                    try:
+                        subj2 = [word for word in sent_words if word.deprel=='nsubj' and word.head == root_pos2][0]
+                    except IndexError:
+                        subj2 = subj1
+                    atom2 = [thing_being_conjuncted_on.lemma, subj2.lemma]
                     atoms.append(atom2)
-    return atoms
 
-def atom_predict(sentence,single_words_only):
-    """Turn NL sentence into set of atoms."""
-    #if not is_english(sentence):
-    if not detect(sentence) == 'en':
-        print('rejecting this because not english')
-        print(sentence + '\n')
-        breakpoint()
-        return []
-    parsed = nlp(sentence)
-    sent_words = [token.words[0] for token in parsed.sentences[0].tokens]
-    atoms = build_atoms(sent_words,single_words_only)
-    return atoms
+                elif thing_its_being_conjuncted_to == subj1:
+                    replace_idx = root_atom.index(subj1.lemma)
+                    atom2 = copy(root_atom)
+                    atom2[replace_idx] = thing_being_conjuncted_on.lemma
+                    atoms.append(atom2)
+                    #if len(root_atom) == 3: # Assume object in second clause should be the same as in first
+                    #    try:
+                    #        atom2 = [root.lemma, thing_being_conjuncted_on.lemma, obj1.lemma]
+                    #    except Exception as e:
+                    #        print(e)
+                    #elif len(root_atom) == 2:
+                    #    atom2 = [root.lemma, thing_being_conjuncted_on.lemma]
+                elif 'obj1' in globals() or 'obj1' in locals():
+                    if thing_its_being_conjuncted_to == obj1:
+                        try:
+                            subj2 = [word for word in sent_words if word.deprel=='subj' and word.head == root_pos2][0]
+                        except IndexError:
+                            subj2 = subj1
+                        atom2 = [root.lemma, subj2.lemma, thing_being_conjuncted_on.lemma]
+                        atoms.append(atom2)
+        return atoms
 
-def tuplify(x): return [tuple(item) for item in x]
+    def atom_predict(self,sentence):
+        """Turn NL sentence into set of atoms."""
+        #if not is_english(sentence):
+        if not isinstance(sentence,str):
+            #math.isnan(sentence):
+            return []
+        lang_detect_start_time = time()
+        try:
+            lang_probs = detect_langs(sentence)
+        except: breakpoint()
+        self.detect_langs_time += time()-lang_detect_start_time
+        en_prob = 0
+        for lang_object in lang_probs:
+            if lang_object.lang == 'en':
+                en_prob = lang_object.prob
+        if en_prob < 0.6:
+            #print('REJECT', sentence)
+            return []
+        #else:
+            #print('ACCEPT', sentence)
+        parse_start_time = time()
+        parsed = self.syntactic_parser(sentence)
+        self.parse_time += time()-parse_start_time
+        sent_words = [token.words[0] for token in parsed.sentences[0].tokens]
+        atom_start_time = time()
+        atoms = self.build_atoms(sent_words)
+        self.atoms_time += time()-atom_start_time
+        if ARGS.very_verbose:
+            print(sentence)
+            print(f'detect_langs time: {self.detect_langs_time:.3f}')
+            print(f'parse time: {self.parse_time:.3f}')
+            print(f'atom build time: {self.atoms_time:.3f}\n')
+        return atoms
+
+    def atoms_from_caption_list(self,caption_list,verbose):
+        self.init_times()
+        all_atoms_as_lists = []
+        for caption in caption_list:
+            new_atoms = self.atom_predict(caption)
+            all_atoms_as_lists += new_atoms
+        all_atoms_as_tuples = tuplify(all_atoms_as_lists)
+        unique_atoms_as_tuples = list(set(all_atoms_as_tuples))
+        if verbose:
+            print(f'detect_langs time: {self.detect_langs_time:.3f}')
+            print(f'parse time: {self.parse_time:.3f}')
+            print(f'atom build time: {self.atoms_time:.3f}')
+        if ARGS.very_verbose:
+            print('\n=====================\n')
+        return unique_atoms_as_tuples
+
 def merge_graphs(data):
     """Takes, in the form of a json file, an entire dataset where different
     sentences for the same video are listed separately. Merges such sentences
@@ -168,18 +221,36 @@ def convert_logical_caption(caption):
 
 if __name__ == "__main__":
 
-    nlp = stanza.Pipeline()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--break_after',type=int,default=-1)
+    parser.add_argument('--start_at',type=int,default=0)
+    parser.add_argument('--dset',type=str,required=True,choices=['MSVD','MSRVTT'])
+    parser.add_argument('--gpu',type=str,default='0')
+    parser.add_argument('--test','-t',action='store_true')
+    parser.add_argument('--verbose','-v',action='store_true')
+    parser.add_argument('--very_verbose','-vv',action='store_true')
+    ARGS = parser.parse_args()
 
-    dset_name = sys.argv[1]
-    #for dset_name in ['MSVD','MSRVTT']:
-    #for dset_name in ['MSRVTT']:
-    with open(f'{dset_name}_captions.json') as f: data = json.load(f)
+    os.environ['CUDA_VISIBLE_DEVICES'] = ARGS.gpu
+    stanza_parser = stanza.Pipeline()
+
+    semantic_parser = SemanticParser(stanza_parser,single_words_only=False)
+    with open(f'{ARGS.dset}_captions.json') as f: data = json.load(f)
     logical_captions_by_vid_id = {}
-    for vid_id,caption_list in data.items():
-        #try: atoms = list(set(tuplify([item for caption in caption_list for item in atom_predict(caption,False)])))
-        #except: breakpoint()
-        atoms = list(set(tuplify([item for caption in caption_list for item in atom_predict(caption,False)])))
-        logical_captions_by_vid_id[vid_id] = {'atoms':atoms, 'captions':caption_list, 'video_id':vid_id}
-
-        print(vid_id)
-    with open(f'{dset_name}_parsed_captions.json', 'w') as f: json.dump(logical_captions_by_vid_id, f)
+    it = 0
+    for vid_id,vid_caption_list in data.items():
+        #atoms = list(set(tuplify([item for caption in caption_list for item in atom_predict(caption,False)])))
+        if it < ARGS.start_at:
+            it += 1
+            continue
+        print('processing', vid_id)
+        atoms = semantic_parser.atoms_from_caption_list(vid_caption_list,verbose=ARGS.verbose)
+        #all_atoms_as_lists = [item for caption in caption_list for item in semantic_parser.atom_predict(caption,False)]
+        #all_atoms_as_tuples = tuplify(all_atoms_as_lists)
+        #unique_atoms_as_tuples = list(set(all_atoms_as_tuples))
+        logical_captions_by_vid_id[vid_id] = {'atoms':atoms, 'captions':vid_caption_list, 'video_id':vid_id}
+        if ARGS.test: break
+        if it==ARGS.break_after: break
+        it+=1
+    outfpath = f'{ARGS.dset}_jim.json' if ARGS.test else f'{ARGS.dset}_parsed_captions.json'
+    with open(outfpath, 'w') as f: json.dump(logical_captions_by_vid_id, f)

@@ -7,7 +7,7 @@ Eg
     python w2v_wn_links.py MSVD
 """
 
-from pdb import set_trace
+import argparse
 import numpy as np
 from time import time
 import pdb
@@ -77,7 +77,7 @@ class WN_Linker():
         if len(synsets) == 0: synsets = orig_synsets
         #sims = softmax([self.compute_similarity(context,ss) for ss in synsets])
         if len(synsets) == 0:
-            #set_trace()
+            #breakpoint()
             #print('no synsets for',word)
             self.no_synsets.append(word)
             return None
@@ -135,11 +135,21 @@ def convert_logical_caption(caption):
 if __name__ == "__main__":
 
     import json
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--break_after',type=int,default=-1)
+    parser.add_argument('--start_at',type=int,default=0)
+    parser.add_argument('--dset',type=str,required=True,choices=['MSVD','MSRVTT'])
+    parser.add_argument('--test','-t',action='store_true')
+    parser.add_argument('--verbose','-v',action='store_true')
+    parser.add_argument('--very_verbose','-vv',action='store_true')
+    ARGS = parser.parse_args()
+
     w = KeyedVectors.load_word2vec_format('../data/w2v_vecs.bin',binary=True,limit=20000)
     print('model loaded')
     try: stopwords = nltk.corpus.stopwords.words('english')
     except LookupError:
         nltk.download('stopwords')
+        nltk.download('omw-1.4')
         stopwords = nltk.corpus.stopwords.words('english')
     try: linker = WN_Linker(w,stopwords)
     except LookupError:
@@ -152,16 +162,19 @@ if __name__ == "__main__":
     except LookupError:
         nltk.download('universal_tagset')
 
-    for dset in ['MSVD','MSRVTT']:
-        json_fn = f'{dset}_parsed_captions.json'
-        with open(json_fn) as f:
-            d=json.load(f)
-        new_dps = []
-        for vidid,dp in d.items():
-            atoms_with_synsets = linker.get_synsets_of_rule_parse(dp,convert=False)
-            # Discard atoms that have a component that hasn't been linked to WN
-            new_dp = dict(dp, **{'atoms_with_synsets': [atom for atom in atoms_with_synsets if not any([i[1] == None for i in atom])]})
-            new_dps.append(new_dp)
+    #for dset in ['MSVD','MSRVTT']:
+    print('PROCESSING', ARGS.dset)
+    json_fn = f'{ARGS.dset}_parsed_captions.json'
+    with open(json_fn) as f:
+        d=json.load(f)
+    new_dps = []
+    print(len(d))
+    for vidid,dp in d.items():
+        if ARGS.verbose: print(vidid)
+        atoms_with_synsets = linker.get_synsets_of_rule_parse(dp,convert=False)
+        # Discard atoms that have a component that hasn't been linked to WN
+        new_dp = dict(dp, **{'atoms_with_synsets': [atom for atom in atoms_with_synsets if not any([i[1] == None for i in atom])]})
+        new_dps.append(new_dp)
 
-        with open(f'{dset}_linked_parsed_captions.json','w') as f:
-            json.dump(new_dps,f)
+    with open(f'{ARGS.dset}_linked_parsed_captions.json','w') as f:
+        json.dump(new_dps,f)
