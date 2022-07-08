@@ -1,4 +1,5 @@
 import numpy as np
+from dl_utils.misc import check_dir
 import torch
 
 class EarlyStopper:
@@ -32,7 +33,8 @@ class EarlyStopper:
 
     def save_checkpoint(self, val_loss, model_dict, exp_name):
         '''Saves model when validation loss decreases.'''
-        filename = '/data1/louis/checkpoints/{}.pt'.format(exp_name)
+        check_dir('../data/checkpoints')
+        filename = '../data/checkpoints/{}.pt'.format(exp_name)
         print(f'Validation loss decreased ({self.val_loss_min} --> {val_loss}).  Saving model to {filename} ...')
         try: torch.save(model_dict,filename)
         except FileNotFoundError: print(f"Can't save file to {filename} because the directory doesn't exist.")

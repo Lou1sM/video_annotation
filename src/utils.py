@@ -13,6 +13,13 @@ from datetime import datetime
 from pdb import set_trace
 
 
+def acc_f1_from_binary_confusion_mat(tp,fp,tn,fn):
+    prec = tp/(tp+fp+1e-4)
+    rec = tp/(tp+fn+1e-4)
+    f1 = 2/((1/(prec+1e-4))+(1/(rec+1e-4)))
+    acc = (tp+tn)/(tp+fp+fn+tn)
+    return acc, f1
+
 def tuplify(x): return [tuple(item) for item in x]
 
 def get_w2v_vec(word,w2v_table):

@@ -16,7 +16,6 @@ from torch import optim
 import torch.nn.functional as F
 from torchvision import datasets, models, transforms
 from early_stopper import EarlyStopper
-import pretrainedmodels
 
 
 class EncoderRNN(nn.Module):

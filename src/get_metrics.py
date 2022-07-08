@@ -7,6 +7,7 @@ average probability assigned to positive facts and negative facts respectively.
 import json
 import numpy as np
 from get_pred import compute_probs_for_dataset
+from utils import acc_f1_from_binary_confusion_mat
 
 
 def compute_dset_fragment_scores(dl,encoder,multiclassifier,dataset_dict,fragment_name,ARGS):
@@ -15,11 +16,11 @@ def compute_dset_fragment_scores(dl,encoder,multiclassifier,dataset_dict,fragmen
     false individuals and predicates; then thresholds and computes metrics.
     """
 
-    pos_classifications,neg_classifications,pos_predictions,neg_predictions,perfects = compute_probs_for_dataset(dl,encoder,multiclassifier,dataset_dict,ARGS.i3d)
-    classification_scores = find_best_thresh_from_probs(pos_classifications,neg_classifications)
-    prediction_scores = find_best_thresh_from_probs(pos_predictions,neg_classifications)
-    classification_scores['dset_fragment'] = fragment_name
-    prediction_scores['dset_fragment'] = fragment_name
+    pos_classifs,neg_classifs,pos_preds,neg_preds,perfects,acc,f1 = compute_probs_for_dataset(dl,encoder,multiclassifier,dataset_dict,ARGS.i3d)
+    classif_scores = find_best_thresh_from_probs(pos_classifs,neg_classifs)
+    pred_scores = find_best_thresh_from_probs(pos_preds,neg_classifs)
+    classif_scores['dset_fragment'] = fragment_name
+    pred_scores['dset_fragment'] = fragment_name
     for vid_id,num_atoms in perfects.items():
         if num_atoms < 2: continue
         assert num_atoms == len(dataset_dict['dataset'][vid_id]['pruned_atoms_with_synsets'])
@@ -27,7 +28,7 @@ def compute_dset_fragment_scores(dl,encoder,multiclassifier,dataset_dict,fragmen
     perfects_path = f'../experiments/{ARGS.exp_name}/train_perfects.json'
     open(perfects_path,'a').close()
     with open(perfects_path,'w') as f: json.dump(perfects,f)
-    return classification_scores, prediction_scores, perfects
+    return classif_scores, pred_scores, perfects, acc, f1
 
 def compute_scores_for_thresh(positive_probs, negative_probs, thresh):
     tp = len([p for p in positive_probs if p>thresh])
@@ -35,13 +36,9 @@ def compute_scores_for_thresh(positive_probs, negative_probs, thresh):
     fn = len([p for p in positive_probs if p<thresh])
     tn = len([p for p in negative_probs if p<thresh])
 
-    prec = tp/(tp+fp+1e-4)
-    rec = tp/(tp+fn+1e-4)
-    f1 = 2/((1/(prec+1e-4))+(1/(rec+1e-4)))
-    acc = (tp+tn)/(tp+fp+fn+tn)
+    acc, f1 = acc_f1_from_binary_confusion_mat(tp,fp,tn,fn)
 
     return tp, fp, fn, tn, f1, acc
-
 
 def find_best_thresh_from_probs(positive_probs, negative_probs):
     """Compute accuracy and f1 by thresholding probabilities for positive and
