@@ -138,11 +138,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--break_after',type=int,default=-1)
     parser.add_argument('--start_at',type=int,default=0)
-    parser.add_argument('--dset',type=str,required=True,choices=['MSVD','MSRVTT'])
+    parser.add_argument('--dset',type=str,choices=['MSVD','MSRVTT'])
     parser.add_argument('--test','-t',action='store_true')
     parser.add_argument('--verbose','-v',action='store_true')
     parser.add_argument('--very_verbose','-vv',action='store_true')
+    parser.add_argument('--infpath',type=str)
+    parser.add_argument('--outfpath',type=str)
     ARGS = parser.parse_args()
+
+    assert ARGS.dset is not None or (ARGS.infpath is not None and ARGS.outfpath is not None)
 
     w = KeyedVectors.load_word2vec_format('../data/w2v_vecs.bin',binary=True,limit=20000)
     print('model loaded')
@@ -164,8 +168,8 @@ if __name__ == "__main__":
 
     #for dset in ['MSVD','MSRVTT']:
     print('PROCESSING', ARGS.dset)
-    json_fn = f'{ARGS.dset}_parsed_captions.json'
-    with open(json_fn) as f:
+    infpath = ARGS.infpath if ARGS.infpath is not None else f'{ARGS.dset}_parsed_captions.json'
+    with open(infpath) as f:
         d=json.load(f)
     new_dps = []
     print(len(d))
@@ -176,5 +180,6 @@ if __name__ == "__main__":
         new_dp = dict(dp, **{'atoms_with_synsets': [atom for atom in atoms_with_synsets if not any([i[1] == None for i in atom])]})
         new_dps.append(new_dp)
 
-    with open(f'{ARGS.dset}_linked_parsed_captions.json','w') as f:
+    outfpath = ARGS.outfpath if ARGS.outfpath is not None else f'{ARGS.dset}_linked_parsed_captions.json'
+    with open(outfpath,'w') as f:
         json.dump(new_dps,f)

@@ -5,17 +5,15 @@ and write the parsed dataset, which also contains logical captions, to a new
 json file at <dset_name>_parsed_captions.json.
 """
 
-import sys
-import math
 from time import time
 import json
-#import stanza
+import stanza
+from utils import tuplify
 from nltk.stem import WordNetLemmatizer
 import os
 from copy import copy
-from langdetect import detect, detect_langs
+from langdetect import detect_langs
 import argparse
-from utils import tuplify
 
 lemmatizer = WordNetLemmatizer()
 #with open('5000_words.txt') as f: COMMON_ENG_WORDS=f.read().splitlines()
@@ -224,18 +222,23 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--break_after',type=int,default=-1)
     parser.add_argument('--start_at',type=int,default=0)
-    parser.add_argument('--dset',type=str,required=True,choices=['MSVD','MSRVTT'])
+    parser.add_argument('--dset',type=str,choices=['MSVD','MSRVTT'])
     parser.add_argument('--gpu',type=str,default='0')
+    parser.add_argument('--infpath',type=str)
+    parser.add_argument('--outfpath',type=str)
     parser.add_argument('--test','-t',action='store_true')
     parser.add_argument('--verbose','-v',action='store_true')
     parser.add_argument('--very_verbose','-vv',action='store_true')
     ARGS = parser.parse_args()
 
+    assert ARGS.dset is not None or (ARGS.infpath is not None and ARGS.outfpath is not None)
+
     os.environ['CUDA_VISIBLE_DEVICES'] = ARGS.gpu
     stanza_parser = stanza.Pipeline()
 
     semantic_parser = SemanticParser(stanza_parser,single_words_only=False)
-    with open(f'{ARGS.dset}_captions.json') as f: data = json.load(f)
+    infpath = ARGS.infpath if ARGS.infpath is not None else f'{ARGS.dset}_captions.json'
+    with open(infpath) as f: data = json.load(f)
     logical_captions_by_vid_id = {}
     it = 0
     for vid_id,vid_caption_list in data.items():
@@ -244,13 +247,20 @@ if __name__ == "__main__":
             it += 1
             continue
         print('processing', vid_id)
+        assert type(vid_caption_list) in (list,str)
+        if isinstance(vid_caption_list,str):
+            vid_caption_list = [vid_caption_list]
         atoms = semantic_parser.atoms_from_caption_list(vid_caption_list,verbose=ARGS.verbose)
         #all_atoms_as_lists = [item for caption in caption_list for item in semantic_parser.atom_predict(caption,False)]
         #all_atoms_as_tuples = tuplify(all_atoms_as_lists)
         #unique_atoms_as_tuples = list(set(all_atoms_as_tuples))
         logical_captions_by_vid_id[vid_id] = {'atoms':atoms, 'captions':vid_caption_list, 'video_id':vid_id}
+        print(atoms)
         if ARGS.test: break
         if it==ARGS.break_after: break
         it+=1
-    outfpath = f'{ARGS.dset}_jim.json' if ARGS.test else f'{ARGS.dset}_parsed_captions.json'
+    if ARGS.outfpath is not None:
+        outfpath = ARGS.outfpath
+    else:
+        outfpath = f'{ARGS.dset}_jim.json' if ARGS.test else f'{ARGS.dset}_parsed_captions.json'
     with open(outfpath, 'w') as f: json.dump(logical_captions_by_vid_id, f)
